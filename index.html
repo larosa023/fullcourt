@@ -67,6 +67,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; background: var(--bg); }
 html.locked, html.locked body { overflow: hidden; }
 body {
@@ -706,7 +707,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .shot-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px; }
 .shot-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .shot-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-@media (min-width: 1000px) { .sheet.full .shot-wrap { grid-template-columns: minmax(0, 560px) minmax(220px, 1fr); } }
+@media (min-width: 1200px) { .sheet.full .shot-wrap { grid-template-columns: minmax(0, 1fr) minmax(190px, 240px); } }
 
 /* game flow */
 .flow svg { width: 100%; height: auto; display: block; }
@@ -2559,7 +2560,7 @@ function findRuns(ev) {
 function flowCard(d, sides) {
   const { pts, ev, end, maxPer } = flowData(d);
   if (ev.length < 4) return '';
-  const W = 600, H = 190, L = 10, R = 10, T = 16, B = 22;
+  const W = 600, H = 210, L = 10, R = 10, T = 26, B = 36;
   const maxAbs = Math.max(5, Math.ceil(Math.max(...pts.map(p => Math.abs(p[1]))) / 5) * 5);
   const x = t => L + (t / end) * (W - L - R), mid = T + (H - T - B) / 2, y = m => mid - (m / maxAbs) * ((H - T - B) / 2);
   let path = `M${x(0).toFixed(1)} ${y(0).toFixed(1)}`;
@@ -2585,15 +2586,15 @@ function flowCard(d, sides) {
         <clipPath id="fb${n}"><rect x="0" y="${mid}" width="${W}" height="${H - mid}"/></clipPath>
       </defs>
       ${runs.map(r => `<rect x="${x(r.t0) - 2}" y="${T - 4}" width="${Math.max(4, x(r.t1) - x(r.t0) + 4)}" height="${H - T - B + 8}" rx="3" fill="${r.team === 'home' ? 'var(--sideB)' : 'var(--sideA)'}" opacity=".12"/>
-        <text x="${(x(r.t0) + x(r.t1)) / 2}" y="${T - 6 + (r.team === 'home' ? 0 : H - T - B + 20)}" text-anchor="middle" class="ax run">${esc(abbr(r.team))} ${r.tp}–${r.op}</text>`).join('')}
+        <text x="${Math.min(W - 30, Math.max(30, (x(r.t0) + x(r.t1)) / 2))}" y="${r.team === 'home' ? T - 9 : H - B + 15}" text-anchor="middle" class="ax run">${esc(abbr(r.team))} ${r.tp}–${r.op}</text>`).join('')}
       ${qs.map(t => `<line x1="${x(t)}" x2="${x(t)}" y1="${T}" y2="${H - B}" stroke="var(--line)"/>`).join('')}
       <line x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}" stroke="var(--muted)" stroke-dasharray="3 4" opacity=".7"/>
       <path d="${area}" fill="var(--sideB)" opacity=".28" clip-path="url(#fa${n})"/>
       <path d="${area}" fill="var(--sideA)" opacity=".28" clip-path="url(#fb${n})"/>
       <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
       <circle cx="${x(lastT)}" cy="${y(pts.at(-1)[1])}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-      <text x="${L + 2}" y="${T + 10}" class="ax">${esc(sides[1].abbr)} +${maxAbs}</text>
-      <text x="${L + 2}" y="${H - B - 4}" class="ax">${esc(sides[0].abbr)} +${maxAbs}</text>
+      <text x="${L + 4}" y="${T + 11}" class="ax">${esc(sides[1].abbr)} +${maxAbs}</text>
+      <text x="${L + 4}" y="${H - B - 5}" class="ax">${esc(sides[0].abbr)} +${maxAbs}</text>
       ${qLabels}
     </svg>
     <div class="flow-facts">
