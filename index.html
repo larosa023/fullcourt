@@ -555,7 +555,7 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 
 /* ---------- responsive ---------- */
 /* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
-:root { --hl: color-mix(in oklab, var(--accent) 60%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(18 20 23 / .06), 0 16px 32px -14px rgb(18 20 23 / .28); }
+:root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(18 20 23 / .06), 0 16px 32px -14px rgb(18 20 23 / .28); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
 :root[data-theme="dark"] { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); }
 .mini-row, .lrow, .tl, .std td, .box td { transition: background .18s, box-shadow .18s; }
