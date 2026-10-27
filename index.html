@@ -22,21 +22,22 @@
 <style>
 /* Layout: sticky masthead + draggable date rail; scores grid with a standings sidebar; everything opens in stacked flyouts (side drawers on desktop, bottom sheets on phones). */
 :root {
-  --bg: #ECEEEA;
-  --surface: #FFFFFF;
-  --surface-2: #F5F6F3;
-  --surface-3: #E3E6E0;
-  --ink: #121417;
-  --ink-2: #2F343B;
-  --muted: #646B76;
-  --line: #D8DCD4;
-  --accent: #E0521A;
+  /* light mode: warm tan paper instead of bright white */
+  --bg: #E8DFCF;
+  --surface: #F4EDE0;
+  --surface-2: #EDE4D4;
+  --surface-3: #DED2BD;
+  --ink: #1F1A13;
+  --ink-2: #3B342A;
+  --muted: #675F51;
+  --line: #D3C5AD;
+  --accent: #B33E14;
   --accent-ink: #FFFFFF;
-  --live: #E5194F;
-  --win: #11864A;
-  --loss: #C23A2E;
-  --shadow: 0 1px 2px rgb(18 20 23 / .06), 0 8px 24px -12px rgb(18 20 23 / .18);
-  --scrim: rgb(14 16 19 / .38);
+  --live: #B8113F;
+  --win: #0B6838;
+  --loss: #A82F24;
+  --shadow: 0 1px 2px rgb(60 44 22 / .07), 0 8px 24px -12px rgb(60 44 22 / .22);
+  --scrim: rgb(38 28 14 / .36);
 
   --display: 'Archivo', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
   --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -627,7 +628,7 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 }
 /* =================== UPGRADES =================== */
 :root {
-  --sideA: #D9541E; --sideB: #2F6FD6;
+  --sideA: #C24A18; --sideB: #2560C2;
   --court: color-mix(in oklab, var(--surface-2) 70%, #E9D3B4); --court-line: color-mix(in oklab, var(--ink) 45%, transparent); --court-paint: color-mix(in oklab, var(--accent) 7%, transparent);
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sideA: #FF8A4C; --sideB: #6AA5FF; --court: #171B21; --court-line: color-mix(in oklab, var(--ink) 30%, transparent); --court-paint: color-mix(in oklab, var(--accent) 6%, transparent); } }
@@ -945,7 +946,7 @@ button.bk-t:hover { background: var(--hl-bg); }
 @media (max-width: 760px) { .ask-vs { grid-template-columns: 1fr; } .msg.me { max-width: 90%; } .ask-odds { padding-left: 8px; } }
 
 /* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
-:root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(18 20 23 / .06), 0 16px 32px -14px rgb(18 20 23 / .28); }
+:root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(60 44 22 / .07), 0 16px 32px -14px rgb(60 44 22 / .3); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
 :root[data-theme="dark"] { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); }
 .mini-row, .lrow, .tl, .std td, .box td { transition: background .18s, box-shadow .18s; }
@@ -1404,7 +1405,7 @@ function setTheme(next, origin) {
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('fc-theme', next); } catch (e) {}
     $$('img.lg').forEach(i => { i.onerror = null; i.src = logoSrc(i.dataset.ab, +i.dataset.s); i.onerror = () => { i.onerror = null; i.src = logoSrc(i.dataset.ab, +i.dataset.s, false); }; });
-    $('meta[name="theme-color"]').content = next === 'dark' ? '#0C0E11' : '#ECEEEA';
+    $('meta[name="theme-color"]').content = next === 'dark' ? '#0C0E11' : '#E8DFCF';
   };
   if (!document.startViewTransition || reduced) return apply();
   const r = origin.getBoundingClientRect();
