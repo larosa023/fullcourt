@@ -556,8 +556,9 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .glog { display: grid; gap: 0; }
 
 /* toast */
-.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 140%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; z-index: 120; transition: transform .45s var(--ease); max-width: calc(100vw - 32px); }
-.toast.on { transform: translate(-50%, 0); }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, calc(100% + 48px)); opacity: 0; visibility: hidden; transition: transform .45s var(--ease), opacity .3s, visibility 0s .45s; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; z-index: 120; max-width: calc(100vw - 32px); }
+.toast.on { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform .45s var(--ease), opacity .3s; }
+.toast:empty { display: none; }
 
 /* ---------- responsive ---------- */
 /* ---------- full-screen flyout ---------- */
