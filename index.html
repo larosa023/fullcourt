@@ -3088,10 +3088,10 @@ const STAT_RES = [
   ['ftm', /\bfree[ -]throws?\b/],
   ['pm', /\b(plus[ -]?minus|\+\/-)/],
   ['pts', /\b(points?|pts|scor(e|ed|er|ers|es|ing)|ppg|buckets)\b/],
-  ['reb', /\b(rebounds?|boards|rebs?|rpg)\b/],
-  ['ast', /\b(assists?|dimes|asts?|apg)\b/],
-  ['stl', /\b(steals?|stls?|spg)\b/],
-  ['blk', /\b(blocks?|blks?|bpg|rejections?)\b/],
+  ['reb', /\b(rebound(s|ing|er|ers)?|boards|rebs?|rpg)\b/],
+  ['ast', /\b(assist(s|ing)?|dimes|asts?|apg|passing|playmaking)\b/],
+  ['stl', /\b(steal(s|ing)?|stls?|spg)\b/],
+  ['blk', /\b(block(s|ing|ed)?|blks?|bpg|rejections?|shot blocking)\b/],
   ['tov', /\b(turnovers?|tovs?|giveaways)\b/],
   ['min', /\b(minutes|mins|mpg)\b/],
 ];
@@ -3116,7 +3116,7 @@ const STOP = new Set(('how many much what whats who whos whose which when where 
   'team teams player players compare compared vs. than better more less good doing been total totals number numbers lately recent recently right now currently ' +
   'east eastern west western conference conf rank ranked ranking where place first second seed seeds back over under o u favored favorite underdog win won lose lost beat result final ' +
   'night week month october november december january february march april monday tuesday wednesday thursday friday saturday sunday s 1st 2nd 3rd th ' +
-  'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys').split(' '));
+  'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys rebounding assisting passing blocking stealing playmaking').split(' '));
 
 /* ---------------- data helpers ---------------- */
 async function leagueTable() {
@@ -3520,7 +3520,8 @@ async function aNightLeaders(date, stat, opts) {
   }
   if (opts.min != null) {
     list = rows.filter(r => valOf(r, k) >= opts.min).sort((a, b) => valOf(b, k) - valOf(a, k));
-    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? verb1 : verbN} ${opts.min}+ ${STAT[k].unit} ${when}${suffix}.` : `Nobody reached ${opts.min} ${STAT[k].unit} ${when}${suffix}.`;
+    const names = list.length <= 4 ? ': ' + list.map(r => `${esc(r.name)} (${valOf(r, k)})`).join(', ') : '';
+    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? verb1 : verbN} ${opts.min}+ ${STAT[k].unit} ${when}${suffix}${names}.` : `Nobody reached ${opts.min} ${STAT[k].unit} ${when}${suffix}.`;
   } else {
     list = rows.filter(r => Number.isFinite(valOf(r, k))).sort((a, b) => (opts.asc ? 1 : -1) * (valOf(a, k) - valOf(b, k)));
     const top = list[0];
@@ -3546,7 +3547,11 @@ async function aLeaders(stat, opts, rows) {
   const scope = opts.teamId ? `the ${esc(teamNick(opts.teamId))}` : opts.conf != null ? `the ${opts.conf ? 'West' : 'East'}` : 'the NBA';
   const fmtV = r => S1.pct ? fpct(val(r)) : useTot ? String(Math.round(val(r))) : f1(val(r));
   const unit = S1.pct ? '' : useTot ? ` ${S1.label}` : ` ${S1.unit} per game`;
-  const text = `<b>${esc(top.name)}</b> ${opts.asc ? 'has the fewest' : 'leads'} ${scope} ${opts.asc ? S1.label : 'with ' + `<b>${fmtV(top)}${unit}</b>`}${opts.asc ? ` (${fmtV(top)})` : ''}${S1.pct ? ` ${k === 'fgp' ? 'from the field' : k === 'tpp' ? 'from three' : 'from the line'}` : ''}.`;
+  const where = S1.pct ? ` ${k === 'fgp' ? 'from the field' : k === 'tpp' ? 'from three' : 'from the line'}` : '';
+  const amount = S1.pct ? fmtV(top) : useTot ? `${Math.round(val(top))} ${Math.round(val(top)) === 1 ? S1.label.replace(/s$/, '') : S1.label}` : `${f1(val(top))} ${S1.unit} per game`;
+  const text = opts.asc
+    ? `<b>${esc(top.name)}</b> has the lowest ${S1.pct ? S1.label : useTot ? S1.label : S1.unit + ' per game'} in ${scope}: <b>${S1.pct ? fmtV(top) : useTot ? Math.round(val(top)) : f1(val(top))}</b>${where}.`
+    : `<b>${esc(top.name)}</b> leads ${scope} with <b>${amount}</b>${where}.`;
   const note = !useTot && !opts.teamId ? `<p class="ask-note">Players with at least half their team's games${k === 'tpp' ? ' and 2.5 three-point attempts a game' : k === 'fgp' ? ' and 5 shots a game' : k === 'ftp' ? ' and 2 free throws a game' : ''}.</p>` : '';
   return { text, html: card(list.map((r, i) => pRow(r, `${fmtV(r)}`, `${i + 1}. ${r.pos} · ${plural(r.gp, 'game')}`)).join('') + note) };
 }
@@ -3588,7 +3593,8 @@ async function answer(raw) {
 
   // follow-up context ("what about rebounds?", "his last 5 games")
   const pronoun = has(/ (he|his|him|what about|how about|and) /);
-  if (!players.length && !teams.length && (stat || time) && ASK.ctx.pid && (pronoun || !leftover.length) && !has(/ (who|leaders?|leads|most|top|everyone|anyone|league) /)) {
+  const shortQ = nn.trim().split(' ').length <= 3;
+  if (!players.length && !teams.length && (stat || time) && ASK.ctx.pid && (pronoun || (shortQ && !leftover.length)) && !has(/ (who|whos|leaders?|leads|most|top|best|highest|lowest|fewest|worst|everyone|anyone|league|nba|rank\w*) /)) {
     const p = rows.find(r => r.id === ASK.ctx.pid); if (p) players.push(p);
     if (!time && ASK.ctx.time) time = ASK.ctx.time;
   }
