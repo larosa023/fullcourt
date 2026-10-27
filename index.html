@@ -554,6 +554,41 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .toast.on { transform: translate(-50%, 0); }
 
 /* ---------- responsive ---------- */
+/* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
+:root { --hl: color-mix(in oklab, var(--accent) 60%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(18 20 23 / .06), 0 16px 32px -14px rgb(18 20 23 / .28); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
+:root[data-theme="dark"] { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); }
+.mini-row, .lrow, .tl, .std td, .box td { transition: background .18s, box-shadow .18s; }
+.pcard .ph img.face, .lrow .face, .tl img.f, .gh-team b { transition: transform .35s var(--ease), color .2s; }
+
+@media (hover: hover) and (pointer: fine) {
+  /* cards: lift + orange outline */
+  .game:hover, .pcard:hover, .ttile:hover, .rp:hover, .sg:hover {
+    transform: translateY(-4px); box-shadow: var(--lift); border-color: var(--hl);
+  }
+  .game.live:hover { border-color: color-mix(in oklab, var(--live) 70%, var(--line)); }
+  .game:hover .tname b, .ttile:hover b, .pcard:hover .pi b, .rp:hover .in b { color: var(--accent); }
+  .game:hover .trow.lose .tname b { color: color-mix(in oklab, var(--accent) 70%, var(--muted)); }
+  .pcard:hover .ph img.face { transform: scale(1.05); }
+  .hero-card:hover { transform: translateY(-4px); box-shadow: var(--lift), 0 0 0 2px var(--hl); }
+
+  /* list rows: tinted fill + accent edge */
+  .mini-row:hover, .lrow:hover, .tl:hover { background: var(--hl-bg); box-shadow: inset 3px 0 0 var(--accent); }
+  .mini-row:hover .nm, .lrow:hover .nm b, .tl:hover b { color: var(--accent); }
+  .lrow:hover .face, .tl:hover img.f { transform: scale(1.08); }
+  .std tbody tr:hover td { background: var(--hl-bg); }
+  .std tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  .std tbody tr:hover .team-cell b, .std tbody tr:hover .team-cell .ab { color: var(--accent); }
+  .box tbody tr[data-player]:hover td { background: var(--hl-bg); }
+  .box tbody tr[data-player]:hover td:first-child { box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--line); }
+  .box tbody tr[data-player]:hover .pl b { color: var(--accent); }
+  .split-tbl tr[data-game]:hover td { background: var(--hl-bg); }
+  .gh-team:hover b { color: var(--accent); }
+}
+/* a quick press-in on every tappable item, phones included */
+.game:active, .pcard:active, .ttile:active, .rp:active, .sg:active, .hero-card:active { transform: translateY(-1px) scale(.985); transition-duration: .08s; }
+.mini-row:active, .lrow:active, .tl:active { background: var(--hl-bg); }
+
 @media (max-width: 1080px) {
   .scores-grid { grid-template-columns: minmax(0, 1fr); }
   .side { position: static; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
