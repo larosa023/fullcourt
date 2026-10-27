@@ -3362,7 +3362,9 @@ async function aPlayerLastN(p, n, stat, oppTeam) {
   const avg = k => take.reduce((s, e) => s + (k === 'tpm' ? e.tp[0] : k === 'ftm' ? e.ft[0] : e[k]), 0) / take.length;
   const sum = (arr, i) => take.reduce((s, e) => s + e[arr][i], 0);
   const pct = arr => { const a = sum(arr, 1); return a ? (sum(arr, 0) / a * 100).toFixed(1) + '%' : '–'; };
-  const span = oppTeam ? `against the ${esc(oppTeam.short || oppTeam.name)} this season (${plural(take.length, 'game')})` : take.length === 1 ? 'in his last game' : `over his last ${take.length} games`;
+  const span = oppTeam ? `against the ${esc(oppTeam.short || oppTeam.name)} this season (${plural(take.length, 'game')})`
+    : take.length === 1 ? 'in his last game'
+    : take.length < n ? `in all ${take.length} games he's played this season` : `over his last ${take.length} games`;
   let text;
   if (take.length === 1 && !oppTeam) {
     const e = take[0];
@@ -3508,16 +3510,17 @@ async function aNightLeaders(date, stat, opts) {
   let list = rows, text;
   const k = stat || 'pts';
   const suffix = anyLive ? ' (games still in progress)' : '';
+  const verb1 = anyLive || date === S.today ? 'has' : 'had', verbN = anyLive || date === S.today ? 'have' : 'had';
   if (opts.td || opts.dd) {
     const need = opts.td ? 3 : 2;
     list = rows.filter(r => dblCount(r) >= need).sort((a, b) => b.pts - a.pts);
     const w = opts.td ? 'triple-double' : 'double-double';
-    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? 'has' : 'have'} a ${w} ${when}${suffix}${list.length <= 3 ? ': ' + list.map(r => esc(r.name)).join(', ') : ''}.` : `Nobody had a ${w} ${when}${suffix}.`;
+    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? verb1 : verbN} a ${w} ${when}${suffix}${list.length <= 3 ? ': ' + list.map(r => esc(r.name)).join(', ') : ''}.` : `Nobody had a ${w} ${when}${suffix}.`;
     return { text, html: list.length ? card(list.slice(0, 15).map(r => pRow(r, `${r.pts}/${r.reb}/${r.ast}`, `vs ${r.opp}`)).join('') + `<p class="ask-note">Points / rebounds / assists</p>`) : '' };
   }
   if (opts.min != null) {
     list = rows.filter(r => valOf(r, k) >= opts.min).sort((a, b) => valOf(b, k) - valOf(a, k));
-    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? 'has' : 'have'} ${opts.min}+ ${STAT[k].unit} ${when}${suffix}.` : `Nobody reached ${opts.min} ${STAT[k].unit} ${when}${suffix}.`;
+    text = list.length ? `<b>${plural(list.length, 'player')}</b> ${list.length === 1 ? verb1 : verbN} ${opts.min}+ ${STAT[k].unit} ${when}${suffix}.` : `Nobody reached ${opts.min} ${STAT[k].unit} ${when}${suffix}.`;
   } else {
     list = rows.filter(r => Number.isFinite(valOf(r, k))).sort((a, b) => (opts.asc ? 1 : -1) * (valOf(a, k) - valOf(b, k)));
     const top = list[0];
@@ -3635,14 +3638,14 @@ async function answer(raw) {
 
   // team leaders
   if (teams.length && (st || dd || td || has(/ (leaders?|leads|leading|best|top|most) /)))
-    return aLeaders(dd ? 'dd' : td ? 'td' : st || 'pts', { teamId: teams[0].id, asc, n: topN, total });
+    return aLeaders(dd ? 'dd' : td ? 'td' : st || 'pts', { teamId: teams[0].id, asc, n: topN, total }, rows);
 
   // league leaders
   if (st || dd || td) {
     if (minVal != null) return aNightLeaders(lastNight(), st || 'pts', { min: minVal });
-    return aLeaders(dd ? 'dd' : td ? 'td' : st, { conf, asc, n: topN, total });
+    return aLeaders(dd ? 'dd' : td ? 'td' : st, { conf, asc, n: topN, total }, rows);
   }
-  if (has(/ (leaders?|leads|mvp|best player|top players?) /)) return aLeaders('pts', { conf, n: topN });
+  if (has(/ (leaders?|leads|mvp|best player|top players?) /)) return aLeaders('pts', { conf, n: topN }, rows);
 
   if (teams.length) return aTeamSummary(teams[0], rows);
   return { text: `I couldn't match that to a player, team or stat. Try naming a player or team, a stat (points, rebounds, assists, threes…) and a time (last night, last 5 games, this season).`, examples: true, miss: true };
