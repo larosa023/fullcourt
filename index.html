@@ -1440,7 +1440,7 @@ function go(view, push = true) {
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
   $$('#nav [data-view], #tabbar [data-view], #drawer [data-view]').forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   movePill();
-  if (push && location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
+  if (push && location.hash !== '#' + view) { if (S.skipPop) S.pendingHash = view; else history.replaceState(null, '', '#' + view); }
   if (view === 'standings') renderStandings();
   if (view === 'teams') renderTeams();
   if (view === 'leaders') loadLeaders();
@@ -2021,6 +2021,8 @@ function openSheet(title) {
   stack.forEach(s => s.el.classList.add('behind'));
   const sheet = { el, body: $('.sheet-body', el), timers: [], alive: true };
   stack.push(sheet);
+  // each open panel is a step in browser history, so Back (mouse button, keyboard, swipe) closes it
+  try { history.pushState({ fc: 1, depth: stack.length }, '', location.href); S.hd = (S.hd || 0) + 1; } catch (e) {}
   $('#scrim').classList.add('on');
   document.documentElement.classList.add('locked');
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('open')));
@@ -2028,7 +2030,7 @@ function openSheet(title) {
   swipeToClose(el, sheet);
   return sheet;
 }
-function closeTop() {
+function popSheet() {
   const s = stack.pop(); if (!s) return;
   s.alive = false; s.timers.forEach(clearTimeout);
   s.el.style.transform = ''; s.el.classList.remove('open');
@@ -2036,7 +2038,26 @@ function closeTop() {
   stack.at(-1)?.el.classList.remove('behind');
   if (!stack.length) { $('#scrim').classList.remove('on'); document.documentElement.classList.remove('locked'); }
 }
-function closeAll() { while (stack.length) closeTop(); }
+// close panels now, and quietly rewind the history steps they added
+function closeSheets(n) {
+  n = Math.min(n, stack.length); if (!n) return;
+  for (let i = 0; i < n; i++) popSheet();
+  const k = Math.min(n, S.hd || 0);
+  if (k) { S.hd -= k; S.skipPop = (S.skipPop || 0) + 1; try { history.go(-k); } catch (e) { S.skipPop--; } }
+}
+function closeTop() { closeSheets(1); }
+function closeAll() { closeSheets(stack.length); }
+window.addEventListener('popstate', e => {
+  if (S.skipPop) { S.skipPop--; applyPendingHash(); return; }
+  // the browser's Back (or Forward) button: match the open panels to the history step we landed on
+  const target = e.state?.fc ? e.state.depth : 0;
+  S.hd = target;
+  while (stack.length > target) popSheet();
+  applyPendingHash();
+});
+function applyPendingHash() {
+  if (S.pendingHash && !S.skipPop) { try { history.replaceState(null, '', '#' + S.pendingHash); } catch (e) {} S.pendingHash = null; }
+}
 $('#scrim').addEventListener('click', closeAll);
 document.addEventListener('keydown', e => {
   if (!stack.length) return;
