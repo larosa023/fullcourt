@@ -3079,9 +3079,9 @@ const STAT = {
   pm: { label: 'plus-minus', short: '+/-' },
 };
 const STAT_RES = [
-  ['tpp', /\b((3|three)[ -]?(pt|point|pointers?)?s? ?(%|percent(age)?|pct|shooting)|3p%|3pt%|from (three|deep|3) ?(%|percent))/],
-  ['ftp', /\b(ft ?%|free[ -]throw (%|percent(age)?|pct|shooting))/],
-  ['fgp', /\b(fg ?%|field[ -]goal (%|percent(age)?|pct)|shooting (%|percent(age)?)|efficien)/],
+  ['tpp', /\b((3|three)[ -]?(pt|point|pointers?)?s? ?(%|percent(age)?|pct|shooting|shooters?)|3p%|3pt%|from (three|deep|3) ?(%|percent)|(deep|outside) shoot(ing|ers?))/],
+  ['ftp', /\b(ft ?%|free[ -]throw (%|percent(age)?|pct|shooting|shooters?))/],
+  ['fgp', /\b(fg ?%|field[ -]goal (%|percent(age)?|pct)|shooting (%|percent(age)?)|efficien\w*|best shooters?|shooters?)\b/],
   ['td', /\btriple[ -]?doubles?\b/],
   ['dd', /\bdouble[ -]?doubles?\b/],
   ['tpm', /\b(threes|three[ -]pointers?|3[ -]pointers?|3s|3pm|triples|treys)\b/],
@@ -3576,9 +3576,13 @@ async function answer(raw) {
   const confM = nn.match(/ (east(ern)?|west(ern)?) /);
   const conf = confM ? (confM[1].startsWith('east') ? 0 : 1) : null;
   const topN = +(nn.match(/ top (\d{1,2}) /)?.[1] || 0) || null;
-  const thr = nn.match(/ (\d{1,2}) (plus )?(or more )?(points?|pts|rebounds?|boards|assists?|dimes|threes|3s|steals?|blocks?)/) || nn.match(/ (scored|score) (\d{2}) /);
+  const thr = nn.match(/ (\d{1,2}) (plus )?(or more )?(points?|pts|rebounds?|boards|assists?|dimes|threes|3s|steals?|blocks?)(?! (percent|percentage|pct|shoot|pointer))/) || nn.match(/ (scored|score) (\d{2}) /);
   let minVal = null, thrStat = null;
-  if (thr) { if (thr[1] === 'scored' || thr[1] === 'score') { minVal = +thr[2]; thrStat = 'pts'; } else { minVal = +thr[1]; thrStat = parseStat(' ' + thr[4] + ' '); } }
+  if (thr) {
+    if (thr[1] === 'scored' || thr[1] === 'score') { minVal = +thr[2]; thrStat = 'pts'; }
+    else if (+thr[1] >= 5 || /threes|3s|steals?|blocks?/.test(thr[4])) { minVal = +thr[1]; thrStat = parseStat(' ' + thr[4] + ' '); }
+    if (thrStat && STAT[thrStat]?.pct) { minVal = null; thrStat = null; }
+  }
   const asc = has(/ (lowest|fewest|worst|least) /);
   const total = has(/ (total|totals|in total|overall) /);
 
