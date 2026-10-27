@@ -3079,9 +3079,9 @@ const STAT = {
   pm: { label: 'plus-minus', short: '+/-' },
 };
 const STAT_RES = [
-  ['tpp', /\b((3|three)[ -]?(pt|point|pointers?)?s? ?(%|percent(age)?|pct|shooting|shooters?)|3p%|3pt%|from (three|deep|3) ?(%|percent)|(deep|outside) shoot(ing|ers?))/],
-  ['ftp', /\b(ft ?%|free[ -]throw (%|percent(age)?|pct|shooting|shooters?))/],
-  ['fgp', /\b(fg ?%|field[ -]goal (%|percent(age)?|pct)|shooting (%|percent(age)?)|efficien\w*|best shooters?|shooters?)\b/],
+  ['tpp', /\b((3|three)[ -]?(p|pt|point|pointers?)?s? ?(%|percent(age)?|pct|shooting|shooters?)|3p%|3pt%|from (three|deep|3) ?(%|percent)|(deep|outside) shoot(ing|ers?))/],
+  ['ftp', /\b(ft ?(%|percent(age)?|pct)|free[ -]throw (%|percent(age)?|pct|shooting|shooters?))/],
+  ['fgp', /\b(fg ?(%|percent(age)?|pct)|field[ -]goal (%|percent(age)?|pct)|shooting (%|percent(age)?)|efficien\w*|best shooters?|shooters?)\b/],
   ['td', /\btriple[ -]?doubles?\b/],
   ['dd', /\bdouble[ -]?doubles?\b/],
   ['tpm', /\b(threes|three[ -]pointers?|3[ -]pointers?|3s|3pm|triples|treys)\b/],
@@ -3565,7 +3565,7 @@ async function aTeamSummary(t, rows) {
 /* ---------------- router ---------------- */
 async function answer(raw) {
   await loadStandings().catch(() => {});
-  const n = ' ' + nameKey(raw.replace(/\+\/-/g, ' plusminus ').replace(/(\d)\+/g, '$1 plus ')) + ' ';
+  const n = ' ' + nameKey(raw.replace(/\+\/-/g, ' plusminus ').replace(/%/g, ' percent ').replace(/(\d)\+/g, '$1 plus ')) + ' ';
   const nn = n.replace(/ plusminus /g, ' plus minus ');
   const has = re => re.test(nn);
   const rows = await leagueTable();
