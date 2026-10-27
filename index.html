@@ -461,6 +461,10 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .box .pl b { font-weight: 600; }
 .box .pl span { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .box .pts { font-weight: 700; }
+.box .shot { display: inline-grid; justify-items: end; line-height: 1.15; }
+.box .shot b { font-weight: 500; }
+.box .shot small { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.box tr.tot .shot b { font-weight: 700; }
 .cmp { display: grid; gap: 12px; }
 .cmp-row { display: grid; grid-template-columns: 58px 1fr 58px; gap: 10px; align-items: center; font-size: 13px; }
 .cmp-row .l { text-align: left; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1646,13 +1650,22 @@ function boxScore(d, sides, bi) {
   if (!st) return '';
   const labels = st.labels || st.names;
   const ptsIdx = labels.indexOf('PTS');
+  const shotIdx = new Set(['FG', '3PT', 'FT'].map(l => labels.indexOf(l)).filter(i => i >= 0));
+  // "12-21" -> 12/21 with 57.1% underneath
+  const shot = v => {
+    const m = /^(\d+)-(\d+)$/.exec(String(v).trim());
+    if (!m) return esc(v);
+    const made = +m[1], att = +m[2];
+    return `<span class="shot"><b>${made}/${att}</b><small>${att ? (made / att * 100).toFixed(1) + '%' : '–'}</small></span>`;
+  };
+  const cellOf = (v, i) => shotIdx.has(i) ? shot(v) : esc(v);
   const ath = st.athletes || [];
   const row = a => {
     rememberPlayer(a.athlete, side.id);
     const dnp = a.didNotPlay || !a.stats?.length;
     return `<tr class="${dnp ? 'dnp' : ''}" data-player="${a.athlete.id}" style="cursor:pointer">
       <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
-      ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : a.stats.map((v, i) => `<td class="${i === ptsIdx ? 'pts' : ''}">${esc(v)}</td>`).join('')}
+      ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : a.stats.map((v, i) => `<td class="${i === ptsIdx ? 'pts' : ''}">${cellOf(v, i)}</td>`).join('')}
     </tr>`;
   };
   const starters = ath.filter(a => a.starter), bench = ath.filter(a => !a.starter);
@@ -1662,7 +1675,7 @@ function boxScore(d, sides, bi) {
     <tbody>
       <tr class="sub"><td colspan="${labels.length + 1}">Starters</td></tr>${starters.map(row).join('')}
       <tr class="sub"><td colspan="${labels.length + 1}">Bench</td></tr>${bench.map(row).join('')}
-      ${st.totals?.length ? `<tr class="tot"><td>Team</td>${st.totals.map(v => `<td>${esc(v)}</td>`).join('')}</tr>` : ''}
+      ${st.totals?.length ? `<tr class="tot"><td>Team</td>${st.totals.map((v, i) => `<td>${cellOf(v, i)}</td>`).join('')}</tr>` : ''}
     </tbody></table></div>`;
 }
 
