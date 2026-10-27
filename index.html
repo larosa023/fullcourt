@@ -235,6 +235,29 @@ main {
 .g-foot .lead b { color: var(--ink); font-weight: 600; }
 .mini-face { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; object-position: top; background: var(--surface-3); flex: none; }
 .prog { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--live); border-radius: 0 3px 3px 0; transition: width 1s var(--ease); }
+.ml {
+  font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap;
+  padding: 4px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.ml.fav { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.ml .mv { font-size: 9px; line-height: 1; }
+.ml .mv.up { color: var(--accent); }
+.ml .mv.dn { color: var(--accent); }
+.odds-line { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); min-width: 0; }
+.odds-line b { color: var(--ink-2); font-weight: 500; }
+table.odds-t { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 360px; }
+.odds-t th { font-family: var(--mono); font-weight: 500; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+.odds-t th:first-child, .odds-t td:first-child { text-align: left; }
+.odds-t td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.odds-t tr:last-child td { border-bottom: 0; }
+.odds-t .tcell { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.odds-t .tcell .lg { width: 22px; height: 22px; }
+.odds-t .cell { display: grid; gap: 1px; justify-items: center; }
+.odds-t .cell b { font-family: var(--mono); font-weight: 600; font-size: 14px; }
+.odds-t .cell span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.odds-t .cell small { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.odds-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
 .tip { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; color: var(--ink); }
 
 .enter { animation: rise .55s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms); }
@@ -955,6 +978,7 @@ function parseGame(e) {
     tv: [...new Set((c.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
     note: c.notes?.[0]?.headline || '',
     headline: c.headlines?.[0]?.shortLinkText || '',
+    odds: parseOdds(c.odds?.[0]),
   };
 }
 
@@ -983,6 +1007,77 @@ function untilText(iso) {
   const h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4);
   if (h >= 24) return '';
   return h ? `Tips in ${h}h ${m}m` : `Tips in ${m}m`;
+}
+
+/* ---- betting odds (ESPN carries DraftKings lines for upcoming games) ---- */
+const fmtOdds = v => {
+  if (v == null || v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return n > 0 ? `+${n}` : String(n);
+};
+const oddsNum = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+function parseOdds(o) {
+  if (!o) return null;
+  const ml = o.moneyline || {}, ps = o.pointSpread || {}, tot = o.total || {};
+  const H = o.homeTeamOdds || {}, A = o.awayTeamOdds || {};
+  const spreadNum = oddsNum(o.spread);
+  const out = {
+    provider: o.provider?.displayName || o.provider?.name || '',
+    details: o.details || '',
+    ou: o.overUnder ?? null,
+    fav: H.favorite ? 'home' : A.favorite ? 'away' : null,
+    home: {
+      ml: fmtOdds(ml.home?.close?.odds ?? H.moneyLine), mlOpen: fmtOdds(ml.home?.open?.odds),
+      spread: ps.home?.close?.line ?? (spreadNum != null ? fmtOdds(spreadNum) : ''), spreadOdds: fmtOdds(ps.home?.close?.odds ?? H.spreadOdds),
+      spreadOpen: ps.home?.open?.line || '',
+    },
+    away: {
+      ml: fmtOdds(ml.away?.close?.odds ?? A.moneyLine), mlOpen: fmtOdds(ml.away?.open?.odds),
+      spread: ps.away?.close?.line ?? (spreadNum != null ? fmtOdds(-spreadNum) : ''), spreadOdds: fmtOdds(ps.away?.close?.odds ?? A.spreadOdds),
+      spreadOpen: ps.away?.open?.line || '',
+    },
+    over: { line: tot.over?.close?.line || (o.overUnder != null ? `o${o.overUnder}` : ''), odds: fmtOdds(tot.over?.close?.odds ?? o.overOdds), open: tot.over?.open?.line || '' },
+    under: { line: tot.under?.close?.line || (o.overUnder != null ? `u${o.overUnder}` : ''), odds: fmtOdds(tot.under?.close?.odds ?? o.underOdds), open: tot.under?.open?.line || '' },
+  };
+  if (!out.home.ml && !out.away.ml && !out.details && out.ou == null) return null;
+  return out;
+}
+// Arrow shows which way the moneyline moved since open: ▲ = price got longer (less favored), ▼ = shorter (more favored)
+function mlMove(cur, open) {
+  const c = oddsNum(cur), o = oddsNum(open);
+  if (c == null || o == null || c === o) return '';
+  const prob = x => x < 0 ? -x / (-x + 100) : 100 / (x + 100);
+  return prob(c) > prob(o) ? '<span class="mv dn" aria-label="shortened since open">▼</span>' : '<span class="mv up" aria-label="lengthened since open">▲</span>';
+}
+function mlChip(odds, side) {
+  const x = odds?.[side];
+  if (!x?.ml) return '';
+  return `<span class="ml${odds.fav === side ? ' fav' : ''}" title="Moneyline${x.mlOpen ? ` · opened ${esc(x.mlOpen)}` : ''}">${esc(x.ml)}${mlMove(x.ml, x.mlOpen)}</span>`;
+}
+function oddsLine(odds) {
+  if (!odds) return '';
+  const bits = [];
+  if (odds.details) bits.push(`<span>Spread <b>${esc(odds.details)}</b></span>`);
+  if (odds.ou != null) bits.push(`<span>O/U <b>${esc(odds.ou)}</b></span>`);
+  if (odds.provider) bits.push(`<span>${esc(odds.provider)}</span>`);
+  return bits.length ? `<div class="odds-line">${bits.join('')}</div>` : '';
+}
+function oddsCard(odds, sides, label = 'Odds') {
+  if (!odds) return '';
+  const cell = (main, sub, open) => main ? `<div class="cell"><b>${esc(main)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${open && open !== main ? `<small>open ${esc(open)}</small>` : ''}</div>` : '<span style="color:var(--muted)">–</span>';
+  const keys = ['away', 'home'];
+  return `<div class="card"><div class="card-h"><h4>${esc(label)}</h4><span class="eyebrow">${esc(odds.provider || '')}</span></div>
+    <div class="ls-wrap"><table class="odds-t"><thead><tr><th>Team</th><th>Moneyline</th><th>Spread</th><th>Total</th></tr></thead><tbody>
+    ${keys.map((k, i) => {
+      const x = odds[k], t = i ? odds.under : odds.over, sd = sides[i];
+      return `<tr><td><span class="tcell">${logo(sd.abbr, 44)}${esc(sd.abbr)}${odds.fav === k ? ' <span class="eyebrow">Fav</span>' : ''}</span></td>
+        <td>${cell(x.ml, '', x.mlOpen)}</td>
+        <td>${cell(x.spread, x.spreadOdds, x.spreadOpen)}</td>
+        <td>${cell(t.line, t.odds, t.open)}</td></tr>`;
+    }).join('')}
+    </tbody></table></div>
+    <div class="odds-note">Lines can move up to tip-off. Shown for reference only.</div></div>`;
 }
 
 let gamesFilter = 'all';
@@ -1091,14 +1186,14 @@ function leaderLine(g) {
 
 function gameCard(g, i, animate) {
   const live = g.state === 'in', post = g.state === 'post', pre = g.state === 'pre';
-  const row = (s, other) => {
+  const row = (s, side) => {
     const cls = post ? (s.winner ? 'win' : 'lose') : '';
     const key = `${g.id}-${s.id}`;
     const changed = S.prev[key] !== undefined && S.prev[key] !== s.score;
     return `<div class="trow ${cls}">
       ${logo(s.abbr, 68)}
       <div class="tname"><b>${esc(s.name)}</b><span>${esc(s.rec)}</span></div>
-      ${pre ? '' : `<span class="score${changed ? ' bump' : ''}">${esc(s.score)}</span>`}
+      ${pre ? mlChip(g.odds, side) : `<span class="score${changed ? ' bump' : ''}">${esc(s.score)}</span>`}
     </div>`;
   };
   const L = leaderLine(g);
@@ -1114,7 +1209,8 @@ function gameCard(g, i, animate) {
       <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}</span>
       <span class="tv">${esc(g.note || g.tv)}</span>
     </div>
-    ${row(g.away)}${row(g.home)}
+    ${row(g.away, 'away')}${row(g.home, 'home')}
+    ${pre ? oddsLine(g.odds) : ''}
     ${foot}
     ${live ? `<span class="prog" style="width:${(progress(g) * 100).toFixed(1)}%"></span>` : ''}
   </button>`;
@@ -1439,6 +1535,7 @@ async function openGame(id) {
     if (pre) {
       html += preGame(d, sides, g);
     } else {
+      if (live) html += oddsCard(gameOdds(d, id), sides, 'Pregame line');
       html += `<div class="card"><div class="tabs hs" role="tablist" data-drag>
         ${[['box', 'Box score'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
       </div><div class="pane" id="gpane"></div></div>`;
@@ -1580,17 +1677,21 @@ function gameLeaders(d) {
     }).join('')}</div></div>`).join('');
 }
 
+// Prefer the summary's pickcenter; fall back to the line we already have from the scoreboard
+function gameOdds(d, id) {
+  const pc = (d.pickcenter || []).slice().sort((a, b) => (a.provider?.priority ?? 9) - (b.provider?.priority ?? 9))[0];
+  return parseOdds(pc) || S.games.find(x => x.id === (id || d.header?.id))?.odds || null;
+}
 function preGame(d, sides, g) {
   const tv = [...new Set((d.broadcasts || []).flatMap(b => [b.media?.shortName || b.station || '']).filter(Boolean))].join(' · ');
   const ss = d.seasonseries?.[0]?.summary;
-  const odds = d.pickcenter?.[0];
   let html = `<div class="card"><div class="card-h"><h4>Game info</h4></div><div class="facts">
     <div class="fact"><span>Tip-off</span><b>${esc(fmtET(g.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET')}</b></div>
     ${d.gameInfo?.venue?.fullName ? `<div class="fact"><span>Arena</span><b>${esc(d.gameInfo.venue.fullName)}</b></div>` : ''}
     ${tv ? `<div class="fact"><span>Watch</span><b>${esc(tv)}</b></div>` : ''}
     ${ss ? `<div class="fact"><span>Season series</span><b>${esc(ss)}</b></div>` : ''}
-    ${odds?.details ? `<div class="fact"><span>Line</span><b>${esc(odds.details)}${odds.overUnder ? ` · O/U ${esc(odds.overUnder)}` : ''}</b></div>` : ''}
   </div></div>`;
+  html += oddsCard(gameOdds(d), sides);
   if (d.leaders?.length) html += `<div class="card"><div class="card-h"><h4>Season leaders</h4></div>${gameLeaders(d)}</div>`;
   const inj = (d.injuries || []).flatMap(t => (t.injuries || []).map(i => ({ t: t.team, i })));
   if (inj.length) html += `<div class="card"><div class="card-h"><h4>Injury report</h4></div>${inj.map(({ t, i }) => `
