@@ -587,6 +587,40 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .rp .ph { flex: none; }
 .rp .in { flex: 1; }
 .game, .sg { align-content: start; }
+/* ---------- phone menu drawer (phones only; desktop keeps the top nav) ---------- */
+.menu-btn { display: none; }
+.drawer, .drawer-scrim { display: none; }
+@media (max-width: 760px) {
+  .menu-btn { display: grid; }
+  .tabbar { display: none; }
+  main { padding-block: 14px calc(48px + env(safe-area-inset-bottom, 0px)); }
+  .drawer-scrim { display: block; position: fixed; inset: 0; z-index: 98; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .35s; }
+  .drawer-scrim.on { opacity: 1; pointer-events: auto; }
+  .drawer {
+    display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: 99;
+    width: min(300px, 84vw); background: var(--bg); border-right: 1px solid var(--line);
+    box-shadow: 24px 0 60px -30px rgb(0 0 0 / .6);
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+    transform: translateX(-104%); transition: transform .45s var(--ease); touch-action: pan-y;
+  }
+  .drawer.open { transform: none; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px 14px; border-bottom: 1px solid var(--line); }
+  .drawer-nav { display: grid; gap: 4px; padding: 14px 0; }
+  .drawer-nav button {
+    display: flex; align-items: center; gap: 14px; padding: 13px 14px; border-radius: 14px; text-align: left;
+    font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 23px; text-transform: uppercase; letter-spacing: .01em;
+    color: var(--muted); opacity: 0; transform: translateX(-16px);
+    transition: opacity .25s, transform .25s, background .2s, color .2s;
+  }
+  .drawer.open .drawer-nav button { opacity: 1; transform: none; transition: opacity .4s var(--ease) calc(var(--i) * 45ms + 90ms), transform .45s var(--ease) calc(var(--i) * 45ms + 90ms), background .2s, color .2s; }
+  .drawer-nav button svg { width: 22px; height: 22px; flex: none; }
+  .drawer-nav button:active { background: var(--hl-bg); }
+  .drawer-nav button[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: inset 3px 0 0 var(--accent); }
+  .drawer-nav button[aria-current="page"] svg { color: var(--accent); }
+  .drawer-nav .dlive { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: none; color: var(--live); border: 1px solid color-mix(in oklab, var(--live) 45%, transparent); border-radius: 999px; padding: 3px 9px; }
+  .drawer-foot { margin-top: auto; display: grid; gap: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+  .drawer-foot > span:first-child { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); }
+}
 /* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
 :root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(18 20 23 / .06), 0 16px 32px -14px rgb(18 20 23 / .28); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
@@ -699,6 +733,9 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 
 <header class="mast">
   <div class="mast-in">
+    <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="drawer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h16"/></svg>
+    </button>
     <a class="brand" href="#scores" data-view="scores" aria-label="Fullcourt home">
       <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
         <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="var(--accent)"/>
@@ -793,6 +830,29 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
   <button data-view="teams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>Teams</button>
   <button data-view="leaders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>Leaders</button>
 </nav>
+
+<div class="drawer-scrim" id="drawerScrim"></div>
+<aside class="drawer" id="drawer" aria-label="Menu" inert>
+  <div class="drawer-head">
+    <span class="brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="var(--accent)"/>
+        <path d="M16 1.5v29M1.5 16h29" stroke="var(--accent-ink)" stroke-width="1.6" opacity=".9"/>
+        <circle cx="16" cy="16" r="5.5" stroke="var(--accent-ink)" stroke-width="1.6"/>
+        <path d="M1.5 9.5a10 10 0 0 1 0 13M30.5 9.5a10 10 0 0 0 0 13" stroke="var(--accent-ink)" stroke-width="1.6"/>
+      </svg><b>Full<i>court</i></b></span>
+    <button class="icon-btn" id="drawerClose" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <nav class="drawer-nav" aria-label="Sections">
+    <button data-view="scores" style="--i:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg><span>Scores</span><em class="dlive" id="drawerLive" hidden></em></button>
+    <button data-view="standings" style="--i:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span>Standings</span></button>
+    <button data-view="teams" style="--i:2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg><span>Teams</span></button>
+    <button data-view="leaders" style="--i:3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg><span>Leaders</span></button>
+  </nav>
+  <div class="drawer-foot">
+    <span><span class="dot" id="drawerDot"></span> <span id="drawerStatus">Connecting to live data</span></span>
+    <span>Scores from ESPN · Times in ET</span>
+  </div>
+</aside>
 
 <div class="scrim" id="scrim"></div>
 <div id="layer"></div>
@@ -1011,8 +1071,9 @@ const VIEWS = ['scores', 'standings', 'teams', 'leaders'];
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
   S.view = view;
+  closeDrawer();
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
-  $$('#nav [data-view], #tabbar [data-view]').forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  $$('#nav [data-view], #tabbar [data-view], #drawer [data-view]').forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   movePill();
   if (push && location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
   if (view === 'standings') renderStandings();
@@ -1020,6 +1081,48 @@ function go(view, push = true) {
   if (view === 'leaders') loadLeaders();
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
+/* ---- phone menu drawer ---- */
+const drawerEl = $('#drawer'), drawerScrim = $('#drawerScrim'), menuBtn = $('#menuBtn');
+function openDrawer() {
+  drawerEl.inert = false;
+  drawerEl.style.transform = '';
+  drawerEl.classList.add('open'); drawerScrim.classList.add('on');
+  menuBtn.setAttribute('aria-expanded', 'true');
+  document.documentElement.classList.add('locked');
+  setTimeout(() => ($('[aria-current="page"]', drawerEl) || $('[data-view]', drawerEl))?.focus({ preventScroll: true }), 120);
+}
+function closeDrawer() {
+  if (!drawerEl.classList.contains('open')) return;
+  drawerEl.classList.remove('open'); drawerScrim.classList.remove('on');
+  drawerEl.style.transform = '';
+  drawerEl.inert = true;
+  menuBtn.setAttribute('aria-expanded', 'false');
+  if (!document.querySelector('.sheet.open')) document.documentElement.classList.remove('locked');
+}
+menuBtn.addEventListener('click', openDrawer);
+$('#drawerClose').addEventListener('click', closeDrawer);
+drawerScrim.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+matchMedia('(min-width: 761px)').addEventListener('change', e => { if (e.matches) closeDrawer(); });
+// swipe the drawer left to close it
+(() => {
+  let x0 = null, dx = 0, t0 = 0;
+  drawerEl.addEventListener('pointerdown', e => { x0 = e.clientX; dx = 0; t0 = performance.now(); });
+  drawerEl.addEventListener('pointermove', e => {
+    if (x0 == null) return;
+    dx = Math.min(0, e.clientX - x0);
+    if (dx < -6) { drawerEl.style.transition = 'none'; drawerEl.style.transform = `translateX(${dx}px)`; }
+  });
+  const end = () => {
+    if (x0 == null) return;
+    const v = -dx / Math.max(1, performance.now() - t0);
+    x0 = null; drawerEl.style.transition = '';
+    if (dx < -80 || v > 0.5) closeDrawer(); else drawerEl.style.transform = '';
+  };
+  drawerEl.addEventListener('pointerup', end);
+  drawerEl.addEventListener('pointercancel', end);
+})();
+
 function movePill() {
   const b = $(`#nav [data-view="${S.view}"]`), p = $('#navPill');
   if (!b || !p) return;
@@ -1204,6 +1307,11 @@ function updatePulse(err) {
   const live = S.games.filter(g => g.state === 'in').length;
   $('#pulseDot').classList.toggle('on', live > 0 && !err);
   $('#liveCount').textContent = err ? 'Offline' : live ? `${live} live` : 'Live';
+  const dl = $('#drawerLive');
+  if (dl) { dl.hidden = !live || !!err; dl.textContent = `${live} live`; }
+  $('#drawerDot')?.classList.toggle('on', live > 0 && !err);
+  const ds = $('#drawerStatus');
+  if (ds) ds.textContent = err ? "Can't reach live data right now" : live ? `${live} game${live > 1 ? 's' : ''} in progress` : 'Live data connected';
   tickPulse();
 }
 function tickPulse() {
