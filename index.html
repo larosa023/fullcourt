@@ -802,10 +802,19 @@ function regTeam(t, extra = {}) {
 const ymd = d => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
 const fromYmd = s => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), 12));
 const addDays = (s, n) => { const d = fromYmd(s); d.setUTCDate(d.getUTCDate() + n); return ymd(d); };
-const fmtDay = (s, opts) => fromYmd(s).toLocaleDateString(undefined, { timeZone: 'UTC', ...opts });
-const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-const fmtShortDate = iso => new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
-const localYmd = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; };
+const fmtDay = (s, opts) => fromYmd(s).toLocaleDateString('en-US', { timeZone: 'UTC', ...opts }); // s is already an ET calendar date
+/* Everything runs on New York time: the NBA's own calendar, and Anthony's (New Jersey). */
+const TZ = 'America/New_York';
+const ROLLOVER_HOUR = 4; // before 4 AM ET, "today" is still last night's slate so late West Coast games stay put
+const fmtTime = iso => new Date(iso).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) + ' ET';
+const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
+const fmtET = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
+function etNow() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).map(x => [x.type, x.value]));
+  return { ymd: `${p.year}${p.month}${p.day}`, hour: +p.hour };
+}
+const etToday = () => { const n = etNow(); return n.hour < ROLLOVER_HOUR ? addDays(n.ymd, -1) : n.ymd; };
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
@@ -978,14 +987,11 @@ function untilText(iso) {
 
 let gamesFilter = 'all';
 async function loadScores({ silent = false } = {}) {
-  const url = `${API}/scoreboard${S.date ? `?dates=${S.date}` : ''}`;
+  checkRollover();
+  const url = `${API}/scoreboard?dates=${S.date}`;
   if (!silent) renderGamesSkeleton();
   try {
     const d = await getJSON(url);
-    if (!S.today) {
-      const day = d.day?.date ? d.day.date.replace(/-/g, '') : localYmd();
-      S.today = day; S.date = S.date || day; buildRail();
-    }
     S.games = (d.events || []).map(parseGame);
     S.lastUpdate = Date.now(); S.failures = 0;
     renderGames(!silent);
@@ -1009,8 +1015,20 @@ function schedulePoll() {
   }, ms);
 }
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && Date.now() - S.lastUpdate > 15000) loadScores({ silent: true });
+  if (document.hidden) return;
+  if (checkRollover() || Date.now() - S.lastUpdate > 15000) loadScores({ silent: true });
 });
+// When the NBA day turns over (4 AM ET), move "Today" forward. If you were looking at today, follow it.
+function checkRollover() {
+  const t = etToday();
+  if (t === S.today) return false;
+  const wasOnToday = !S.date || S.date === S.today;
+  S.today = t;
+  if (wasOnToday) { S.date = t; S.prev = {}; gamesFilter = 'all'; }
+  buildRail();
+  return true;
+}
+setInterval(() => { if (!document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
 
 function updatePulse(err) {
   const live = S.games.filter(g => g.state === 'in').length;
@@ -1400,10 +1418,10 @@ async function openGame(id) {
         <div class="gh-band"><i style="background:${teamColor(sides[0].id)}"></i><i style="background:${teamColor(sides[1].id)}"></i></div>
         <div class="gh-main">
           <button class="gh-team" data-team="${sides[0].id}">${logo(sides[0].abbr, 120)}<b>${esc(sides[0].short)}</b><span>${esc(sides[0].rec)} · Away</span></button>
-          <div class="gh-score">${pre ? `<span class="tip" style="font-size:28px">${esc(fmtTime(g.date))}</span>` : `<span class="score" style="${!sides[0].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[0].score)}</span><span class="sep"></span><span class="score" style="${!sides[1].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[1].score)}</span>`}</div>
+          <div class="gh-score">${pre ? `<span class="tip" style="font-size:26px;white-space:nowrap">${esc(fmtTime(g.date))}</span>` : `<span class="score" style="${!sides[0].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[0].score)}</span><span class="sep"></span><span class="score" style="${!sides[1].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[1].score)}</span>`}</div>
           <button class="gh-team" data-team="${sides[1].id}">${logo(sides[1].abbr, 120)}<b>${esc(sides[1].short)}</b><span>${esc(sides[1].rec)} · Home</span></button>
         </div>
-        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? new Date(g.date).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}</span>
+        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}</span>
         <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span></div>
       </div>`;
 
@@ -1567,7 +1585,7 @@ function preGame(d, sides, g) {
   const ss = d.seasonseries?.[0]?.summary;
   const odds = d.pickcenter?.[0];
   let html = `<div class="card"><div class="card-h"><h4>Game info</h4></div><div class="facts">
-    <div class="fact"><span>Tip-off</span><b>${esc(new Date(g.date).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</b></div>
+    <div class="fact"><span>Tip-off</span><b>${esc(fmtET(g.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET')}</b></div>
     ${d.gameInfo?.venue?.fullName ? `<div class="fact"><span>Arena</span><b>${esc(d.gameInfo.venue.fullName)}</b></div>` : ''}
     ${tv ? `<div class="fact"><span>Watch</span><b>${esc(tv)}</b></div>` : ''}
     ${ss ? `<div class="fact"><span>Season series</span><b>${esc(ss)}</b></div>` : ''}
