@@ -19,6 +19,8 @@
 <script>
   try { const t = localStorage.getItem('fc-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
+  // arriving from a league switch: start behind the veil, lift it once the new league has loaded
+  try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
 <style>
 /* Layout: sticky masthead + draggable date rail; scores grid with a standings sidebar; everything opens in stacked flyouts (side drawers on desktop, bottom sheets on phones). */
@@ -990,7 +992,16 @@ button.bk-t:hover { background: var(--hl-bg); }
   .drawer-lg .lg-switch button { padding: 8px 18px; font-size: 14px; }
 }
 @media (max-width: 400px) { .brand b { font-size: 21px; } }
-html.switching body { opacity: .35; transition: opacity .25s; pointer-events: none; }
+/* league switch veil: fades in over the page, the page reloads behind it, then it fades away */
+html::after { content: attr(data-league); position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+  background: var(--bg); color: var(--accent); font: 800 clamp(40px, 9vw, 96px)/1 var(--display); font-stretch: 75%; letter-spacing: .02em; text-transform: uppercase;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .38s cubic-bezier(.4,0,.2,1), visibility 0s linear .38s; }
+html.switching::after, html.arriving::after { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .28s cubic-bezier(.4,0,.2,1), visibility 0s; }
+html.arriving::after { transition: none; animation: veilWord .5s cubic-bezier(.2,.8,.2,1) both; }
+html.switching::after { animation: veilWord .45s cubic-bezier(.2,.8,.2,1) .05s both; }
+@keyframes veilWord { from { letter-spacing: .14em; } to { letter-spacing: .02em; } }
+.lg-switch button { transition: background .25s, color .25s; }
+@media (prefers-reduced-motion: reduce) { html::after, html.switching::after { transition-duration: .01s; animation: none; } }
 
 /* =================== timeouts / bonus =================== */
 :root { --warn: #844B00; }
@@ -4021,8 +4032,13 @@ $$('[data-lg]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lg === LG)
 function switchLeague(lg) {
   if (lg === LG) return;
   try { localStorage.setItem('fc-league', lg); } catch (e) {}
-  document.documentElement.classList.add('switching');
-  setTimeout(() => location.reload(), 260);
+  // light the chosen pill right away, then fade the veil (in the new league's colour) before reloading
+  $$('[data-lg]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lg === lg));
+  try { sessionStorage.setItem('fc-swap', '1'); } catch (e) {}
+  const root = document.documentElement;
+  root.dataset.league = lg;
+  requestAnimationFrame(() => root.classList.add('switching'));
+  setTimeout(() => location.reload(), 340);
 }
 
 /* ================= global events ================= */
@@ -4074,7 +4090,10 @@ renderFavLink();
 go(location.hash.slice(1) || 'scores', false);
 wireDrag();
 $$('.seg').forEach(placeKnob);
-loadScores();
+// lift the switch veil once the first scores are on screen (or after a short cap, whichever comes first)
+const liftVeil = () => requestAnimationFrame(() => document.documentElement.classList.remove('arriving'));
+if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);
+Promise.resolve(loadScores()).finally(() => setTimeout(liftVeil, 60));
 loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" style="padding:20px"><b>Standings unavailable</b><button class="btn" data-retry="standings">Retry</button></div>`; });
 // refresh "tips in" countdowns & time labels each minute
 setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) renderGames(false); }, 60000);
