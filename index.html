@@ -992,16 +992,12 @@ button.bk-t:hover { background: var(--hl-bg); }
   .drawer-lg .lg-switch button { padding: 8px 18px; font-size: 14px; }
 }
 @media (max-width: 400px) { .brand b { font-size: 21px; } }
-/* league switch veil: fades in over the page, the page reloads behind it, then it fades away */
-html::after { content: attr(data-league); position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
-  background: var(--bg); color: var(--accent); font: 800 clamp(40px, 9vw, 96px)/1 var(--display); font-stretch: 75%; letter-spacing: .02em; text-transform: uppercase;
-  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .38s cubic-bezier(.4,0,.2,1), visibility 0s linear .38s; }
-html.switching::after, html.arriving::after { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .28s cubic-bezier(.4,0,.2,1), visibility 0s; }
-html.arriving::after { transition: none; animation: veilWord .5s cubic-bezier(.2,.8,.2,1) both; }
-html.switching::after { animation: veilWord .45s cubic-bezier(.2,.8,.2,1) .05s both; }
-@keyframes veilWord { from { letter-spacing: .14em; } to { letter-spacing: .02em; } }
+/* league switch: the header stays put; only the page content softly fades out, and back in once the new league has loaded */
+main { transition: opacity .22s ease; }
+html.switching main { opacity: 0; }
+html.arriving main { opacity: 0; transition: none; }
 .lg-switch button { transition: background .25s, color .25s; }
-@media (prefers-reduced-motion: reduce) { html::after, html.switching::after { transition-duration: .01s; animation: none; } }
+@media (prefers-reduced-motion: reduce) { main { transition: none; } }
 
 /* =================== timeouts / bonus =================== */
 :root { --warn: #844B00; }
@@ -4038,7 +4034,7 @@ function switchLeague(lg) {
   const root = document.documentElement;
   root.dataset.league = lg;
   requestAnimationFrame(() => root.classList.add('switching'));
-  setTimeout(() => location.reload(), 340);
+  setTimeout(() => location.reload(), 230);
 }
 
 /* ================= global events ================= */
