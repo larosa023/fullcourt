@@ -4033,7 +4033,7 @@ function switchLeague(lg) {
   try { sessionStorage.setItem('fc-swap', '1'); } catch (e) {}
   const root = document.documentElement;
   root.dataset.league = lg;
-  requestAnimationFrame(() => root.classList.add('switching'));
+  root.classList.add('switching');
   setTimeout(() => location.reload(), 230);
 }
 
@@ -4087,7 +4087,7 @@ go(location.hash.slice(1) || 'scores', false);
 wireDrag();
 $$('.seg').forEach(placeKnob);
 // lift the switch veil once the first scores are on screen (or after a short cap, whichever comes first)
-const liftVeil = () => requestAnimationFrame(() => document.documentElement.classList.remove('arriving'));
+const liftVeil = () => document.documentElement.classList.remove('arriving');
 if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);
 Promise.resolve(loadScores()).finally(() => setTimeout(liftVeil, 60));
 loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" style="padding:20px"><b>Standings unavailable</b><button class="btn" data-retry="standings">Retry</button></div>`; });
