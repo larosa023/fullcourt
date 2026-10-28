@@ -2373,10 +2373,12 @@ function normInjury(i) {
   let part = !unspecified(d.type) ? d.type : !unspecified(d.location) ? d.location : '';
   if (!part) { const m = String(i.shortComment || i.longComment || '').match(/\(([^)]{2,30})\)/); if (m && !/\d/.test(m[1])) part = m[1]; }
   const side = !unspecified(d.side) ? String(d.side).toLowerCase() : '';
-  const what = part ? capFirst(`${side ? side + ' ' : ''}${String(part).toLowerCase()} injury`) : 'Injury';
+  const nonInjury = /illness|sick|rest|personal|suspen|conditioning|g league|two-way|coach|not injury|load management|birth|family|concussion protocol/i.test(String(part));
+  const what = !part ? 'Injury' : nonInjury ? capFirst(String(part).toLowerCase()) : capFirst(`${side ? side + ' ' : ''}${String(part).toLowerCase()} injury`);
   const detail = !unspecified(d.detail) ? String(d.detail).toLowerCase() : '';
   const status = capFirst(i.status || i.type?.description || d.fantasyStatus?.description || 'Out');
-  return { id: a.id, name: a.displayName || a.fullName || '', short: a.shortName || a.displayName || '', pos: a.position?.abbreviation || '', status, what, detail, ret: d.returnDate || '', note: i.shortComment || i.longComment || '', date: i.date || '' };
+  const id = a.id || String(a.links?.[0]?.href || '').match(/\/id\/(\d+)/)?.[1] || String(a.headshot?.href || '').match(/\/(\d+)\.png/)?.[1] || '';
+  return { id, name: a.displayName || a.fullName || '', short: a.shortName || a.displayName || '', pos: a.position?.abbreviation || '', status, what, detail, ret: d.returnDate || '', note: i.shortComment || i.longComment || '', date: i.date || '' };
 }
 const injuryText = n => `<b>${esc(n.status)}</b> · ${esc(n.what)}${n.detail && !n.what.toLowerCase().includes(n.detail) ? ` (${esc(n.detail)})` : ''}`;
 const injuriesFor = (d, teamId) => ((d?.injuries || []).find(t => t.team?.id === teamId || t.id === teamId)?.injuries || []);
@@ -2393,6 +2395,7 @@ async function teamInjuries(id, name, evs, athletes) {
   const all = await leagueInjuries();
   const entry = (all?.injuries || all?.teams || []).find(e => e.id === id || e.team?.id === id || e.displayName === name || e.team?.displayName === name);
   if (entry) return { list: (entry.injuries || []).map(normInjury), src: 'league' };
+  if (Array.isArray(all?.injuries) && all.injuries.length) return { list: [], src: 'league' }; // team isn't on the league report: nobody hurt
   const g = evs.find(e => e.state !== 'post') || evs.filter(e => e.state === 'post').at(-1);
   if (g) {
     try { const d = await getJSON(`${API}/summary?event=${g.id}`); const l = injuriesFor(d, id); if (l.length || d.injuries) return { list: l.map(normInjury), src: 'game' }; } catch (e) {}
