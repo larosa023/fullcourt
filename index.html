@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script>
   try { const t = localStorage.getItem('fc-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
 </script>
 <style>
 /* Layout: sticky masthead + draggable date rail; scores grid with a standings sidebar; everything opens in stacked flyouts (side drawers on desktop, bottom sheets on phones). */
@@ -970,6 +971,44 @@ button.bk-t:hover { background: var(--hl-bg); }
 .ir-note { grid-column: 2 / -1; font-size: 12px; color: var(--muted); line-height: 1.45; }
 .ir-clear { margin: 4px 2px; font-size: 13.5px; color: var(--muted); }
 @media (max-width: 760px) { .ir-row { grid-template-columns: 36px minmax(0, 1fr); } .ir-st { grid-column: 2; text-align: left; } .ir-face { width: 36px; height: 36px; } }
+
+/* =================== league mode =================== */
+:root[data-league="wnba"] { --accent: #5B3FC4; --accent-ink: #FFFFFF; }
+@media (prefers-color-scheme: dark) { :root[data-league="wnba"]:not([data-theme="light"]) { --accent: #A48CFF; --accent-ink: #140C33; } }
+:root[data-league="wnba"][data-theme="dark"] { --accent: #A48CFF; --accent-ink: #140C33; }
+.lg-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-3); flex: none; }
+.lg-switch button { padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .03em; color: var(--muted); transition: background .2s, color .2s; }
+.lg-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.lg-switch button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.lg-badge { display: none; margin-left: 2px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); align-self: center; }
+:root[data-league="wnba"] .lg-badge { display: inline-block; }
+.drawer-lg { display: none; }
+@media (min-width: 761px) { .lg-badge { display: none !important; } }
+@media (max-width: 760px) {
+  .mast .lg-switch { display: none; }
+  .drawer-lg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 0; }
+  .drawer-lg .lg-switch button { padding: 8px 18px; font-size: 14px; }
+}
+@media (max-width: 400px) { .brand b { font-size: 21px; } }
+html.switching body { opacity: .35; transition: opacity .25s; pointer-events: none; }
+
+/* =================== timeouts / bonus =================== */
+:root { --warn: #844B00; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --warn: #F5B544; } }
+:root[data-theme="dark"] { --warn: #F5B544; }
+.sit { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.tol { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; }
+.tos { display: inline-flex; gap: 3px; }
+.tos i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); display: inline-block; }
+.tos i.u { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--muted) 70%, transparent); }
+.bonus { font-style: normal; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent); padding: 0 5px; border-radius: 4px; line-height: 15px; }
+.to-pill { display: inline-flex; align-items: center; margin-left: 8px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); background: color-mix(in oklab, var(--warn) 14%, transparent); border: 1px solid color-mix(in oklab, var(--warn) 45%, transparent); padding: 1px 7px; border-radius: 999px; animation: toPulse 2s ease-in-out infinite; }
+@keyframes toPulse { 50% { opacity: .55; } }
+.gh-sit { display: flex; justify-content: center; margin-top: 2px; }
+.mv-mid { gap: 4px; }
+.mv-mid .to-pill { margin-left: 0; }
+.mv-sit { display: flex; justify-content: space-between; gap: 10px; padding: 6px 14px 0; font-size: 11.5px; font-weight: 650; }
+.mv-sit > span { display: inline-flex; align-items: center; gap: 6px; }
 /* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
 :root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(60 44 22 / .07), 0 16px 32px -14px rgb(60 44 22 / .3); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
@@ -1082,8 +1121,11 @@ button.bk-t:hover { background: var(--hl-bg); }
         <circle cx="16" cy="16" r="5.5" stroke="var(--accent-ink)" stroke-width="1.6"/>
         <path d="M1.5 9.5a10 10 0 0 1 0 13M30.5 9.5a10 10 0 0 0 0 13" stroke="var(--accent-ink)" stroke-width="1.6"/>
       </svg>
-      <b>Full<i>court</i></b>
+      <b>Full<i>court</i></b><span class="lg-badge">WNBA</span>
     </a>
+    <div class="lg-switch" role="group" aria-label="League">
+      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button>
+    </div>
     <nav class="nav" id="nav" aria-label="Sections">
       <span class="pill" id="navPill"></span>
       <button data-view="scores">Scores</button>
@@ -1120,7 +1162,7 @@ button.bk-t:hover { background: var(--hl-bg); }
       <div style="min-width:0">
         <div class="day-head">
           <div>
-            <div class="eyebrow" id="dayEyebrow">NBA · Regular season</div>
+            <div class="eyebrow" id="dayEyebrow">Today</div>
             <h1 class="h-display" id="dayTitle">Tonight</h1>
           </div>
           <div class="day-tools">
@@ -1154,12 +1196,12 @@ button.bk-t:hover { background: var(--hl-bg); }
       <div class="seg" id="stdSeg"><span class="knob"></span><button data-sconf="0" aria-pressed="true">Eastern</button><button data-sconf="1" aria-pressed="false">Western</button><button data-sconf="2" aria-pressed="false">League</button><button data-sconf="3" aria-pressed="false">Playoffs</button></div>
     </div>
     <div class="tbl-wrap drag-x" id="stdWrap" data-drag></div>
-    <div class="legend"><span><i class="zone po"></i>Playoff spot (1–6)</span><span><i class="zone pi"></i>Play-In (7–10)</span><span>Tap a team for roster and schedule</span></div>
+    <div class="legend" id="stdLegend"><span><i class="zone po"></i>Playoff spot (1–6)</span><span><i class="zone pi"></i>Play-In (7–10)</span><span>Tap a team for roster and schedule</span></div>
   </section>
 
   <!-- TEAMS -->
   <section class="view" id="v-teams" aria-label="Teams">
-    <div class="eyebrow">30 franchises</div>
+    <div class="eyebrow" id="teamsCount">Franchises</div>
     <h1 class="h-display page-title">Teams</h1>
     <div id="teamsBody"></div>
   </section>
@@ -1204,6 +1246,9 @@ button.bk-t:hover { background: var(--hl-bg); }
       </svg><b>Full<i>court</i></b></span>
     <button class="icon-btn" id="drawerClose" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
+  <div class="drawer-lg"><span class="eyebrow">League</span><div class="lg-switch" role="group" aria-label="League">
+      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button>
+    </div></div>
   <nav class="drawer-nav" aria-label="Sections">
     <button data-view="scores" style="--i:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg><span>Scores</span><em class="dlive" id="drawerLive" hidden></em></button>
     <button data-view="standings" style="--i:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span>Standings</span></button>
@@ -1238,6 +1283,7 @@ button.bk-t:hover { background: var(--hl-bg); }
       <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next day (Scores)</dd></div>
       <div><dt><kbd>T</kbd></dt><dd>Jump to today</dd></div>
       <div><dt><kbd>A</kbd></dt><dd>Ask a stats question</dd></div>
+      <div><dt><kbd>L</kbd></dt><dd>Switch between NBA and WNBA</dd></div>
       <div><dt><kbd>M</kbd></dt><dd>Multi-view: watch up to 4 games</dd></div>
       <div><dt><kbd>F</kbd></dt><dd>Full screen on an open game, team or player</dd></div>
       <div><dt><kbd>Esc</kbd></dt><dd>Close the top panel</dd></div>
@@ -1254,9 +1300,20 @@ button.bk-t:hover { background: var(--hl-bg); }
 'use strict';
 
 /* ================= config ================= */
-const API = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba';
-const API2 = 'https://site.api.espn.com/apis/v2/sports/basketball/nba';
-const WEB = 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba';
+/* League mode: NBA or WNBA. The whole site runs in one league at a time. */
+const LG = (() => { try { return localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { return 'nba'; } })();
+const IS_W = LG === 'wnba';
+const LGN = IS_W ? 'WNBA' : 'NBA';
+// game rules that change between leagues (quarter length, timeouts, team-foul limits)
+const RULES = IS_W
+  ? { per: 600, ot: 300, toReg: 6, toOT: 3, q4Max: 0, lateMax: 0, lateAt: 0, foulReg: 4, foulOT: 3 }
+  : { per: 720, ot: 300, toReg: 7, toOT: 2, q4Max: 4, lateMax: 2, lateAt: 180, foulReg: 4, foulOT: 3 };
+const SEASON_QS = IS_W ? '&seasontype=2' : '';
+const lsKey = k => IS_W ? `${k}-wnba` : k;
+const HIS = IS_W ? 'her' : 'his', HE = IS_W ? 'She' : 'He', HES = IS_W ? "she's" : "he's";
+const API = `https://site.api.espn.com/apis/site/v2/sports/basketball/${LG}`;
+const API2 = `https://site.api.espn.com/apis/v2/sports/basketball/${LG}`;
+const WEB = `https://site.web.api.espn.com/apis/common/v3/sports/basketball/${LG}`;
 const CDN = (path, w, h) => `https://a.espncdn.com/combiner/i?img=${path}&w=${w}&h=${h}&scale=crop&cquality=80`;
 
 const TEAM_COLORS = { ATL:'c8102e', BOS:'008348', BKN:'1a1a1a', CHA:'008ca8', CHI:'ce1141', CLE:'860038', DAL:'0064b1', DEN:'0e2240', DET:'1d428a', GS:'1d428a', HOU:'ce1141', IND:'002d62', LAC:'c8102e', LAL:'552583', MEM:'5d76a9', MIA:'98002e', MIL:'00471b', MIN:'266092', NO:'0c2340', NY:'1d428a', OKC:'007ac1', ORL:'0077c0', PHI:'1d428a', PHX:'1d1160', POR:'e03a3e', SAC:'5a2d81', SA:'2a2a2a', TOR:'ce1141', UTAH:'4e2a84', WSH:'e31837' };
@@ -1319,10 +1376,10 @@ const isDark = () => {
   return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 };
 const logoSrc = (abbr, size = 80, dark = isDark()) =>
-  CDN(`/i/teamlogos/nba/${dark ? '500-dark/scoreboard' : '500'}/${String(abbr || '').toLowerCase()}.png`, size, size);
+  CDN(`/i/teamlogos/${LG}/${dark && !IS_W ? '500-dark/scoreboard' : '500'}/${String(abbr || '').toLowerCase()}.png`, size, size);
 const logo = (abbr, size = 80, cls = 'lg') =>
   `<img class="${cls}" data-ab="${esc(abbr)}" data-s="${size}" src="${logoSrc(abbr, size)}" alt="" loading="lazy" draggable="false" onerror="this.onerror=null;this.src='${logoSrc(abbr, size, false)}'">`;
-const headSrc = (id, w = 350) => CDN(`/i/headshots/nba/players/full/${id}.png`, w, Math.round(w * 254 / 350));
+const headSrc = (id, w = 350) => CDN(`/i/headshots/${LG}/players/full/${id}.png`, w, Math.round(w * 254 / 350));
 const initials = n => String(n || '').split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 const face = (id, name, cls = 'face', w = 160) => id
   ? `<img class="${cls}" src="${headSrc(id, w)}" alt="${esc(name)}" loading="lazy" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls} avatar',textContent:'${esc(initials(name))}'}))">`
@@ -1567,9 +1624,9 @@ function progress(g) {
   if (g.state !== 'in') return 0;
   const [m, s] = String(g.clock || '0:0').split(':').map(Number);
   const rem = (isNaN(s) ? (m || 0) / 60 : m + s / 60);
-  const reg = Math.min(g.period, 4);
-  const elapsed = (reg - 1) * 12 + (g.period <= 4 ? 12 - rem : 12);
-  return Math.max(0, Math.min(1, elapsed / 48));
+  const reg = Math.min(g.period, 4), qm = RULES.per / 60;
+  const elapsed = (reg - 1) * qm + (g.period <= 4 ? qm - rem : qm);
+  return Math.max(0, Math.min(1, elapsed / (qm * 4)));
 }
 function untilText(iso) {
   const ms = new Date(iso) - Date.now();
@@ -1663,6 +1720,8 @@ async function loadScores({ silent = false } = {}) {
   try {
     const d = await getJSON(url);
     S.games = (d.events || []).map(parseGame);
+    const cal = d.leagues?.[0]?.calendar;
+    if (Array.isArray(cal) && cal.length && typeof cal[0] === 'string') S.calendar = cal.map(x => x.slice(0, 10).replace(/-/g, ''));
     // remember each live game's line the first time we see it, so we can tell if the book is moving it in-game
     S.tipOdds = S.tipOdds || {};
     for (const g of S.games) {
@@ -1675,6 +1734,7 @@ async function loadScores({ silent = false } = {}) {
     renderGames(!silent);
     updatePulse();
     refreshTicker();
+    refreshSit();
   } catch (e) {
     S.failures++;
     if (!silent || !S.games.length) renderGamesError();
@@ -1781,7 +1841,7 @@ function gameCard(g, i, animate) {
     const changed = S.prev[key] !== undefined && S.prev[key] !== s.score;
     return `<div class="trow ${cls}">
       ${logo(s.abbr, 68)}
-      <div class="tname"><b>${esc(s.name)}</b><span>${esc(s.rec)}</span></div>
+      <div class="tname"><b>${esc(s.name)}</b>${live && S.sit[g.id]?.teams?.[s.id] ? sitHTML(S.sit[g.id].teams[s.id]) : `<span>${esc(s.rec)}</span>`}</div>
       ${pre ? mlChip(g.odds, side) : `<span class="score${changed ? ' bump' : ''}">${esc(s.score)}</span>`}
     </div>`;
   };
@@ -1795,7 +1855,7 @@ function gameCard(g, i, animate) {
   }
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
-      <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}</span>
+      <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}</span>
       ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : `<span class="tv">${esc(g.note || g.tv)}</span>`}
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
@@ -1820,7 +1880,11 @@ function renderGames(animate) {
   if (favId) list.sort((a, b) => isFavGame(b) - isFavGame(a));
   if (gamesFilter !== 'all') list = list.filter(g => g.state === gamesFilter);
   if (!S.games.length) {
-    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No games on this date</b>Pick another day on the rail above.</div>`;
+    const cal = S.calendar || [];
+    const next = cal.find(x => x > d), prev = [...cal].reverse().find(x => x < d);
+    const btn = (x, label) => `<button class="btn ghost" data-date="${x}">${label}</button>`;
+    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${LGN} games on this date</b>${next ? 'Pick another day, or jump to the nearest games.' : prev ? `No more ${LGN} games are scheduled this season.` : 'Pick another day on the rail above.'}
+      ${prev || next ? `<div class="btn-row" style="justify-content:center;margin-top:12px">${prev ? btn(prev, '← ' + fmtDay(prev, { month: 'short', day: 'numeric' })) : ''}${next ? btn(next, fmtDay(next, { weekday: 'short', month: 'short', day: 'numeric' }) + ' →') : ''}</div>` : ''}</div>`;
   } else {
     $('#games').innerHTML = list.map((g, i) => gameCard(g, i, animate)).join('');
   }
@@ -1902,7 +1966,7 @@ function renderMini() {
   if (!S.standings) { box.innerHTML = Array.from({ length: 8 }, () => `<div class="sk" style="height:30px;margin:4px 0;border-radius:8px"></div>`).join(''); return; }
   const rows = S.standings.confs[S.miniConf]?.rows || [];
   box.innerHTML = rows.slice(0, 10).map((r, i) => `
-    ${i === 6 ? '<div class="cutline" title="Play-In"></div>' : ''}
+    ${i === 6 && !IS_W ? '<div class="cutline" title="Play-In"></div>' : ''}
     <button class="mini-row${r.id === favId ? ' fav-row' : ''}" data-team="${r.id}"><span class="sd">${r.seed}</span>${logo(r.abbr, 48)}<span class="nm">${esc(r.short)}</span><span class="rc">${r.w}-${r.l}</span><span class="gb">${esc(r.gb)}</span></button>`).join('');
 }
 
@@ -1915,6 +1979,7 @@ function renderStandings() {
   }
   $('#stdSeason').textContent = `${S.standings.season || 'Current'} season`;
   $('#v-standings .legend').hidden = S.stdConf === 3;
+  if (IS_W) $('#stdLegend').innerHTML = '<span><i class="zone po"></i>Playoff spot (top 8 in the league)</span><span>Tap a team for roster and schedule</span>';
   if (S.stdConf === 3) { wrap.innerHTML = playoffBracket(); dragScroll(wrap); return; }
   let rows, league = S.stdConf === 2;
   if (league) {
@@ -1925,8 +1990,8 @@ function renderStandings() {
     <thead><tr><th>${league ? '#' : 'Seed'} · Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>Home</th><th>Away</th><th>L10</th><th>Strk</th><th>PPG</th><th>OPP</th><th>Diff</th></tr></thead>
     <tbody>${rows.map((r, i) => {
       const seed = league ? i + 1 : r.seed;
-      const zone = league ? '' : seed <= 6 ? 'po' : seed <= 10 ? 'pi' : '';
-      const cut = league ? '' : seed === 6 ? 'cut' : seed === 10 ? 'cut-pi' : '';
+      const zone = IS_W ? (r.seed <= 8 ? 'po' : '') : league ? '' : seed <= 6 ? 'po' : seed <= 10 ? 'pi' : '';
+      const cut = IS_W || league ? '' : seed === 6 ? 'cut' : seed === 10 ? 'cut-pi' : '';
       const sw = /^W/.test(r.strk) ? 'strk-w' : /^L/.test(r.strk) ? 'strk-l' : '';
       const w = Math.round(Math.abs(r.diff) / maxDiff * 54);
       return `<tr class="${cut}${r.id === favId ? ' fav-row' : ''}" data-team="${r.id}" style="--i:${i}">
@@ -1948,6 +2013,7 @@ function renderTeams() {
     loadStandings().catch(() => { body.innerHTML = `<div class="empty"><b>Teams didn't load</b><button class="btn" data-retry="teams">Try again</button></div>`; });
     return;
   }
+  $('#teamsCount').textContent = `${S.standings.confs.reduce((n, c) => n + c.rows.length, 0)} ${LGN} teams`;
   body.innerHTML = S.standings.confs.map(c => {
     const rows = [...c.rows].sort((a, b) => a.loc.localeCompare(b.loc));
     return `<div class="conf-h"><h2 class="h-display">${esc(c.name)}</h2><span class="eyebrow">${rows.length} teams</span></div>
@@ -1973,7 +2039,7 @@ async function loadLeaders() {
   if (!S.leadCache[key]) {
     body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
     try {
-      const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc`);
+      const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc${SEASON_QS}`);
       S.leadCache[key] = d;
     } catch (e) {
       body.innerHTML = `<div class="empty"><b>Leaders didn't load</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`;
@@ -2012,6 +2078,67 @@ async function loadLeaders() {
       </button>`).join('')}</div>
   </div>`;
   requestAnimationFrame(() => requestAnimationFrame(() => $$('.lrow .bar i', body).forEach(i => i.style.width = i.dataset.w + '%')));
+}
+
+
+/* ================= timeouts, team fouls, bonus (worked out from the play-by-play) ================= */
+// NBA: 7 timeouts; at most 4 in the 4th and 2 after its 3:00 mark; 2 per overtime. WNBA: 5 + 1 Reset; 2 + 1 Reset per overtime.
+// Team fouls: free throws start once a team passes 4 in a quarter (3 in overtime), or on its 2nd foul in a period's last 2:00.
+function situation(d) {
+  const comp = d?.header?.competitions?.[0], st = comp?.status;
+  if (!comp || st?.type?.state !== 'in') return null;
+  const per = st.period || 1, clk = clockSecs(st.displayClock);
+  const ids = comp.competitors.map(c => c.team.id);
+  const T = {}; ids.forEach(id => { T[id] = { used: 0, usedPer: 0, usedLate: 0, fouls: 0, foulsL2: 0 }; });
+  const plays = d.plays || [];
+  let lastTO = -1;
+  plays.forEach((p, i) => {
+    const t = p.type?.text || '', tid = p.team?.id, pp = p.period?.number || 1, c = clockSecs(p.clock?.displayValue);
+    const teamTO = /timeout/i.test(t) && !/official/i.test(t);
+    const lostChallenge = /coach'?s challenge/i.test(t) && /(supported|stands|upheld|unsuccessful)/i.test(t);
+    if ((teamTO || lostChallenge) && tid && T[tid]) {
+      if (pp > 4 ? pp === per : per <= 4) T[tid].used++;
+      if (pp === per) { T[tid].usedPer++; if (RULES.lateAt && pp === 4 && c <= RULES.lateAt) T[tid].usedLate++; }
+    }
+    if (/timeout/i.test(t) && pp === per) lastTO = i;
+    if (pp === per && tid && T[tid] && /foul/i.test(t) && !/offensive|technical|turnover|double/i.test(t)) { T[tid].fouls++; if (c <= 120) T[tid].foulsL2++; }
+  });
+  const reg = per <= 4, limit = reg ? RULES.foulReg : RULES.foulOT;
+  const teams = {};
+  ids.forEach((id, k) => {
+    const me = T[id], opp = T[ids[1 - k]];
+    let rem = (reg ? RULES.toReg : RULES.toOT) - me.used;
+    if (per === 4 && RULES.q4Max) rem = Math.min(rem, RULES.q4Max - me.usedPer);
+    if (per === 4 && RULES.lateAt && clk <= RULES.lateAt) rem = Math.min(rem, RULES.lateMax - me.usedLate);
+    teams[id] = { rem: Math.max(0, rem), max: reg ? RULES.toReg : RULES.toOT, fouls: me.fouls, bonus: opp.fouls >= limit || (clk <= 120 && opp.foulsL2 >= 1) };
+  });
+  let inTO = null;
+  if (lastTO >= 0) {
+    const p = plays[lastTO];
+    const quiet = plays.slice(lastTO + 1).every(q => /substitution|timeout|challenge|review|enters the game/i.test((q.type?.text || '') + ' ' + (q.text || '')));
+    if (quiet && clockSecs(p.clock?.displayValue) === clk && clk > 0) inTO = { team: p.team?.id || null, official: /official/i.test(p.type?.text || '') };
+  }
+  return { teams, inTO, per };
+}
+function sitHTML(ts, label = true) {
+  if (!ts) return '';
+  const dots = Array.from({ length: ts.max }, (_, i) => `<i class="${i < ts.rem ? '' : 'u'}"></i>`).join('');
+  return `<span class="sit" title="${ts.rem} timeout${ts.rem === 1 ? '' : 's'} left · ${ts.fouls} team foul${ts.fouls === 1 ? '' : 's'} this period">${label ? `<span class="tol">TO</span>` : ''}<span class="tos">${dots}</span>${ts.bonus ? '<em class="bonus">Bonus</em>' : ''}</span>`;
+}
+function toPill(sit, abbrOf) {
+  if (!sit?.inTO) return '';
+  const who = sit.inTO.official ? 'Official' : sit.inTO.team ? abbrOf(sit.inTO.team) : '';
+  return `<span class="to-pill">Timeout${who ? ' · ' + esc(who) : ''}</span>`;
+}
+S.sit = {}; S.sitAt = {};
+async function refreshSit() {
+  if (S.view !== 'scores' || document.hidden) return;
+  const live = S.games.filter(g => g.state === 'in' && Date.now() - (S.sitAt[g.id] || 0) > 25000);
+  if (!live.length) return;
+  const res = await Promise.all(live.map(g => getJSON(`${API}/summary?event=${g.id}`, { retries: 0 }).then(d => [g.id, situation(d)]).catch(() => null)));
+  let changed = false;
+  res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); changed = true; });
+  if (changed && S.view === 'scores') renderGames(false);
 }
 
 /* ================= flyout stack ================= */
@@ -2144,16 +2271,19 @@ async function openGame(id) {
     setTitle(sheet, `${sides[0].abbr} @ ${sides[1].abbr}`);
 
     const live = g.state === 'in', pre = g.state === 'pre';
+    const sit = live ? situation(d) : null;
+    if (sit) { S.sit[id] = sit; S.sitAt[id] = Date.now(); }
+    const sitOf = s => sit?.teams?.[s.id] ? `<span class="gh-sit">${sitHTML(sit.teams[s.id])}</span>` : '';
     const prevScroll = sheet.body.scrollTop;
     const header = `
       <div class="gh${first ? ' enter' : ''}">
         <div class="gh-band"><i style="background:${teamColor(sides[0].id)}"></i><i style="background:${teamColor(sides[1].id)}"></i></div>
         <div class="gh-main">
-          <button class="gh-team" data-team="${sides[0].id}">${logo(sides[0].abbr, 120)}<b>${esc(sides[0].short)}</b><span>${esc(sides[0].rec)} · Away</span></button>
+          <button class="gh-team" data-team="${sides[0].id}">${logo(sides[0].abbr, 120)}<b>${esc(sides[0].short)}</b><span>${esc(sides[0].rec)} · Away</span>${sitOf(sides[0])}</button>
           <div class="gh-score">${pre ? `<span class="tip" style="font-size:26px;white-space:nowrap">${esc(fmtTime(g.date))}</span>` : `<span class="score" style="${!sides[0].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[0].score)}</span><span class="sep"></span><span class="score" style="${!sides[1].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[1].score)}</span>`}</div>
-          <button class="gh-team" data-team="${sides[1].id}">${logo(sides[1].abbr, 120)}<b>${esc(sides[1].short)}</b><span>${esc(sides[1].rec)} · Home</span></button>
+          <button class="gh-team" data-team="${sides[1].id}">${logo(sides[1].abbr, 120)}<b>${esc(sides[1].short)}</b><span>${esc(sides[1].rec)} · Home</span>${sitOf(sides[1])}</button>
         </div>
-        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}</span>
+        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>
         <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span></div>
       </div>`;
 
@@ -2589,7 +2719,7 @@ const unlockIfIdle = () => {
 const teamByName = name => name ? Object.values(S.teams).find(t => t.name === name) : null;
 
 /* ---------------- favorite team ---------------- */
-let favId = lsGet('fc-fav');
+let favId = lsGet(lsKey('fc-fav'));
 const isFavGame = g => !!favId && (g.home.id === favId || g.away.id === favId);
 function favBtnHTML(id) {
   const on = favId === id;
@@ -2610,7 +2740,7 @@ function renderFavLink() {
 }
 function setFav(id) {
   favId = favId === id ? null : id;
-  lsSet('fc-fav', favId);
+  lsSet(lsKey('fc-fav'), favId);
   $$('[data-fav]').forEach(b => { b.outerHTML = favBtnHTML(b.dataset.fav); });
   renderFavLink();
   renderGames(false); renderTicker(); renderMini();
@@ -2679,7 +2809,7 @@ const COURT = `<rect x="0" y="0" width="500" height="470" rx="6" fill="var(--cou
   <rect x="170" y="1" width="160" height="189" fill="var(--court-paint)"/>
   <path d="M190 190 A60 60 0 0 0 310 190"/>
   <path d="M190 190 A60 60 0 0 1 310 190" stroke-dasharray="7 7"/>
-  <path d="M30 1 V140 A237.5 237.5 0 0 0 470 140 V1"/>
+  <path d="${IS_W ? 'M30 1 V78 A221.5 221.5 0 0 0 470 78 V1' : 'M30 1 V140 A237.5 237.5 0 0 0 470 140 V1'}"/>
   <path d="M210 52.5 A40 40 0 0 0 290 52.5"/>
   <line x1="220" y1="40" x2="280" y2="40" stroke-width="3"/>
   <circle cx="250" cy="52.5" r="7.5"/>
@@ -2740,7 +2870,8 @@ function shotChart(d, sides, f) {
 
 /* ---------------- game flow (scoring margin + runs) ---------------- */
 const clockSecs = v => { const s = String(v ?? '0'); if (s.includes(':')) { const [m, x] = s.split(':'); return (+m) * 60 + (+x || 0); } return +s || 0; };
-const elapsedAt = (per, clk) => { const c = clockSecs(clk); return per <= 4 ? (per - 1) * 720 + (720 - c) : 2880 + (per - 5) * 300 + (300 - c); };
+const QP = RULES.per, REG = RULES.per * 4, OTP = RULES.ot;
+const elapsedAt = (per, clk) => { const c = clockSecs(clk); return per <= 4 ? (per - 1) * QP + (QP - c) : REG + (per - 5) * OTP + (OTP - c); };
 function flowData(d) {
   let pa = 0, ph = 0, maxPer = 4;
   const pts = [[0, 0]], ev = [];
@@ -2753,7 +2884,7 @@ function flowData(d) {
     if (a > pa) ev.push({ t, team: 'away', pts: a - pa, per, clock: p.clock?.displayValue });
     pts.push([t, h - a]); pa = a; ph = h;
   }
-  const end = maxPer <= 4 ? 2880 : 2880 + (maxPer - 4) * 300;
+  const end = maxPer <= 4 ? REG : REG + (maxPer - 4) * OTP;
   return { pts, ev, end, maxPer };
 }
 function findRuns(ev) {
@@ -2783,8 +2914,8 @@ function flowCard(d, sides) {
   const area = `${path} L${x(lastT).toFixed(1)} ${mid.toFixed(1)} L${x(0).toFixed(1)} ${mid.toFixed(1)} Z`;
   const runs = findRuns(ev);
   const n = (S.wpN = (S.wpN || 0) + 1);
-  const qs = []; for (let p = 1; p < maxPer; p++) qs.push(p <= 4 ? p * 720 : 2880 + (p - 4) * 300);
-  const qLabels = Array.from({ length: maxPer }, (_, i) => { const a = i < 4 ? i * 720 : 2880 + (i - 4) * 300, b = i < 4 ? (i + 1) * 720 : a + 300; return `<text x="${x((a + b) / 2)}" y="${H - 6}" text-anchor="middle" class="ax">${perLabel(i + 1)}</text>`; }).join('');
+  const qs = []; for (let p = 1; p < maxPer; p++) qs.push(p <= 4 ? p * QP : REG + (p - 4) * OTP);
+  const qLabels = Array.from({ length: maxPer }, (_, i) => { const a = i < 4 ? i * QP : REG + (i - 4) * OTP, b = i < 4 ? (i + 1) * QP : a + OTP; return `<text x="${x((a + b) / 2)}" y="${H - 6}" text-anchor="middle" class="ax">${perLabel(i + 1)}</text>`; }).join('');
   const abbr = t => t === 'home' ? sides[1].abbr : sides[0].abbr;
   let homeMax = 0, awayMax = 0, changes = 0, ties = 0, prevSign = 0;
   for (const [, m] of pts.slice(1)) {
@@ -2840,9 +2971,10 @@ function mvPanel(d) {
   const g = { state: st.state, desc: st.description, period: comp.status?.period, clock: comp.status?.displayClock, date: comp.date };
   const sides = ['away', 'home'].map(ha => { const c = comp.competitors.find(x => x.homeAway === ha); regTeam(c.team); return { id: c.team.id, abbr: c.team.abbreviation, short: c.team.name || c.team.shortDisplayName, score: c.score ?? '', winner: c.winner, lines: (c.linescores || []).map(l => l.displayValue ?? l.value) }; });
   const live = g.state === 'in', pre = g.state === 'pre', post = g.state === 'post';
+  const sit = live ? situation(d) : null;
   const head = `<button class="mv-head" data-game="${d.header.id}" title="Open full game">
-    ${sides.map((s, i) => `<span class="mv-team${post && !s.winner ? ' lose' : ''}">${logo(s.abbr, 72)}<b>${esc(s.abbr)}</b>${pre ? '' : `<span class="score">${esc(s.score)}</span>`}</span>${i === 0 ? `<span class="mv-mid"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtTime(g.date) : statusText(g))}</span></span>` : ''}`).join('')}
-  </button>`;
+    ${sides.map((s, i) => `<span class="mv-team${post && !s.winner ? ' lose' : ''}">${logo(s.abbr, 72)}<b>${esc(s.abbr)}</b>${pre ? '' : `<span class="score">${esc(s.score)}</span>`}</span>${i === 0 ? `<span class="mv-mid"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtTime(g.date) : statusText(g))}</span>${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>` : ''}`).join('')}
+  </button>${sit ? `<div class="mv-sit">${sides.map(s => `<span>${esc(s.abbr)} ${sitHTML(sit.teams[s.id], false)}</span>`).join('')}</div>` : ''}`;
   if (pre) {
     const odds = gameOdds(d, d.header.id);
     const tv = [...new Set((d.broadcasts || []).map(b => b.media?.shortName || b.station || '').filter(Boolean))].join(' · ');
@@ -2968,9 +3100,9 @@ spIn.addEventListener('input', () => {
   spTimer = setTimeout(async () => {
     const my = ++spSeq;
     try {
-      const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=15&type=player&sport=basketball&league=nba`, { retries: 0, timeout: 8000 });
+      const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=15&type=player&sport=basketball&league=${LG}`, { retries: 0, timeout: 8000 });
       if (my !== spSeq) return;
-      spPlayers = (r.items || []).filter(it => it.league === 'nba' && it.isActive !== false).slice(0, 8).map(it => {
+      spPlayers = (r.items || []).filter(it => it.league === LG && it.isActive !== false).slice(0, 8).map(it => {
         const tn = it.teamRelationships?.[0]?.displayName;
         return { id: it.id, name: it.displayName, sub: [it.position?.abbreviation, tn].filter(Boolean).join(' · '), teamId: teamByName(tn)?.id };
       });
@@ -3023,11 +3155,12 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 't' || e.key === 'T') { go('scores'); pickDate(S.today); return; }
   if (e.key === 'm' || e.key === 'M') { if (S.view !== 'scores') go('scores'); openMulti(); return; }
-  if (e.key === 'a' || e.key === 'A') { e.preventDefault(); openAsk(); }
+  if (e.key === 'a' || e.key === 'A') { e.preventDefault(); openAsk(); return; }
+  if (e.key === 'l' || e.key === 'L') { switchLeague(IS_W ? 'nba' : 'wnba'); }
 });
 
 /* ---------------- player comparison ---------------- */
-S.cmp = (() => { try { const v = JSON.parse(lsGet('fc-cmp') || 'null'); return Array.isArray(v) && v.length === 2 ? v : [null, null]; } catch (e) { return [null, null]; } })();
+S.cmp = (() => { try { const v = JSON.parse(lsGet(lsKey('fc-cmp')) || 'null'); return Array.isArray(v) && v.length === 2 ? v : [null, null]; } catch (e) { return [null, null]; } })();
 S.cmpSplit = 'season';
 S.cmpCache = {};
 const CMP_STATS = [
@@ -3055,7 +3188,7 @@ async function cmpData(id) {
 async function ensureCmpDefaults() {
   if (S.cmp[0] && S.cmp[1]) return;
   const key = 'offensive.avgPoints';
-  if (!S.leadCache[key]) S.leadCache[key] = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc`);
+  if (!S.leadCache[key]) S.leadCache[key] = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc${SEASON_QS}`);
   const ids = (S.leadCache[key].athletes || []).map(a => a.athlete.id);
   if (!S.cmp[0]) S.cmp[0] = ids.find(x => x !== S.cmp[1]);
   if (!S.cmp[1]) S.cmp[1] = ids.find(x => x !== S.cmp[0]);
@@ -3065,7 +3198,7 @@ async function renderCompare() {
   body.innerHTML = `<div class="cmp-grid"><div class="sk" style="height:260px;border-radius:20px"></div><div class="sk" style="height:260px;border-radius:20px"></div></div><div class="sk" style="height:420px;margin-top:16px"></div>`;
   try { await ensureCmpDefaults(); } catch (e) {}
   if (!S.cmp[0] || !S.cmp[1]) { body.innerHTML = `<div class="empty"><b>Pick two players</b>Search for a player in each box above.</div>`; return; }
-  lsSet('fc-cmp', JSON.stringify(S.cmp));
+  lsSet(lsKey('fc-cmp'), JSON.stringify(S.cmp));
   const [A, B] = await Promise.all(S.cmp.map(cmpData));
   if (S.view !== 'compare') return;
   ['0', '1'].forEach((k, i) => { const inp = $(`#cmpIn${k}`); if (document.activeElement !== inp) inp.value = [A, B][i].name; });
@@ -3120,9 +3253,9 @@ function cmpPicker(slot) {
     t = setTimeout(async () => {
       const my = ++seq;
       try {
-        const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=12&type=player&sport=basketball&league=nba`, { retries: 0, timeout: 8000 });
+        const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=12&type=player&sport=basketball&league=${LG}`, { retries: 0, timeout: 8000 });
         if (my !== seq) return;
-        items = (r.items || []).filter(it => it.league === 'nba' && it.isActive !== false).slice(0, 7).map(it => { const tn = it.teamRelationships?.[0]?.displayName; return { id: it.id, name: it.displayName, sub: [it.position?.abbreviation, tn].filter(Boolean).join(' · '), teamId: teamByName(tn)?.id }; });
+        items = (r.items || []).filter(it => it.league === LG && it.isActive !== false).slice(0, 7).map(it => { const tn = it.teamRelationships?.[0]?.displayName; return { id: it.id, name: it.displayName, sub: [it.position?.abbreviation, tn].filter(Boolean).join(' · '), teamId: teamByName(tn)?.id }; });
         items.length ? draw() : show(`<div class="sp-msg">No players match “${esc(q)}”.</div>`);
       } catch (e) { show('<div class="sp-msg">Search is unavailable right now.</div>'); }
     }, 180);
@@ -3139,7 +3272,23 @@ cmpPicker(0); cmpPicker(1);
 $('#cmpSwap').addEventListener('click', () => { S.cmp = [S.cmp[1], S.cmp[0]]; renderCompare(); });
 
 /* ---------------- playoff picture ---------------- */
+function playoffBracketW() {
+  const all = S.standings.confs.flatMap(c => c.rows).sort((a, b) => a.seed - b.seed);
+  const s = n => all.find(x => x.seed === n);
+  const team = (t, seed) => t ? `<button class="bk-t${t.id === favId ? ' fav' : ''}" data-team="${t.id}"><span class="sd">${seed}</span>${logo(t.abbr, 40)}<span class="nm">${esc(t.short)}</span><span class="rc">${t.w}-${t.l}</span></button>` : `<div class="bk-t tbd"><span class="sd">${seed}</span><span class="nm">TBD</span></div>`;
+  const tb = note => `<div class="bk-t tbd"><span class="sd"></span><span class="nm">${esc(note)}</span></div>`;
+  const m = (a, b) => `<div class="bk-m">${a}${b}</div>`;
+  return `<div class="bracket">
+    <p class="bk-note">Seeded 1–8 across the whole league by record, regardless of conference. No Play-In.</p>
+    <div class="bk-conf"><div class="bk-cols" style="grid-template-columns:repeat(3,1fr)">
+      <div class="bk-col"><div class="bk-ch">First round</div>${m(team(s(1), 1), team(s(8), 8))}${m(team(s(4), 4), team(s(5), 5))}${m(team(s(3), 3), team(s(6), 6))}${m(team(s(2), 2), team(s(7), 7))}</div>
+      <div class="bk-col"><div class="bk-ch">Semifinals</div>${m(tb('Winner 1 / 8'), tb('Winner 4 / 5'))}${m(tb('Winner 3 / 6'), tb('Winner 2 / 7'))}</div>
+      <div class="bk-col"><div class="bk-ch">WNBA Finals</div>${m(tb('Top half winner'), tb('Bottom half winner'))}</div>
+    </div></div>
+  </div>`;
+}
 function playoffBracket() {
+  if (IS_W) return playoffBracketW();
   const conf = c => {
     const r = S.standings.confs[c].rows, s = n => r.find(x => x.seed === n);
     const team = (t, seed, note) => t
@@ -3174,7 +3323,7 @@ function playoffBracket() {
   return `<div class="bracket">
     <p class="bk-note">If the season ended today. Seeds 1–6 go straight to the first round; seeds 7–10 play in the Play-In Tournament.</p>
     ${conf(0)}${conf(1)}
-    <div class="bk-final"><div class="bk-ch">NBA Finals</div>${`<div class="bk-m">${'<div class="bk-t tbd"><span class="nm">East champion</span></div><div class="bk-t tbd"><span class="nm">West champion</span></div>'}</div>`}</div>
+    <div class="bk-final"><div class="bk-ch">${LGN} Finals</div>${`<div class="bk-m">${'<div class="bk-t tbd"><span class="nm">East champion</span></div><div class="bk-t tbd"><span class="nm">West champion</span></div>'}</div>`}</div>
   </div>`;
 }
 
@@ -3235,7 +3384,7 @@ const PNICKS = {
   ant: 'anthony edwards', 'ant man': 'anthony edwards', ja: 'ja morant', book: 'devin booker', dame: 'damian lillard', cp3: 'chris paul', kat: 'karl anthony towns',
   zion: 'zion williamson', trae: 'trae young', hali: 'tyrese haliburton', spida: 'donovan mitchell', jjj: 'jaren jackson jr', 'the greek freak': 'giannis antetokounmpo',
 };
-const ABBR_OK = new Set(['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NO', 'NOP', 'NY', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'SAS', 'TOR', 'UTA', 'UTAH', 'WSH', 'WAS']);
+const ABBR_OK = new Set(['CON', 'LV', 'LVA', 'LA', 'LAS', 'SEA', 'GSV', 'PHO', 'NYL', 'CHI', 'IND', 'DAL', 'ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NO', 'NOP', 'NY', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'SAS', 'TOR', 'UTA', 'UTAH', 'WSH', 'WAS']);
 const ABBR_ALIAS = { GSW: 'GS', NOP: 'NO', NYK: 'NY', SAS: 'SA', UTA: 'UTAH', WAS: 'WSH' };
 const STOP = new Set(('how many much what whats who whos whose which when where did does do is was were are has have had the a an in on of for to at by with from vs versus against and or ' +
   'last night tonight today yesterday this season seasons career game games average averaging averages avg per so far score scored scoring scores ' +
@@ -3250,7 +3399,7 @@ const STOP = new Set(('how many much what whats who whos whose which when where 
 /* ---------------- data helpers ---------------- */
 async function leagueTable() {
   if (S.lt && Date.now() - S.lt.t < 10 * 60e3) return S.lt.rows;
-  const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=false&page=1&limit=600&sort=offensive.avgPoints:desc`, { timeout: 25000 });
+  const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=false&page=1&limit=600&sort=offensive.avgPoints:desc${SEASON_QS}`, { timeout: 25000 });
   const idx = {}; (d.categories || []).forEach(c => { idx[c.name] = c.names; });
   const rows = (d.athletes || []).map(a => {
     const cat = {}; (a.categories || []).forEach(c => { cat[c.name] = c.values; });
@@ -3377,8 +3526,8 @@ async function searchPlayerFallback(text) {
   const q = nameKey(text).split(' ').filter(w => !STOP.has(w) && w !== '#').join(' ');
   if (q.length < 3) return null;
   try {
-    const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=5&type=player&sport=basketball&league=nba`, { retries: 0, timeout: 7000 });
-    const it = (r.items || []).find(i => i.league === 'nba' && i.isActive !== false);
+    const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=5&type=player&sport=basketball&league=${LG}`, { retries: 0, timeout: 7000 });
+    const it = (r.items || []).find(i => i.league === LG && i.isActive !== false);
     if (!it) return null;
     const tn = it.teamRelationships?.[0]?.displayName, t = teamByName(tn);
     return { id: it.id, name: it.displayName, first: it.displayName.split(' ')[0], last: it.displayName.split(' ').slice(1).join(' '), teamId: t?.id, abbr: t?.abbr || '', pos: it.position?.abbreviation || '', gp: 0 };
@@ -3452,7 +3601,7 @@ async function aPlayerSeason(p, stat, rows) {
     else if (S1.pct) text = `${esc(r.name)} is shooting <b>${fpct(r[stat])}</b> ${stat === 'fgp' ? 'from the field' : stat === 'tpp' ? 'from three' : 'from the free-throw line'} this season (${g}).`;
     else text = `${esc(r.name)} is averaging <b>${f1(r[stat])} ${S1.unit}</b> per game this season (${g}).`;
     const rk = rankOf(rows, r, stat, stat === 'tov');
-    if (rk && !S1.total && rk.rank <= 50) text += ` That ranks ${ordinal(rk.rank)} in the NBA among regular players.`;
+    if (rk && !S1.total && rk.rank <= 50) text += ` That ranks ${ordinal(rk.rank)} in the ${LGN} among regular players.`;
   } else {
     text = `${esc(r.name)} is averaging <b>${f1(r.pts)} points, ${f1(r.reb)} rebounds and ${f1(r.ast)} assists</b> in ${g} this season, shooting ${fpct(r.fgp)} from the field and ${fpct(r.tpp)} from three.`;
   }
@@ -3470,7 +3619,7 @@ async function aPlayerOnDate(p, date, stat) {
   if (g.state === 'pre') return { text: `The ${esc(teamNick(p.teamId))} play the ${esc(opp.name)} ${when} at ${esc(fmtTime(g.date))}. ${esc(p.name)}'s stats will show up here once the game starts.`, html: card(gRow(g)), ctx: { pid: p.id } };
   const d = await summaryOf(g.id);
   const r = boxRows(d).find(x => x.id === p.id);
-  if (!r) return { text: `${esc(p.name)} isn't listed in the box score for the ${esc(teamNick(p.teamId))} game ${when}. He may be injured or inactive.`, html: card(gRow(g)), ctx: { pid: p.id } };
+  if (!r) return { text: `${esc(p.name)} isn't listed in the box score for the ${esc(teamNick(p.teamId))} game ${when}. ${HE} may be injured or inactive.`, html: card(gRow(g)), ctx: { pid: p.id } };
   if (r.dnp) return { text: `${esc(p.name)} didn't play ${when}${r.reason ? ` (${esc(r.reason.toLowerCase())})` : ''}.`, html: card(gRow(g)), ctx: { pid: p.id } };
   const live = g.state === 'in';
   const result = live ? `in the ${esc(teamNick(p.teamId))}' game against the ${esc(opp.name)} (${esc(statusText(g))}, ${me.score}–${opp.score})`
@@ -3492,12 +3641,12 @@ async function aPlayerLastN(p, n, stat, oppTeam) {
   const sum = (arr, i) => take.reduce((s, e) => s + e[arr][i], 0);
   const pct = arr => { const a = sum(arr, 1); return a ? (sum(arr, 0) / a * 100).toFixed(1) + '%' : '–'; };
   const span = oppTeam ? `against the ${esc(oppTeam.short || oppTeam.name)} this season (${plural(take.length, 'game')})`
-    : take.length === 1 ? 'in his last game'
-    : take.length < n ? `in all ${take.length} games he's played this season` : `over his last ${take.length} games`;
+    : take.length === 1 ? `in ${HIS} last game`
+    : take.length < n ? `in all ${take.length} games ${HES} played this season` : `over ${HIS} last ${take.length} games`;
   let text;
   if (take.length === 1 && !oppTeam) {
     const e = take[0];
-    text = `In his last game (${esc(fmtShortDate(e.date))} ${esc(e.atVs)} ${esc(e.opp)}, ${esc(e.res)} ${esc(e.score)}), ${esc(p.name)} had <b>${lineSentence(e)}</b> on ${e.fg[0]}/${e.fg[1]} shooting.`;
+    text = `In ${HIS} last game (${esc(fmtShortDate(e.date))} ${esc(e.atVs)} ${esc(e.opp)}, ${esc(e.res)} ${esc(e.score)}), ${esc(p.name)} had <b>${lineSentence(e)}</b> on ${e.fg[0]}/${e.fg[1]} shooting.`;
   } else if (stat && STAT[stat] && !STAT[stat].total && stat !== 'pm') {
     if (STAT[stat].pct) text = `${esc(p.name)} is shooting <b>${pct(stat === 'fgp' ? 'fg' : stat === 'tpp' ? 'tp' : 'ft')}</b> ${stat === 'fgp' ? 'from the field' : stat === 'tpp' ? 'from three' : 'from the line'} ${span}.`;
     else text = `${esc(p.name)} is averaging <b>${f1(avg(stat))} ${STAT[stat].unit}</b> ${span}${['tpm', 'pts', 'reb', 'ast'].includes(stat) ? ` (${Math.round(avg(stat) * take.length)} total)` : ''}.`;
@@ -3513,7 +3662,7 @@ async function aPlayerCareer(p, stat) {
   if (!sp) return { text: `I couldn't find career numbers for ${esc(p.name)}.`, ctx: { pid: p.id } };
   const v = k => sp.stats[lab.indexOf(k)];
   const map = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', fgp: 'FG%', tpp: '3P%', ftp: 'FT%', min: 'MIN', tov: 'TO' };
-  const text = stat && map[stat] ? `${esc(p.name)} has averaged <b>${esc(v(map[stat]))}${STAT[stat].pct ? '%' : ' ' + STAT[stat].unit}</b> per game over his career (${esc(v('GP'))} games).`
+  const text = stat && map[stat] ? `${esc(p.name)} has averaged <b>${esc(v(map[stat]))}${STAT[stat].pct ? '%' : ' ' + STAT[stat].unit}</b> per game over ${HIS} career (${esc(v('GP'))} games).`
     : `Over his career (${esc(v('GP'))} games), ${esc(p.name)} has averaged <b>${esc(v('PTS'))} points, ${esc(v('REB'))} rebounds and ${esc(v('AST'))} assists</b>, shooting ${esc(v('FG%'))}% from the field.`;
   return { text, html: card(pRow(p, null, 'Career') + table(lab, st.splits.map(s => `<tr>${s.stats.map(x => `<td>${esc(x)}</td>`).join('')}</tr>`)) + `<p class="ask-note">Rows: ${st.splits.map(s => esc(s.displayName)).join(' · ')}</p>`), ctx: { pid: p.id } };
 }
@@ -3609,7 +3758,7 @@ async function aOdds(t) {
 async function aDayGames(date) {
   const games = await scoreboardOn(date);
   const when = dayLabel(date);
-  if (!games.length) return { text: `There are no NBA games ${when}.` };
+  if (!games.length) return { text: `There are no ${LGN} games ${when}.` };
   const live = games.filter(g => g.state === 'in').length, post = games.filter(g => g.state === 'post').length;
   const first = games.filter(g => g.state === 'pre').sort((a, b) => new Date(a.date) - new Date(b.date))[0];
   let text = `There ${games.length === 1 ? 'is' : 'are'} <b>${plural(games.length, 'game')}</b> ${when}.`;
@@ -3673,7 +3822,7 @@ async function aLeaders(stat, opts, rows) {
   const list = pool.slice(0, n);
   if (!list.length) return { text: 'No one qualifies for that yet. Check back after a few more games.' };
   const top = list[0];
-  const scope = opts.teamId ? `the ${esc(teamNick(opts.teamId))}` : opts.conf != null ? `the ${opts.conf ? 'West' : 'East'}` : 'the NBA';
+  const scope = opts.teamId ? `the ${esc(teamNick(opts.teamId))}` : opts.conf != null ? `the ${opts.conf ? 'West' : 'East'}` : `the ${LGN}`;
   const fmtV = r => S1.pct ? fpct(val(r)) : useTot ? String(Math.round(val(r))) : f1(val(r));
   const unit = S1.pct ? '' : useTot ? ` ${S1.label}` : ` ${S1.unit} per game`;
   const where = S1.pct ? ` ${k === 'fgp' ? 'from the field' : k === 'tpp' ? 'from three' : 'from the line'}` : '';
@@ -3725,7 +3874,7 @@ async function answer(raw) {
   if (!players.length && leftover.join(' ').length >= 4 && !teams.length) { const p = await searchPlayerFallback(leftover.join(' ')); if (p) players.push(p); }
 
   // follow-up context ("what about rebounds?", "his last 5 games")
-  const pronoun = has(/ (he|his|him|what about|how about|and) /);
+  const pronoun = has(/ (he|his|him|she|her|hers|what about|how about|and) /);
   const shortQ = nn.trim().split(' ').length <= 3;
   if (!players.length && !teams.length && (stat || time) && ASK.ctx.pid && (pronoun || (shortQ && !leftover.length)) && !has(/ (who|whos|leaders?|leads|most|top|best|highest|lowest|fewest|worst|everyone|anyone|league|nba|rank\w*) /)) {
     const p = rows.find(r => r.id === ASK.ctx.pid); if (p) players.push(p);
@@ -3791,7 +3940,18 @@ async function answer(raw) {
 }
 
 /* ---------------- chat UI ---------------- */
-const ASK_EXAMPLES = [
+const ASK_EXAMPLES = IS_W ? [
+  'Who scored the most points last night?',
+  "A'ja Wilson last 5 games",
+  'Assist leaders in the West',
+  'Liberty record',
+  'When do the Fever play next?',
+  'Caitlin Clark vs Paige Bueckers',
+  'Who had a double-double last night?',
+  'Most threes per game',
+  'East standings',
+  'Aces leading scorer',
+] : [
   'Who scored the most points last night?',
   'Jayson Tatum last 5 games',
   'Assist leaders in the West',
@@ -3856,9 +4016,19 @@ function openAsk(q) {
   if (q) ask(q);
 }
 
+/* ================= league switch ================= */
+$$('[data-lg]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lg === LG));
+function switchLeague(lg) {
+  if (lg === LG) return;
+  try { localStorage.setItem('fc-league', lg); } catch (e) {}
+  document.documentElement.classList.add('switching');
+  setTimeout(() => location.reload(), 260);
+}
+
 /* ================= global events ================= */
 document.addEventListener('click', e => {
   const el = e.target;
+  const lgb = el.closest('[data-lg]'); if (lgb) { switchLeague(lgb.dataset.lg); return; }
   const v = el.closest('[data-view]');
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
