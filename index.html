@@ -950,6 +950,9 @@ button.bk-t:hover { background: var(--hl-bg); }
 .inj-red { color: var(--loss); }
 .inj-red b { font-weight: 700; }
 .box tr.inj-row td, .box tr.inj-h td { color: var(--loss); }
+.box tr.sub.oncourt td { color: var(--live); display: table-cell; }
+.box tr.sub.oncourt .dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.box tr.on-court td:first-child { box-shadow: inset 3px 0 0 var(--live), 1px 0 0 var(--line); }
 .box .inj-line { font-size: 12px; line-height: 1.35; margin: 3px 0 0 36px; white-space: normal; max-width: 230px; color: var(--loss); }
 .box .inj-line b { font-weight: 700; }
 .box tr.inj-h td { color: var(--loss); }
@@ -2277,7 +2280,22 @@ function boxScore(d, sides, bi) {
       ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : cols(a.stats).map(([v, i]) => `<td class="${i === ptsIdx ? 'pts' : ''}${shotIdx.has(i) ? ' sc' : ''}">${cellOf(v, i)}</td>`).join('')}
     </tr>`;
   };
-  const starters = ath.filter(a => a.starter), bench = ath.filter(a => !a.starter);
+  // Live games: who's on the floor right now first (ESPN flags the current five as "active"), then the bench by minutes.
+  // Before and after games: the usual starters / bench.
+  const live = d.header?.competitions?.[0]?.status?.type?.state === 'in';
+  const onCourt = live ? ath.filter(a => a.active && !a.didNotPlay && a.stats?.length) : [];
+  const minsOf = a => parseFloat(a.stats?.[labels.indexOf('MIN')]) || 0;
+  const played = a => !(a.didNotPlay || !a.stats?.length);
+  let groups;
+  if (live && onCourt.length >= 1 && onCourt.length <= 5) {
+    const rest = ath.filter(a => !onCourt.includes(a));
+    groups = [
+      ['<span class="dot on"></span> On the court', onCourt, 'oncourt'],
+      ['Bench', [...rest.filter(played).sort((x, y) => minsOf(y) - minsOf(x)), ...rest.filter(a => !played(a))], ''],
+    ];
+  } else {
+    groups = [['Starters', ath.filter(a => a.starter), ''], ['Bench', ath.filter(a => !a.starter), '']];
+  }
   const inBox = new Set(ath.map(a => a.athlete.id));
   const extraInj = injured.filter(n => !n.id || !inBox.has(n.id));
   const injRows = extraInj.length ? `<tr class="sub inj-h"><td colspan="${labels.length + 1}">Injured</td></tr>` + extraInj.map(n => `<tr class="dnp inj-row" ${n.id ? `data-player="${n.id}" style="cursor:pointer"` : ''}>
@@ -2287,8 +2305,7 @@ function boxScore(d, sides, bi) {
   <div class="box-wrap drag-x" data-drag><table class="box">
     <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="${shotIdx.has(i) ? 'sc' : ''}">${esc(l)}</th>`).join('')}</tr></thead>
     <tbody>
-      <tr class="sub"><td colspan="${labels.length + 1}">Starters</td></tr>${starters.map(row).join('')}
-      <tr class="sub"><td colspan="${labels.length + 1}">Bench</td></tr>${bench.map(row).join('')}
+      ${groups.map(([title, list, cls]) => `<tr class="sub ${cls}"><td colspan="${labels.length + 1}">${title}</td></tr>${list.map(a => cls ? row(a).replace('<tr class="', '<tr class="on-court ') : row(a)).join('')}`).join('')}
       ${st.totals?.length ? `<tr class="tot"><td>Team</td>${cols(st.totals).map(([v, i]) => `<td class="${shotIdx.has(i) ? 'sc' : ''}">${cellOf(v, i)}</td>`).join('')}</tr>` : ''}
       ${injRows}
     </tbody></table></div>`;
