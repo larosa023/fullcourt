@@ -949,7 +949,9 @@ button.bk-t:hover { background: var(--hl-bg); }
 /* injuries */
 .inj-red { color: var(--loss); }
 .inj-red b { font-weight: 700; }
-.box tr.inj-row td.inj-red { font-size: 12.5px; }
+.box tr.inj-row td, .box tr.inj-h td { color: var(--loss); }
+.box .inj-line { font-size: 12px; line-height: 1.35; margin: 3px 0 0 36px; white-space: normal; max-width: 230px; color: var(--loss); }
+.box .inj-line b { font-weight: 700; }
 .box tr.inj-h td { color: var(--loss); }
 .inj { width: 100%; }
 .ir-card .card-h { margin-bottom: 6px; }
@@ -2268,8 +2270,8 @@ function boxScore(d, sides, bi) {
     const dnp = a.didNotPlay || !a.stats?.length;
     const inj = dnp && injById.get(a.athlete.id);
     if (inj) return `<tr class="dnp inj-row" data-player="${a.athlete.id}" style="cursor:pointer">
-      <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
-      <td colspan="${labels.length}" class="inj-red" style="text-align:left">${injuryText(inj)}</td></tr>`;
+      <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span><div class="inj-line inj-red">${injuryText(inj)}</div></td>
+      <td colspan="${labels.length}"></td></tr>`;
     return `<tr class="${dnp ? 'dnp' : ''}" data-player="${a.athlete.id}" style="cursor:pointer">
       <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
       ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : cols(a.stats).map(([v, i]) => `<td class="${i === ptsIdx ? 'pts' : ''}${shotIdx.has(i) ? ' sc' : ''}">${cellOf(v, i)}</td>`).join('')}
@@ -2279,8 +2281,8 @@ function boxScore(d, sides, bi) {
   const inBox = new Set(ath.map(a => a.athlete.id));
   const extraInj = injured.filter(n => !n.id || !inBox.has(n.id));
   const injRows = extraInj.length ? `<tr class="sub inj-h"><td colspan="${labels.length + 1}">Injured</td></tr>` + extraInj.map(n => `<tr class="dnp inj-row" ${n.id ? `data-player="${n.id}" style="cursor:pointer"` : ''}>
-      <td><span class="pl">${face(n.id, n.name, '', 80)}<b>${esc(n.short || n.name)}</b><span>${esc(n.pos)}</span></span></td>
-      <td colspan="${labels.length}" class="inj-red" style="text-align:left">${injuryText(n)}</td></tr>`).join('') : '';
+      <td><span class="pl">${face(n.id, n.name, '', 80)}<b>${esc(n.short || n.name)}</b><span>${esc(n.pos)}</span></span><div class="inj-line inj-red">${injuryText(n)}</div></td>
+      <td colspan="${labels.length}"></td></tr>`).join('') : '';
   return `<div class="card-h"><div class="seg"><span class="knob"></span>${sides.map((s, i) => `<button data-bside="${i}" aria-pressed="${i === bi}">${esc(s.abbr)}</button>`).join('')}</div><span class="eyebrow">Tap a player for season stats</span></div>
   <div class="box-wrap drag-x" data-drag><table class="box">
     <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="${shotIdx.has(i) ? 'sc' : ''}">${esc(l)}</th>`).join('')}</tr></thead>
