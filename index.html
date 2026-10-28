@@ -945,6 +945,25 @@ button.bk-t:hover { background: var(--hl-bg); }
 .sp-row.sp-ask .sp-ic svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .ask-vs { grid-template-columns: 1fr; } .msg.me { max-width: 90%; } .ask-odds { padding-left: 8px; } }
 
+
+/* injuries */
+.inj-red { color: var(--loss); }
+.inj-red b { font-weight: 700; }
+.box tr.inj-row td.inj-red { font-size: 12.5px; }
+.box tr.inj-h td { color: var(--loss); }
+.inj { width: 100%; }
+.ir-card .card-h { margin-bottom: 6px; }
+.ir-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; align-items: center; width: 100%; text-align: left; padding: 8px 6px; border-radius: 10px; border-bottom: 1px solid var(--line); }
+.ir-row:last-child { border-bottom: 0; }
+.ir-row:hover { background: var(--hl-bg); }
+.ir-face { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: top; background: var(--surface-3); font-size: 13px; }
+.ir-row .nm { display: grid; min-width: 0; }
+.ir-row .nm b { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ir-row .nm small { font-size: 12px; color: var(--muted); }
+.ir-st { font-size: 13px; text-align: right; }
+.ir-note { grid-column: 2 / -1; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.ir-clear { margin: 4px 2px; font-size: 13.5px; color: var(--muted); }
+@media (max-width: 760px) { .ir-row { grid-template-columns: 36px minmax(0, 1fr); } .ir-st { grid-column: 2; text-align: left; } .ir-face { width: 36px; height: 36px; } }
 /* ---------- hover emphasis (mouse/trackpad only, so phones don't get stuck highlights) ---------- */
 :root { --hl: color-mix(in oklab, var(--accent) 80%, var(--line)); --hl-bg: color-mix(in oklab, var(--accent) 7%, var(--surface)); --lift: 0 2px 4px rgb(60 44 22 / .07), 0 16px 32px -14px rgb(60 44 22 / .3); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hl-bg: color-mix(in oklab, var(--accent) 9%, var(--surface)); --lift: 0 2px 4px rgb(0 0 0 / .45), 0 18px 36px -14px rgb(0 0 0 / .85); } }
@@ -2242,15 +2261,26 @@ function boxScore(d, sides, bi) {
   })();
   const cols = arr => order.map(i => [arr[i], i]);
   const ath = st.athletes || [];
+  const injured = injuriesFor(d, side.id).map(normInjury);
+  const injById = new Map(injured.filter(n => n.id).map(n => [n.id, n]));
   const row = a => {
     rememberPlayer(a.athlete, side.id);
     const dnp = a.didNotPlay || !a.stats?.length;
+    const inj = dnp && injById.get(a.athlete.id);
+    if (inj) return `<tr class="dnp inj-row" data-player="${a.athlete.id}" style="cursor:pointer">
+      <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
+      <td colspan="${labels.length}" class="inj-red" style="text-align:left">${injuryText(inj)}</td></tr>`;
     return `<tr class="${dnp ? 'dnp' : ''}" data-player="${a.athlete.id}" style="cursor:pointer">
       <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b><span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
       ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : cols(a.stats).map(([v, i]) => `<td class="${i === ptsIdx ? 'pts' : ''}${shotIdx.has(i) ? ' sc' : ''}">${cellOf(v, i)}</td>`).join('')}
     </tr>`;
   };
   const starters = ath.filter(a => a.starter), bench = ath.filter(a => !a.starter);
+  const inBox = new Set(ath.map(a => a.athlete.id));
+  const extraInj = injured.filter(n => !n.id || !inBox.has(n.id));
+  const injRows = extraInj.length ? `<tr class="sub inj-h"><td colspan="${labels.length + 1}">Injured</td></tr>` + extraInj.map(n => `<tr class="dnp inj-row" ${n.id ? `data-player="${n.id}" style="cursor:pointer"` : ''}>
+      <td><span class="pl">${face(n.id, n.name, '', 80)}<b>${esc(n.short || n.name)}</b><span>${esc(n.pos)}</span></span></td>
+      <td colspan="${labels.length}" class="inj-red" style="text-align:left">${injuryText(n)}</td></tr>`).join('') : '';
   return `<div class="card-h"><div class="seg"><span class="knob"></span>${sides.map((s, i) => `<button data-bside="${i}" aria-pressed="${i === bi}">${esc(s.abbr)}</button>`).join('')}</div><span class="eyebrow">Tap a player for season stats</span></div>
   <div class="box-wrap drag-x" data-drag><table class="box">
     <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="${shotIdx.has(i) ? 'sc' : ''}">${esc(l)}</th>`).join('')}</tr></thead>
@@ -2258,6 +2288,7 @@ function boxScore(d, sides, bi) {
       <tr class="sub"><td colspan="${labels.length + 1}">Starters</td></tr>${starters.map(row).join('')}
       <tr class="sub"><td colspan="${labels.length + 1}">Bench</td></tr>${bench.map(row).join('')}
       ${st.totals?.length ? `<tr class="tot"><td>Team</td>${cols(st.totals).map(([v, i]) => `<td class="${shotIdx.has(i) ? 'sc' : ''}">${cellOf(v, i)}</td>`).join('')}</tr>` : ''}
+      ${injRows}
     </tbody></table></div>`;
 }
 
@@ -2326,10 +2357,58 @@ function preGame(d, sides, g) {
   </div></div>`;
   html += oddsCard(gameOdds(d), sides);
   if (d.leaders?.length) html += `<div class="card"><div class="card-h"><h4>Season leaders</h4></div>${gameLeaders(d)}</div>`;
-  const inj = (d.injuries || []).flatMap(t => (t.injuries || []).map(i => ({ t: t.team, i })));
-  if (inj.length) html += `<div class="card"><div class="card-h"><h4>Injury report</h4></div>${inj.map(({ t, i }) => `
-    <div class="inj">${logo(t?.abbreviation, 32)}<b style="flex:1;min-width:0">${esc(i.athlete?.displayName || '')}</b><span class="badge">${esc(i.status || i.type?.description || '')}</span></div>`).join('')}</div>`;
+  const inj = (d.injuries || []).flatMap(t => (t.injuries || []).map(i => ({ t: t.team, n: normInjury(i) })));
+  if (inj.length) html += `<div class="card"><div class="card-h"><h4>Injury report</h4><span class="eyebrow">${plural(inj.length, 'player')}</span></div>${inj.map(({ t, n }) => `
+    <button class="inj" ${n.id ? `data-player="${n.id}"` : ''}>${logo(t?.abbreviation, 32)}<b style="flex:1;min-width:0;text-align:left">${esc(n.name)}</b><span class="inj-red">${injuryText(n)}</span></button>`).join('')}</div>`;
   return html;
+}
+
+
+/* ================= injuries ================= */
+const capFirst = v => { const t = String(v || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; };
+const unspecified = v => !v || /not specified|unknown|^other$/i.test(String(v));
+// one injury entry -> { id, name, pos, status, what: "Left knee injury", detail, ret, note }
+function normInjury(i) {
+  const a = i.athlete || {}, d = i.details || {};
+  let part = !unspecified(d.type) ? d.type : !unspecified(d.location) ? d.location : '';
+  if (!part) { const m = String(i.shortComment || i.longComment || '').match(/\(([^)]{2,30})\)/); if (m && !/\d/.test(m[1])) part = m[1]; }
+  const side = !unspecified(d.side) ? String(d.side).toLowerCase() : '';
+  const what = part ? capFirst(`${side ? side + ' ' : ''}${String(part).toLowerCase()} injury`) : 'Injury';
+  const detail = !unspecified(d.detail) ? String(d.detail).toLowerCase() : '';
+  const status = capFirst(i.status || i.type?.description || d.fantasyStatus?.description || 'Out');
+  return { id: a.id, name: a.displayName || a.fullName || '', short: a.shortName || a.displayName || '', pos: a.position?.abbreviation || '', status, what, detail, ret: d.returnDate || '', note: i.shortComment || i.longComment || '', date: i.date || '' };
+}
+const injuryText = n => `<b>${esc(n.status)}</b> · ${esc(n.what)}${n.detail && !n.what.toLowerCase().includes(n.detail) ? ` (${esc(n.detail)})` : ''}`;
+const injuriesFor = (d, teamId) => ((d?.injuries || []).find(t => t.team?.id === teamId || t.id === teamId)?.injuries || []);
+let injAllPromise = null, injAllAt = 0;
+function leagueInjuries() {
+  if (!injAllPromise || Date.now() - injAllAt > 5 * 60e3) {
+    injAllAt = Date.now();
+    injAllPromise = getJSON(`${API}/injuries`, { retries: 0, timeout: 10000 }).catch(() => null);
+  }
+  return injAllPromise;
+}
+// team injury report: league feed -> team's next (or last) game feed -> roster flags
+async function teamInjuries(id, name, evs, athletes) {
+  const all = await leagueInjuries();
+  const entry = (all?.injuries || all?.teams || []).find(e => e.id === id || e.team?.id === id || e.displayName === name || e.team?.displayName === name);
+  if (entry) return { list: (entry.injuries || []).map(normInjury), src: 'league' };
+  const g = evs.find(e => e.state !== 'post') || evs.filter(e => e.state === 'post').at(-1);
+  if (g) {
+    try { const d = await getJSON(`${API}/summary?event=${g.id}`); const l = injuriesFor(d, id); if (l.length || d.injuries) return { list: l.map(normInjury), src: 'game' }; } catch (e) {}
+  }
+  return { list: athletes.filter(a => a.injuries?.length).map(a => normInjury({ ...a.injuries[0], athlete: a })), src: 'roster' };
+}
+function irCardHTML(list) {
+  const order = s => /^out/i.test(s) ? 0 : /doubt/i.test(s) ? 1 : /question/i.test(s) ? 2 : /day/i.test(s) ? 3 : 4;
+  const rows = [...list].sort((a, b) => order(a.status) - order(b.status) || a.name.localeCompare(b.name));
+  return `<div class="card-h"><h4>Injury report</h4><span class="eyebrow">${rows.length ? plural(rows.length, 'player') : 'All clear'}</span></div>
+    ${rows.length ? rows.map(n => `<button class="ir-row" ${n.id ? `data-player="${n.id}"` : ''}>
+        ${face(n.id, n.name, 'ir-face', 120)}
+        <span class="nm"><b>${esc(n.name)}</b><small>${esc([n.pos, n.ret ? 'Est. return ' + fmtShortDate(n.ret) : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="inj-red ir-st">${injuryText(n)}</span>
+        ${n.note ? `<span class="ir-note">${esc(n.note.length > 180 ? n.note.slice(0, 177) + '…' : n.note)}</span>` : ''}
+      </button>`).join('') : '<p class="ir-clear">No injuries reported. Everyone is available.</p>'}`;
 }
 
 /* ================= team flyout ================= */
@@ -2382,6 +2461,7 @@ async function openTeam(id) {
       ${[['Record', `${row.w}-${row.l}`], ['Seed', ordinal(row.seed)], ['GB', row.gb], ['PPG', row.ppg], ['Opp PPG', row.opp], ['Diff', (row.diff > 0 ? '+' : '') + row.diffD], ['Home', row.home], ['Away', row.road], ['Last 10', row.l10], ['Streak', row.strk]]
         .map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}
     </div>` : ''}
+    <div class="card ir-card" id="ir-${id}"><div class="card-h"><h4>Injury report</h4></div><div class="sk" style="height:56px;border-radius:10px"></div></div>
     ${strip.length ? `<div><div class="card-h"><h4 class="h-display" style="font-size:18px;margin:0">Schedule</h4><span class="eyebrow">Drag for more</span></div>
       <div class="hs-wrap"><div class="hs sched drag-x" data-drag>
       ${strip.map((e, i) => `<button class="sg${startIdx + i === nextIdx ? ' next' : ''}" data-game="${e.id}">
@@ -2400,6 +2480,10 @@ async function openTeam(id) {
         </button>`).join('')}</div>
     </div>`;
   wireDrag(sheet.body);
+  teamInjuries(id, tm.name, evs, athletes).then(({ list }) => {
+    const box = sheet.alive && $(`#ir-${id}`, sheet.body);
+    if (box) box.innerHTML = irCardHTML(list);
+  }).catch(() => { const box = $(`#ir-${id}`, sheet.body); if (box) box.innerHTML = '<div class="card-h"><h4>Injury report</h4></div><p class="ir-clear">The injury report is unavailable right now.</p>'; });
   const s = $('.sg.next', sheet.body);
   if (s) { const r = s.parentElement; r.scrollLeft = s.offsetLeft - 12; }
 }
