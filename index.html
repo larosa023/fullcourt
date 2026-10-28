@@ -2408,7 +2408,7 @@ function irCardHTML(list) {
   return `<div class="card-h"><h4>Injury report</h4><span class="eyebrow">${rows.length ? plural(rows.length, 'player') : 'All clear'}</span></div>
     ${rows.length ? rows.map(n => `<button class="ir-row" ${n.id ? `data-player="${n.id}"` : ''}>
         ${face(n.id, n.name, 'ir-face', 120)}
-        <span class="nm"><b>${esc(n.name)}</b><small>${esc([n.pos, n.ret ? 'Est. return ' + fmtShortDate(n.ret) : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="nm"><b>${esc(n.name)}</b><small>${esc([n.pos, n.ret ? 'Est. return ' + (/^\d{4}-\d{2}-\d{2}$/.test(n.ret) ? fmtDay(n.ret.replace(/-/g, ''), { month: 'short', day: 'numeric' }) : fmtShortDate(n.ret)) : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="inj-red ir-st">${injuryText(n)}</span>
         ${n.note ? `<span class="ir-note">${esc(n.note.length > 180 ? n.note.slice(0, 177) + '…' : n.note)}</span>` : ''}
       </button>`).join('') : '<p class="ir-clear">No injuries reported. Everyone is available.</p>'}`;
