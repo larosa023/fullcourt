@@ -5465,13 +5465,19 @@ function drawRankings(rows) {
 const canPip = 'documentPictureInPicture' in window;
 S.pip = null;
 async function openMini() {
-  if (!canPip) { toast('The mini scoreboard needs Chrome or Edge on a computer'); return; }
   if (S.pip && !S.pip.closed) { S.pip.focus(); return; }
   const games = S.date === S.today ? S.games : [];
-  let w;
-  try { w = await documentPictureInPicture.requestWindow({ width: 300, height: Math.min(560, 92 + Math.max(3, games.length || 6) * 58) }); }
-  catch (e) { toast("Couldn't open the mini scoreboard"); return; }
-  S.pip = w;
+  const H = Math.min(560, 92 + Math.max(3, games.length || 6) * 58);
+  let w = null, onTop = false;
+  // Chrome / Edge: a floating window that stays above other apps
+  if (canPip) { try { w = await documentPictureInPicture.requestWindow({ width: 300, height: H }); onTop = true; } catch (e) { w = null; } }
+  // anywhere else (or if that's blocked): a small regular window
+  if (!w) {
+    w = window.open('', 'fullcourt-mini', `popup=yes,width=300,height=${H},left=${Math.max(0, (screen.availWidth || 1200) - 340)},top=80`);
+    if (!w) { toast('Allow pop-ups for this site to open the mini scoreboard'); return; }
+    w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>'); w.document.close();
+  }
+  S.pip = w; S.pipOnTop = onTop;
   const doc = w.document;
   doc.documentElement.lang = 'en';
   for (const a of ['data-theme', 'data-league']) { const v = document.documentElement.getAttribute(a); if (v) doc.documentElement.setAttribute(a, v); }
@@ -5567,7 +5573,7 @@ $$('.seg').forEach(placeKnob);
 const liftVeil = () => document.documentElement.classList.remove('arriving');
 if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);
 Promise.resolve(loadScores()).finally(() => setTimeout(liftVeil, 60));
-if (canPip && !isTouch) $('[data-mini]').hidden = false;
+if (!isTouch) $('[data-mini]').hidden = false;
 setTimeout(settleOldPicks, 4000);
 alertTick();
 try { const gq = new URLSearchParams(location.search).get('game'); if (gq) { history.replaceState(null, '', location.pathname + location.hash); setTimeout(() => openGame(gq), 300); } } catch (e) {}
