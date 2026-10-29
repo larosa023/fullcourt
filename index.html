@@ -1474,6 +1474,12 @@ body.pip { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font
 .news li:last-child { border-bottom: 0; }
 .news li b { font-weight: 650; font-size: 14px; }
 .news li span { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+/* leader bars in team colours */
+.lrow .bar i[style*="--bl"] { background: linear-gradient(90deg, var(--bl), color-mix(in oklab, var(--bl) 78%, white)); }
+.lrow:first-child .bar i[style*="--bl"] { background: linear-gradient(90deg, var(--bl), color-mix(in oklab, var(--bl) 78%, white)); }
+:root[data-theme="dark"] .lrow .bar i[style*="--bd"] { background: linear-gradient(90deg, var(--bd), color-mix(in oklab, var(--bd) 80%, white)); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lrow .bar i[style*="--bd"] { background: linear-gradient(90deg, var(--bd), color-mix(in oklab, var(--bd) 80%, white)); } }
 </style>
 </head>
 <body>
@@ -2430,6 +2436,27 @@ function renderTeams() {
 const ordinal = n => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 /* ================= leaders ================= */
+// every team's colours in one small request, so bars and accents can use them
+let teamColorsP = null;
+function ensureTeamColors() {
+  if (!teamColorsP) teamColorsP = getJSON(`${API}/teams`).then(d => {
+    (d.sports?.[0]?.leagues?.[0]?.teams || []).forEach(x => { const t = x.team || x; if (t?.id) regTeam(t, { alt: t.alternateColor || '' }); });
+  }).catch(() => { teamColorsP = null; });
+  return teamColorsP;
+}
+// a team colour that stays readable on both themes: --bl for light, --bd for dark
+function barVars(teamIdOrAbbr) {
+  const hex = teamColor(teamIdOrAbbr).replace('#', '');
+  const n = parseInt(hex, 16); if (!Number.isFinite(n)) return '';
+  const rgb = [n >> 16 & 255, n >> 8 & 255, n & 255];
+  const lum = c => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+  const mix = (c, t, k) => c.map(v => Math.round(v + (t - v) * k));
+  let d = rgb, l = rgb;
+  for (let k = 0.15; lum(d) < 0.32 && k <= 0.75; k += 0.1) d = mix(rgb, 255, k);
+  for (let k = 0.15; lum(l) > 0.62 && k <= 0.75; k += 0.1) l = mix(rgb, 0, k);
+  const css = c => `rgb(${c.join(' ')})`;
+  return `--bl:${css(l)};--bd:${css(d)}`;
+}
 function renderLeadChips() {
   $('#leadChips').innerHTML = LEADER_CATS.map((c, i) => `<button class="chip" data-lead="${i}" aria-pressed="${i === S.leadKey}">${esc(c.k)}</button>`).join('');
   dragScroll($('#leadChips'));
@@ -2449,6 +2476,7 @@ async function loadLeaders() {
       return;
     }
   }
+  await ensureTeamColors();
   if (LEADER_CATS[S.leadKey] !== c) return;
   const d = S.leadCache[key];
   const idx = (d.categories || []).find(x => x.name === c.cat)?.names?.indexOf(c.name) ?? -1;
@@ -2476,7 +2504,7 @@ async function loadLeaders() {
       <button class="lrow enter" style="--i:${i}" data-player="${r.a.id}">
         <span class="rk">${i + 1}</span>${face(r.a.id, r.a.displayName, 'face', 120)}
         <span class="nm"><b>${esc(r.a.displayName)}</b><span>${logo(team(r.a).abbr, 32)}${esc(team(r.a).abbr)} · ${esc(r.a.position?.abbreviation || '')}${r.gp ? ` · ${r.gp} GP` : ''}</span></span>
-        <span class="bar"><i data-w="${(r.v / max * 100).toFixed(1)}"></i></span>
+        <span class="bar"><i data-w="${(r.v / max * 100).toFixed(1)}" style="${barVars(team(r.a).id || team(r.a).abbr)}"></i></span>
         <span class="v">${fmt(r.v)}</span>
       </button>`).join('')}</div>
   </div>`;
@@ -5011,6 +5039,7 @@ async function renderAward(c) {
     try { S.leadCache[key] = await awardRace(c.award); }
     catch (e) { body.innerHTML = `<div class="empty"><b>Couldn't build the race</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`; return; }
   }
+  await ensureTeamColors();
   if (LEADER_CATS[S.leadKey] !== c) return;
   const list = S.leadCache[key];
   if (!list.length) { body.innerHTML = `<div class="empty"><b>Too early to call</b>The race fills in once players have a few games in.</div>`; return; }
@@ -5029,7 +5058,7 @@ async function renderAward(c) {
       <button class="lrow enter" style="--i:${i}" data-player="${x.r.id}">
         <span class="rk">${i + 1}</span>${face(x.r.id, x.r.name, 'face', 120)}
         <span class="nm"><b>${esc(x.r.name)}</b><span>${logo(x.r.abbr, 32)}${esc(x.r.abbr)}${x.rec ? ` · ${esc(x.rec)}` : ''} · ${x.r.gp} GP</span></span>
-        <span class="bar"><i data-w="${(x.score / max * 100).toFixed(1)}"></i></span>
+        <span class="bar"><i data-w="${(x.score / max * 100).toFixed(1)}" style="${barVars(x.r.teamId || x.r.abbr)}"></i></span>
         <span class="v sm">${line(x.r)}</span>
       </button>`).join('')}</div>
       <p class="race-note">Fullcourt's own estimate from points, rebounds, assists, steals, blocks, missed shots and turnovers per game${c.award === 'mvp' ? ', weighted by team record' : ' (drafted rookies only)'}. Not an official ranking.</p></div>
@@ -5574,7 +5603,8 @@ function renderMini2(games, doc = S.pip?.document) {
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
-  { id: '2026-10-29c', date: 'Oct 29', items: [
+  { id: '2026-10-29d', date: 'Oct 29', items: [
+    ['Team-colored leader bars', "Bars on the Leaders page (and the MVP and Rookie races) use each player's team color."],
     ['Injured section', "Injured players sit in their own section at the bottom of the box score instead of with the bench."],
     ['Mini scoreboard', "Pop today's scores into a small window. In Chrome and Edge it stays on top of your other apps."],
     ['Your players', 'Star any player to follow their live stat line in a strip at the top of Scores.'],
