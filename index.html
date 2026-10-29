@@ -1817,6 +1817,7 @@ function parseGame(e) {
       score: x.score, winner: x.winner,
       rec: (x.records || []).find(r => r.type === 'total' || r.name === 'overall')?.summary || '',
       leaders: x.leaders || [],
+      lines: (x.linescores || []).map(l => +(l.value ?? l.displayValue) || 0),
     };
   };
   const home = side(c.competitors.find(x => x.homeAway === 'home'));
@@ -4585,12 +4586,29 @@ function badgeHTML(g) {
   if (!b?.length) return '';
   return `<span class="bn bn-${b[0].k}" title="${esc(b.map(x => x.who).join(' · '))}">${esc(b[0].label)}${b.length > 1 ? `<em>+${b.length - 1}</em>` : ''}</span>`;
 }
+// The scoreboard already hints at most big nights; only games that might have one get their full details fetched.
+function mightBeBig(g) {
+  const top = (side, re) => Math.max(0, ...(side.leaders.find(l => re.test(l.name))?.leaders || []).map(x => +x.value || parseFloat(x.displayValue) || 0));
+  for (const s of [g.home, g.away]) {
+    const pts = top(s, /^points$/), reb = top(s, /^rebounds$/), ast = top(s, /^assists$/);
+    if (pts >= BIG_PTS) return true;
+    if ((reb >= 10 && ast >= 8) || (ast >= 10 && reb >= 8)) return true;
+  }
+  // a comeback: the winner trailed big at the end of some quarter, or the game went to overtime
+  const w = g.home.winner ? g.home : g.away.winner ? g.away : null, l = w === g.home ? g.away : g.home;
+  if (!w || g.period > 4) return true;
+  let a = 0, b = 0;
+  for (let i = 0; i < Math.min(w.lines.length, l.lines.length); i++) { a += w.lines[i]; b += l.lines[i]; if (b - a >= Math.round(BIG_COMEBACK * 0.6)) return true; }
+  return false;
+}
 let bnBusy = false, bnRender = 0;
 async function fetchBadges() {
   if (bnBusy) return;
   const date = S.date;
   const todo = S.games.filter(g => g.state === 'post' && !S.bn[g.id]?.fin);
-  if (!todo.length) return;
+  todo.filter(g => !mightBeBig(g)).forEach(g => { S.bn[g.id] = { list: [], fin: true }; });
+  for (let i = todo.length - 1; i >= 0; i--) if (S.bn[todo[i].id]?.fin) todo.splice(i, 1);
+  if (!todo.length) { saveBadges(); return; }
   bnBusy = true;
   const work = async () => {
     while (todo.length && S.date === date) {
