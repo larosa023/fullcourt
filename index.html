@@ -2478,7 +2478,7 @@ async function openGame(id) {
   let tab = 'box', boxSide = 1, lastPlayId = null, first = true, clipCard = null, cur = null;
   const shotF = { team: 'all', pid: '' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
-  addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : Promise.resolve());
+  addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : null);
   const load = async () => {
     if (!sheet.alive) return;
     let d;
@@ -4861,13 +4861,26 @@ const SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 function addShareBtn(sheet, fn) {
   const bar = $('.sheet-bar', sheet.el); if (!bar || $('[data-share]', bar)) return;
   const b = document.createElement('button');
-  b.className = 'icon-btn share-btn'; b.dataset.share = ''; b.setAttribute('aria-label', 'Share as image'); b.title = 'Share as image';
+  const copyMode = !isTouch && !!navigator.clipboard?.write && 'ClipboardItem' in window;
+  const label = copyMode ? 'Copy as image' : 'Share as image';
+  b.className = 'icon-btn share-btn'; b.dataset.share = ''; b.setAttribute('aria-label', label); b.title = label;
   b.innerHTML = SHARE_ICON;
   b.addEventListener('click', async e => {
     e.stopPropagation();
     if (b.classList.contains('busy')) return;
     b.classList.add('busy');
-    try { await fn(); } catch (err) { toast("Couldn't make the image"); }
+    // start drawing right away; the clipboard gets the finished picture as soon as it's ready
+    const job = Promise.resolve().then(fn).then(async o => { if (!o) throw new Error('nothing to share'); o.blob = await canvasBlob(o.canvas); return o; });
+    try {
+      if (copyMode) {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': job.then(o => o.blob) })]);
+          toast('Image copied. Paste it anywhere');
+        } catch (err) { saveImage(await job); }
+      } else {
+        await shareImage(await job);
+      }
+    } catch (err) { toast("Couldn't make the image"); }
     b.classList.remove('busy');
   });
   bar.insertBefore(b, $('[data-expand]', bar));
@@ -4893,13 +4906,20 @@ async function canvasKit() {
   };
   return { c, x, C, font, text, fit, size, foot };
 }
-async function outputImage(canvas, name, title) {
+async function canvasBlob(canvas) {
   const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
   if (!blob) throw new Error('no image');
+  return blob;
+}
+// phones: the share sheet (Messages, Photos, Copy...); anywhere else without a clipboard: download
+async function shareImage({ blob, name, title }) {
   const file = new File([blob], name, { type: 'image/png' });
-  if (isTouch && navigator.canShare?.({ files: [file] })) {
+  if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title }); return; } catch (e) { if (e?.name === 'AbortError') return; }
   }
+  saveImage({ blob, name });
+}
+function saveImage({ blob, name }) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.append(a); a.click(); a.remove();
@@ -4936,7 +4956,7 @@ async function shareGame(d, sides) {
   }).filter(Boolean);
   lines.forEach((l, i) => text(fit(l, font(600, 30, 'body'), 936), 72, 846 + i * 48, font(600, 30, 'body'), i ? C.muted : C.ink));
   K.foot();
-  await outputImage(K.c, `${sides[0].abbr}-at-${sides[1].abbr}.png`.toLowerCase(), `${sides[0].abbr} @ ${sides[1].abbr}`);
+  return { canvas: K.c, name: `${sides[0].abbr}-at-${sides[1].abbr}.png`.toLowerCase(), title: `${sides[0].abbr} @ ${sides[1].abbr}` };
 }
 async function sharePlayer(info) {
   const K = await canvasKit(); const { x, C, font, text, fit } = K;
@@ -4963,7 +4983,7 @@ async function sharePlayer(info) {
     text(k, cx + (i ? 24 : 0), 900, font(500, 26, 'mono'), C.muted);
   });
   K.foot();
-  await outputImage(K.c, `${info.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`, info.name);
+  return { canvas: K.c, name: `${info.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`, title: info.name };
 }
 // team colours like black or navy vanish on a dark card: fall back to the accent
 function visibleColor(hex, bg) {
