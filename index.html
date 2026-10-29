@@ -44,6 +44,7 @@
 <script>
   try { const t = localStorage.getItem('fc-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
   try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
+  if (/[?&]mini=1\b/.test(location.search)) document.documentElement.classList.add('mini-mode');
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
@@ -1433,6 +1434,8 @@ table.rank-t { min-width: 1180px; }
 @media (max-width: 760px) { .rank-t .tm b { display: none; } .rank-t .tm-in { min-width: 60px; } table.rank-t { min-width: 940px; } }
 
 /* mini scoreboard window */
+html.mini-mode body > *:not(.pip-root) { display: none !important; }
+html.mini-mode body::before { display: none; }
 body.pip { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--body); overflow-y: auto; }
 .pip-h { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .pip-h b { font-family: var(--display); font-stretch: 75%; font-weight: 900; font-size: 18px; letter-spacing: .01em; }
@@ -1667,6 +1670,8 @@ body.pip { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font
 /* League mode: NBA or WNBA. The whole site runs in one league at a time. */
 const LG = (() => { try { return localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { return 'nba'; } })();
 const IS_W = LG === 'wnba';
+// ?mini=1 turns this page into the small stand-alone scoreboard window
+const MINI = /[?&]mini=1\b/.test(location.search);
 const LGN = IS_W ? 'WNBA' : 'NBA';
 // game rules that change between leagues (quarter length, timeouts, team-foul limits)
 const RULES = IS_W
@@ -2142,7 +2147,7 @@ function checkRollover() {
   buildRail();
   return true;
 }
-setInterval(() => { if (!document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
+setInterval(() => { if (!MINI && !document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
 
 function updatePulse(err) {
   const live = S.games.filter(g => g.state === 'in').length;
@@ -2334,7 +2339,7 @@ function loadStandings(force) {
   }).catch(e => { stdPromise = null; throw e; });
   return stdPromise;
 }
-setInterval(() => { if (!document.hidden) loadStandings(true).catch(() => {}); }, 5 * 60e3);
+setInterval(() => { if (!MINI && !document.hidden) loadStandings(true).catch(() => {}); }, 5 * 60e3);
 
 function renderMini() {
   const box = $('#miniStd');
@@ -5462,6 +5467,29 @@ function drawRankings(rows) {
 }
 
 /* ---------------- mini scoreboard (floating window, Chrome / Edge) ---------------- */
+// the stand-alone small window used by other browsers (this same page with ?mini=1)
+function startMiniPage() {
+  document.title = 'Fullcourt mini';
+  document.body.classList.add('pip');
+  document.body.insertAdjacentHTML('beforeend', `<div class="pip-root"><header class="pip-h"><b>FULL<i>COURT</i></b><span id="pipSt"></span></header><div class="pip-list" id="pipList"><div class="sk" style="height:58px"></div><div class="sk" style="height:58px"></div></div></div>`);
+  document.addEventListener('click', e => {
+    const g = e.target.closest('.pip-root [data-game]'); if (!g) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    const o = window.opener;
+    if (o && !o.closed) { try { o.postMessage({ fcGame: g.dataset.game }, location.origin); o.focus(); return; } catch (err) {} }
+    window.open(`${location.pathname}?game=${encodeURIComponent(g.dataset.game)}`, '_blank');
+  }, true);
+  const tick = async () => {
+    S.today = etToday();
+    let games = [];
+    try { games = await scoreboardOn(S.today); } catch (e) {}
+    renderMini2(games, document);
+    setTimeout(tick, games.some(g => g.state === 'in') ? 15000 : 60000);
+  };
+  tick();
+}
+// a game tapped in the small window opens here
+window.addEventListener('message', e => { if (e.origin === location.origin && e.data?.fcGame) openGame(String(e.data.fcGame)); });
 const canPip = 'documentPictureInPicture' in window;
 S.pip = null;
 async function openMini() {
@@ -5473,9 +5501,10 @@ async function openMini() {
   if (canPip) { try { w = await documentPictureInPicture.requestWindow({ width: 300, height: H }); onTop = true; } catch (e) { w = null; } }
   // anywhere else (or if that's blocked): a small regular window
   if (!w) {
-    w = window.open('', 'fullcourt-mini', `popup=yes,width=300,height=${H},left=${Math.max(0, (screen.availWidth || 1200) - 340)},top=80`);
-    if (!w) { toast('Allow pop-ups for this site to open the mini scoreboard'); return; }
-    w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>'); w.document.close();
+    const pop = window.open(`${location.pathname}?mini=1`, 'fullcourt-mini', `popup=yes,width=300,height=${H},left=${Math.max(0, (screen.availWidth || 1200) - 340)},top=80`);
+    if (!pop) toast('Allow pop-ups for this site to open the mini scoreboard');
+    else try { pop.focus(); } catch (e) {}
+    return;
   }
   S.pip = w; S.pipOnTop = onTop;
   const doc = w.document;
@@ -5502,8 +5531,8 @@ async function pipTick() {
   const live = games.some(g => g.state === 'in');
   S.pipTimer = setTimeout(pipTick, live ? 15000 : 60000);
 }
-function renderMini2(games) {
-  const doc = S.pip?.document; if (!doc) return;
+function renderMini2(games, doc = S.pip?.document) {
+  if (!doc) return;
   const list = [...games].sort((a, b) => (isFavGame(b) - isFavGame(a)) || ((a.state === 'in' ? 0 : a.state === 'pre' ? 1 : 2) - (b.state === 'in' ? 0 : b.state === 'pre' ? 1 : 2)) || (new Date(a.date) - new Date(b.date)));
   const live = games.filter(g => g.state === 'in').length;
   doc.getElementById('pipSt').innerHTML = live ? `<span class="dot on"></span>${live} live` : esc(fmtDay(S.today, { weekday: 'short', month: 'short', day: 'numeric' }));
@@ -5563,6 +5592,7 @@ $('#rail').addEventListener('keydown', e => {
 });
 
 /* ================= boot ================= */
+if (MINI) { startMiniPage(); return; }
 renderLeadChips();
 renderMini();
 renderFavLink();
