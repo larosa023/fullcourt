@@ -1480,6 +1480,13 @@ body.pip { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font
 .lrow:first-child .bar i[style*="--bl"] { background: linear-gradient(90deg, var(--bl), color-mix(in oklab, var(--bl) 78%, white)); }
 :root[data-theme="dark"] .lrow .bar i[style*="--bd"] { background: linear-gradient(90deg, var(--bd), color-mix(in oklab, var(--bd) 80%, white)); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lrow .bar i[style*="--bd"] { background: linear-gradient(90deg, var(--bd), color-mix(in oklab, var(--bd) 80%, white)); } }
+
+.notable { display: grid; gap: 0; margin-top: 12px; border-top: 1px dashed var(--line); }
+.card > .notable:first-of-type { margin-top: 0; border-top: 0; }
+.nt { display: flex; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; min-width: 0; }
+.nt:last-child { border-bottom: 0; padding-bottom: 0; }
+.nt b { flex: none; font-family: var(--mono); font-weight: 500; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); min-width: 118px; }
+.nt span { color: var(--ink-2); min-width: 0; }
 </style>
 </head>
 <body>
@@ -2137,7 +2144,6 @@ async function loadScores({ silent = false } = {}) {
     updatePulse();
     refreshTicker();
     refreshSit();
-    fetchBadges();
     if (S.date === S.today) alertCheck(S.games);
     renderWatch(); renderPicks(); renderOut();
     if (S.pip && S.date === S.today) renderMini2(S.games);
@@ -2262,7 +2268,7 @@ function gameCard(g, i, animate) {
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
       <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}</span>
-      ${!pre && S.bn[g.id]?.list?.length ? badgeHTML(g) : isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : `<span class="tv">${esc(g.note || g.tv)}</span>`}
+      ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : `<span class="tv">${esc(g.note || g.tv)}</span>`}
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
     ${pre ? oddsLine(g.odds) : live ? liveLine(g) : ''}
@@ -2566,9 +2572,9 @@ async function refreshSit() {
   if (S.view !== 'scores' || document.hidden) return;
   const live = S.games.filter(g => g.state === 'in' && Date.now() - (S.sitAt[g.id] || 0) > 25000);
   if (!live.length) return;
-  const res = await Promise.all(live.map(g => summaryCached(g.id, 15000).then(d => [g.id, situation(d), bigNight(d)]).catch(() => null)));
+  const res = await Promise.all(live.map(g => summaryCached(g.id, 15000).then(d => [g.id, situation(d)]).catch(() => null)));
   let changed = false;
-  res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); if (r[2]) S.bn[r[0]] = r[2]; changed = true; });
+  res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); changed = true; });
   if (changed && S.view === 'scores') renderGames(false);
 }
 
@@ -2737,7 +2743,7 @@ async function openGame(id) {
       side += preSide(d, sides) + lineMoveCard(gameOdds(d), sides);
       main += preGame(d, sides, g);
     } else {
-      main += recapHTML(d, sides) + clipsCard(clips);
+      main += recapHTML(d, sides) + notableCard(d) + clipsCard(clips);
       if (live) side += oddsCard(gameOdds(d, id), sides, 'Line', `Updated ${esc(fmtTime(new Date().toISOString()))}. Shows in-game prices when the sportsbook posts them.`);
       main += `<div class="card"><div class="tabs hs" role="tablist" data-drag>
         ${[['box', 'Box score'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
@@ -5458,11 +5464,22 @@ function recapHTML(d, sides) {
   else if (bestQ >= 0 && bestD >= 8) out.push(`${esc(W.abbr)} took control in the ${qName(bestQ)}, outscoring ${esc(L.abbr)} ${lines[wi][bestQ]}-${lines[li][bestQ]}.`);
   else if (mg <= 5) out.push(`It came down to the final minutes.`);
   if (bl) out.push(`${esc(bl.name)} had ${statBits(bl)} for the ${esc(L.short)}.`);
-  const big = S.bn[d.header?.id]?.list?.find(x => x.k === 'td');
+  const bn = bigNight(d)?.list || [];
+  const big = bn.find(x => x.k === 'td');
   const tdName = big ? big.who.replace(/ \d+ pts.*/, '') : '';
   const tdLine = big ? /(\d+) pts, (\d+) reb, (\d+) ast/.exec(big.who) : null;
   if (big && ![bw, bl].some(p => p && tdName.endsWith(p.last))) out.push(`${esc(tdName)} had a ${big.label.toLowerCase()}${tdLine ? `: ${tdLine[1]} points, ${tdLine[2]} rebounds and ${tdLine[3]} assists` : ''}.`);
-  return `<div class="card recap"><div class="card-h"><h4>Recap</h4><span class="eyebrow">Written from the box score</span></div><p>${out.join(' ')}</p></div>`;
+  return `<div class="card recap"><div class="card-h"><h4>Recap</h4><span class="eyebrow">Written from the box score</span></div><p>${out.join(' ')}</p>${notableRows(bn)}</div>`;
+}
+// big nights (40-point games, triple-doubles, comebacks) shown quietly inside the game
+function notableRows(list) {
+  if (!list?.length) return '';
+  return `<div class="notable">${list.map(x => `<div class="nt"><b>${esc(x.label)}</b><span>${esc(x.who)}</span></div>`).join('')}</div>`;
+}
+function notableCard(d) {
+  if (d.header?.competitions?.[0]?.status?.type?.state !== 'in') return '';
+  const list = bigNight(d)?.list || [];
+  return list.length ? `<div class="card"><div class="card-h"><h4>Big night</h4><span class="eyebrow">So far</span></div>${notableRows(list)}</div>` : '';
 }
 
 /* ---------------- team rankings ---------------- */
@@ -5603,6 +5620,9 @@ function renderMini2(games, doc = S.pip?.document) {
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-30', date: 'Oct 30', items: [
+    ['Big nights moved into the game', "40-point games, triple-doubles and comebacks now show inside the game (under the recap) instead of as a tag on the score cards."],
+  ] },
   { id: '2026-10-29d', date: 'Oct 29', items: [
     ['Team-colored leader bars', "Bars on the Leaders page (and the MVP and Rookie races) use each player's team color."],
     ['Injured section', "Injured players sit in their own section at the bottom of the box score instead of with the bench."],
