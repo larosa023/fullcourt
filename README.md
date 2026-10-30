@@ -25,6 +25,21 @@ It opens full-screen like an app. Updates show up the next time you open it.
 
 ## How updates work
 
-The whole site is the single file `index.html`. Every change pushed to `main` is published automatically by Netlify within about a minute.
+Every change pushed to `main` is published automatically by Netlify within about a minute.
+
+The site's code lives in `src/` and is built into the published files before each push:
+
+- `src/shell.html`: the page markup
+- `src/core.js` and `src/core.css`: everything the first screen needs
+- `src/m/*.js` and `src/m/*.css`: extras that load the first time they're opened (Ask, Compare, multi-view, playoff picture, award races, team rankings, share images, mini scoreboard, What's new)
+
+To build (one-time setup, then the build itself):
+
+```
+npm i --prefix /tmp/fc-tools acorn acorn-walk esbuild
+NODE_PATH=/tmp/fc-tools/node_modules node tools/build.mjs
+```
+
+That writes `index.html` and `assets/`. Each module automatically imports what it uses from core. File names include a content hash, so browsers keep them until they change (see `_headers`).
 
 Data comes from ESPN's public feeds. Odds are for reference only.

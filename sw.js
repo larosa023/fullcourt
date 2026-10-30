@@ -1,14 +1,15 @@
 /* Fullcourt service worker: keeps the app opening without signal and shows the last scores you loaded.
    The page itself is always fetched fresh when there's a connection, so updates show up right away. */
-const SHELL = 'fc-shell-v1';
+const SHELL = 'fc-shell-v2';
 const DATA = 'fc-data-v1';
+const ASSETS = 'fc-assets-v1';
 const SHELL_FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).catch(() => {}).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => ![SHELL, DATA].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => ![SHELL, DATA, ASSETS].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // scores and standings: network first, fall back to the last saved copy
@@ -25,6 +26,16 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match('./', { cacheName: SHELL }).then(r => r || Response.error())));
     return;
   }
+  // site code and styles: names change with every update, so a saved copy is always right
+  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+    e.respondWith(caches.open(ASSETS).then(async c => {
+      const hit = await c.match(req.url); if (hit) return hit;
+      const r = await fetch(req);
+      if (r.ok) { c.put(req.url, r.clone()); trimAssets(c); }
+      return r;
+    }));
+    return;
+  }
   if (SAVE.test(req.url)) {
     e.respondWith(fetch(req).then(r => {
       if (r.ok) { const copy = r.clone(); caches.open(DATA).then(c => c.put(req.url, copy)).then(trimData); }
@@ -36,6 +47,9 @@ self.addEventListener('fetch', e => {
   }
 });
 
+async function trimAssets(c) {
+  try { const keys = await c.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 40))) await c.delete(k); } catch (e) {}
+}
 let trimming = false;
 async function trimData() {
   if (trimming) return; trimming = true;

@@ -1,0 +1,37 @@
+.cmp-pickers { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: end; margin-bottom: 14px; }
+.cmp-pick { position: relative; display: grid; gap: 6px; min-width: 0; }
+.cmp-pick input { width: 100%; font: inherit; font-size: 15px; font-weight: 600; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.cmp-pick.a input { box-shadow: inset 3px 0 0 var(--sideA); }
+.cmp-pick.b input { box-shadow: inset 3px 0 0 var(--sideB); }
+.cmp-pick input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-drop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--lift); padding: 6px; max-height: 360px; overflow-y: auto; }
+.cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cmp-card { position: relative; overflow: hidden; border-radius: 20px; min-height: 240px; color: #fff; text-align: left; display: flex; align-items: flex-end; background: linear-gradient(160deg, var(--tc, #333), color-mix(in oklab, var(--tc, #333) 45%, #000)); transition: transform .3s var(--ease); }
+.cmp-card:hover { transform: translateY(-3px); }
+.cmp-card .face { position: absolute; right: -4%; bottom: 0; height: 100%; width: auto; max-width: none; aspect-ratio: 350/254; object-fit: cover; object-position: top; }
+.cmp-card .jn { position: absolute; left: 14px; top: 2px; font-family: var(--display); font-stretch: 62%; font-weight: 900; font-size: 120px; line-height: 1; opacity: .15; }
+.cmp-card .txt { position: relative; z-index: 1; display: grid; gap: 4px; padding: 16px 18px; max-width: 64%; }
+.cmp-card .txt b { font-size: 34px; line-height: .95; }
+.cmp-card .txt small { display: flex; align-items: center; gap: 6px; font-size: 12.5px; opacity: .88; flex-wrap: wrap; }
+.cmp-card .txt .lg { width: 20px; height: 20px; }
+.cmp-card::after { content: ""; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, rgb(0 0 0 / .55)); }
+.cmp-side { position: absolute; top: 12px; right: 14px; z-index: 2; font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgb(0 0 0 / .3); }
+.cmp-card-stats { margin-top: 14px; }
+.cmp-score { font-size: 13.5px; display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.cmp-row.big { grid-template-columns: 76px 1fr 76px; font-size: 15px; }
+.cmp-row.big .l, .cmp-row.big .r { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 22px; color: var(--muted); }
+.cmp-row.big .l.win { color: var(--sideA); }
+.cmp-row.big .r.win { color: var(--sideB); }
+.cmp-row.big .cmp-bars div { height: 8px; }
+@media (max-width: 760px) {
+  .cmp-pickers { grid-template-columns: minmax(0, 1fr) auto; }
+  .cmp-pick.b { grid-column: 1; }
+  #cmpSwap { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+  .cmp-grid { gap: 10px; }
+  .cmp-card { min-height: 190px; }
+  .cmp-card .txt { max-width: 80%; padding: 12px; }
+  .cmp-card .txt b { font-size: 22px; }
+  .cmp-card .txt small:last-child { display: none; }
+  .cmp-row.big { grid-template-columns: 54px 1fr 54px; }
+  .cmp-row.big .l, .cmp-row.big .r { font-size: 18px; }
+}

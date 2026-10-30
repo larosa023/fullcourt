@@ -1,0 +1,21 @@
+.bracket { padding: 18px; min-width: 900px; display: grid; gap: 22px; }
+.bk-note { margin: 0; font-size: 13px; color: var(--muted); }
+.bk-h h3 { margin: 0 0 10px; font-size: 22px; }
+.bk-cols { display: grid; grid-template-columns: 1.05fr 1fr 1fr 1fr; gap: 16px; }
+.bk-col { display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+.bk-col.pi { justify-content: flex-start; padding-right: 16px; border-right: 1px dashed var(--line); }
+.bk-ch { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.bk-m { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); overflow: hidden; }
+.bk-l { font-size: 11px; color: var(--muted); padding: 6px 10px 0; }
+.bk-t { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 10px; width: 100%; text-align: left; font-size: 13.5px; }
+.bk-t + .bk-t { border-top: 1px solid var(--line); }
+.bk-t .lg { width: 22px; height: 22px; }
+.bk-t .sd { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.bk-t .nm { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-t .rc { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+.bk-t.tbd { grid-template-columns: 18px minmax(0, 1fr); }
+.bk-t.tbd .nm { font-weight: 500; color: var(--muted); font-style: italic; }
+.bk-t.fav .nm { color: var(--accent); }
+button.bk-t:hover { background: var(--hl-bg); }
+.bk-final { max-width: 320px; }
+.bk-final .bk-t.tbd { grid-template-columns: minmax(0, 1fr); }

@@ -1,0 +1,16 @@
+.rank-note { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+table.rank-t { min-width: 1180px; }
+.rank-t th button { font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; padding: 0; }
+.rank-t th.on { color: var(--accent); }
+.rank-t th:not(.tm) { cursor: pointer; }
+.rank-t td { padding: 7px 10px; }
+.rank-t td b { display: block; font-weight: 600; }
+.rank-t td small { display: block; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.rank-t td.g small { color: var(--win); font-weight: 600; } .rank-t td.b small { color: var(--loss); font-weight: 600; }
+.rank-t td.g { background: color-mix(in oklab, var(--win) 7%, transparent); } .rank-t td.b { background: color-mix(in oklab, var(--loss) 6%, transparent); }
+.rank-t td.on b { color: var(--ink); font-weight: 750; }
+.rank-t .tm-in { display: flex; align-items: center; gap: 8px; min-width: 170px; }
+.rank-t .tm .lg { width: 22px; height: 22px; }
+.rank-t .rk-n { width: 20px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rank-t tr.fav td.tm { box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 760px) { .rank-t .tm b { display: none; } .rank-t .tm-in { min-width: 60px; } table.rank-t { min-width: 940px; } }

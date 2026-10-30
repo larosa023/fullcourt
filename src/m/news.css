@@ -1,0 +1,8 @@
+.news { display: grid; gap: 22px; max-width: 760px; }
+.news-date { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 18px; text-transform: uppercase; }
+.news-date em { font-style: normal; font-family: var(--mono); font-stretch: normal; font-weight: 500; font-size: 10.5px; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; background: color-mix(in oklab, var(--accent) 14%, transparent); color: var(--accent); }
+.news ul { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.news li { display: grid; gap: 2px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.news li:last-child { border-bottom: 0; }
+.news li b { font-weight: 650; font-size: 14px; }
+.news li span { font-size: 13px; color: var(--muted); line-height: 1.5; }
