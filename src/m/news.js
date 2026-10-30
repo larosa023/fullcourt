@@ -1,7 +1,8 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
-  { id: '2026-10-30b', date: 'Oct 30', items: [
+  { id: '2026-10-30c', date: 'Oct 30', items: [
+    ['Mini scoreboard removed', 'The pop-out mini scoreboard has been taken out.'],
     ['Faster loading', 'The site now loads about 40% less up front. Extras like Ask, Compare, rankings and sharing load the first time you open them, and updates only re-download what changed.'],
     ['Big nights moved into the game', "40-point games, triple-doubles and comebacks now show inside the game (under the recap) instead of as a tag on the score cards."],
   ] },

@@ -4,8 +4,6 @@
 /* League mode: NBA or WNBA. The whole site runs in one league at a time. */
 const LG = (() => { try { return localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { return 'nba'; } })();
 const IS_W = LG === 'wnba';
-// ?mini=1 turns this page into the small stand-alone scoreboard window
-const MINI = /[?&]mini=1\b/.test(location.search);
 const LGN = IS_W ? 'WNBA' : 'NBA';
 // game rules that change between leagues (quarter length, timeouts, team-foul limits)
 const RULES = IS_W
@@ -447,7 +445,6 @@ async function loadScores({ silent = false } = {}) {
     refreshSit();
     if (S.date === S.today) alertCheck(S.games);
     renderWatch(); renderPicks(); renderOut();
-    if (S.pip && S.date === S.today) renderMini2(S.games);
   } catch (e) {
     S.failures++;
     if (!silent || !S.games.length) renderGamesError();
@@ -462,7 +459,7 @@ function schedulePoll() {
   const base = live ? 15000 : soon ? 30000 : 90000;
   const ms = Math.min(base * Math.pow(1.6, S.failures), 180000);
   S.pollTimer = setTimeout(() => {
-    if (document.hidden && !S.pip) { schedulePoll(); return; }
+    if (document.hidden) { schedulePoll(); return; }
     loadScores({ silent: true });
   }, ms);
 }
@@ -480,7 +477,7 @@ function checkRollover() {
   buildRail();
   return true;
 }
-setInterval(() => { if (!MINI && !document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
+setInterval(() => { if (!document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
 
 function updatePulse(err) {
   const live = S.games.filter(g => g.state === 'in').length;
@@ -672,7 +669,7 @@ function loadStandings(force) {
   }).catch(e => { stdPromise = null; throw e; });
   return stdPromise;
 }
-setInterval(() => { if (!MINI && !document.hidden) loadStandings(true).catch(() => {}); }, 5 * 60e3);
+setInterval(() => { if (!document.hidden) loadStandings(true).catch(() => {}); }, 5 * 60e3);
 
 function renderMini() {
   const box = $('#miniStd');
@@ -1876,7 +1873,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-30b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-30c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1900,9 +1897,6 @@ const shareGame = stub('share', 'shareGame');
 const sharePlayer = stub('share', 'sharePlayer');
 const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
-const openMini = stub('mini', 'openMini');
-const renderMini2 = stub('mini', 'renderMini2');
-const startMiniPage = stub('mini', 'startMiniPage');
 const openNews = stub('news', 'openNews');
 
 /* ---------------- data helpers ---------------- */
@@ -2529,7 +2523,7 @@ if ('serviceWorker' in navigator && /^https:$|^http:$/.test(location.protocol) &
 
 
 /* =====================================================================
-   UPGRADES 3: mini scoreboard, player watchlist, who's out, line movement,
+   UPGRADES 3: player watchlist, who's out, line movement,
    pick'em, recaps, team rankings
    ===================================================================== */
 
@@ -2803,7 +2797,6 @@ document.addEventListener('click', e => {
   const pk = el.closest('[data-pick]'); if (pk) { const [gid, tid] = pk.dataset.pick.split(':'); makePick(gid, tid); return; }
   const rs = el.closest('[data-rsort]'); if (rs) { S.rankSort = rs.dataset.rsort; if (S.ranks) drawRankings(S.ranks.rows); return; }
   const tmo = el.closest('[data-tmode]'); if (tmo) { S.teamsMode = tmo.dataset.tmode; $$('#teamsSeg button').forEach(b => b.setAttribute('aria-pressed', b === tmo)); placeKnob($('#teamsSeg')); renderTeams(); return; }
-  if (el.closest('[data-mini]')) { openMini(); return; }
   const fv = el.closest('[data-fav]'); if (fv) { setFav(fv.dataset.fav); return; }
   if (el.closest('[data-search]')) { openSearch(); return; }
   const ak = el.closest('[data-ask]'); if (ak) { closeSearch(); openAsk(ak.dataset.ask || ''); return; }
@@ -2840,7 +2833,7 @@ $('#rail').addEventListener('keydown', e => {
 });
 
 /* ================= boot ================= */
-if (MINI) startMiniPage(); else boot();
+boot();
 function boot() {
 renderLeadChips();
 renderMini();
@@ -2852,7 +2845,6 @@ $$('.seg').forEach(placeKnob);
 const liftVeil = () => document.documentElement.classList.remove('arriving');
 if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);
 Promise.resolve(loadScores()).finally(() => setTimeout(liftVeil, 60));
-if (!isTouch) $('[data-mini]').hidden = false;
 markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick();

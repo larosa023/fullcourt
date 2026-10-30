@@ -1192,9 +1192,7 @@ html.arriving main { opacity: 0; transition: none; }
 .teams-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .teams-head .seg { margin-bottom: 14px; }
 
-/* mini scoreboard window */
-html.mini-mode body > *:not(.pip-root) { display: none !important; }
-html.mini-mode body::before { display: none; }
+
 
 
 /* what's new */
