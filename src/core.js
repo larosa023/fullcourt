@@ -2998,7 +2998,11 @@ $$('.seg').forEach(placeKnob);
 // lift the switch veil once the first scores are on screen (or after a short cap, whichever comes first)
 const liftVeil = () => document.documentElement.classList.remove('arriving');
 if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);
-Promise.resolve(loadScores()).finally(() => setTimeout(liftVeil, 60));
+Promise.resolve(loadScores()).finally(() => {
+  // let the favourite team's logo finish so the chip fades in whole, not logo-second
+  const img = $('#favLink:not([hidden]) img');
+  Promise.race([img?.decode?.(), new Promise(r => setTimeout(r, 500))]).catch(() => {}).finally(() => setTimeout(liftVeil, 60));
+});
 markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick();

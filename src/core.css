@@ -633,6 +633,8 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .search-btn svg { width: 17px; height: 17px; }
 .search-btn:hover { color: var(--ink); border-color: var(--hl); }
 .fav-link { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 13.5px; transition: border-color .2s; }
+@media (min-width: 1001px) { html.has-fav #favLink[hidden] { display: inline-flex !important; visibility: hidden; } }
+@media (min-width: 761px) and (max-width: 1340px) { .fav-link { min-width: 66px; justify-content: center; } }
 @media (min-width: 1341px) { .fav-link { min-width: 104px; justify-content: center; } .mast-right { gap: 8px; } .mast-in { gap: 16px; } }
 .fav-link .lg { width: 22px; height: 22px; }
 .fav-link .star { color: var(--accent); font-size: 13px; }

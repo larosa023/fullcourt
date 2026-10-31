@@ -46,6 +46,8 @@
   // settings: parts you've switched off stay hidden from the first paint
   try { const p = JSON.parse(localStorage.getItem('fc-prefs') || '{}'); Object.keys(p).forEach(k => { if (p[k] === false) document.documentElement.classList.add('no-' + k); }); } catch (e) {}
   try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
+  // a favourite team chip is coming: hold its space from the first paint so the buttons beside it don't hop when it appears
+  try { const w = document.documentElement.dataset.league === 'wnba'; if (localStorage.getItem(w ? 'fc-fav-wnba' : 'fc-fav')) document.documentElement.classList.add('has-fav'); } catch (e) {}
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
