@@ -1223,6 +1223,16 @@ html.arriving main { opacity: 0; transition: none; }
 .career-h .chev { width: 18px; height: 18px; color: var(--muted); transition: transform .3s var(--ease); flex: none; }
 .career.open .career-h .chev { transform: rotate(180deg); }
 .career-h:hover b { color: var(--accent); }
+.ch-r { display: flex; align-items: center; gap: 10px; margin-left: auto; min-width: 0; }
+.min-btn { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin: -4px -5px -4px 0; border-radius: 8px; color: var(--muted); transition: color .2s, background .2s; }
+.min-btn:hover { color: var(--ink); background: var(--hl-bg); }
+.min-btn svg { width: 18px; height: 18px; transition: transform .3s var(--ease); }
+.card.min .min-btn svg { transform: rotate(180deg); }
+.card.min > :not(.card-h) { display: none; }
+.card.min > .card-h { margin-bottom: 0; }
+.card-h:has(.min-btn) > h4 { cursor: pointer; }
+.card-h:has(.min-btn) > h4:hover { color: var(--accent); }
+.card.min .ch-r > :not(.min-btn) { display: none; }
 .career-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease); }
 .career.open .career-b { grid-template-rows: 1fr; }
 .career-in { overflow: hidden; min-height: 0; padding: 0 14px; }

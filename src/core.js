@@ -1463,11 +1463,11 @@ async function openPlayer(id) {
     <div class="pl-trends" id="plTrend-${id}"><div class="sk" style="height:250px"></div></div>
     ${glog}
     <section class="card career" data-fill="log">
-      <button class="career-h" data-careertoggle aria-expanded="false"><span><b>Season game log</b><small>Every game this season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Season game log</b><small>Every game this season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
     <section class="card career" data-fill="career" data-career="${id}">
-      <button class="career-h" data-careertoggle aria-expanded="false"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
     ${facts.length ? `<div class="card"><div class="card-h"><h4>Bio</h4></div><div class="facts">${facts.map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>` : ''}
@@ -1477,13 +1477,19 @@ async function openPlayer(id) {
   S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
   const tb = $(`#plTrend-${id}`, sheet.body);
   if (tb) playerTrends(id, tb, sAvg);
-  // collapsible sections: load their data the first time they're opened
-  $$('.career', sheet.body).forEach(car => $('[data-careertoggle]', car).addEventListener('click', () => {
-    const open = !car.classList.contains('open');
-    car.classList.toggle('open', open);
-    $('[data-careertoggle]', car).setAttribute('aria-expanded', open);
-    if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; (car.dataset.fill === 'log' ? fillLog : fillCareer)(car, id); }
-  }));
+  // game log + career start open (and load right away); tap the header to minimize
+  $$('.career', sheet.body).forEach(car => {
+    const tg = $('[data-careertoggle]', car);
+    const set = open => {
+      car.classList.toggle('open', open); tg.setAttribute('aria-expanded', open);
+      if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; (car.dataset.fill === 'log' ? fillLog : fillCareer)(car, id); }
+    };
+    tg.addEventListener('click', () => set(!car.classList.contains('open')));
+    set(true);
+  });
+  // every other card gets a minimize button too (cards that fill in later included)
+  addMinimize(sheet.body);
+  new MutationObserver(() => addMinimize(sheet.body)).observe(sheet.body, { childList: true, subtree: true });
   if (reg) addShareBtn(sheet, () => sharePlayer({
     id, name, first: bio.firstName || name.split(' ')[0], last: bio.lastName || name.split(' ').slice(1).join(' '),
     jersey: bio.jersey || p.jersey, pos: bio.position?.abbreviation || p.pos, abbr: tm.abbr, teamId,
@@ -2509,6 +2515,22 @@ async function alertTick(force) {
     }
   }
   alertTimer = setTimeout(alertTick, 45000);
+}
+
+/* ---------------- minimizable cards ---------------- */
+const MIN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>';
+function addMinimize(root) {
+  $$('.card > .card-h', root).forEach(h => {
+    if (h._min || !h.querySelector(':scope > h4')) return;
+    h._min = true;
+    const r = document.createElement('div'); r.className = 'ch-r';
+    [...h.children].filter(c => c.tagName !== 'H4').forEach(c => r.appendChild(c));
+    const b = document.createElement('button'); b.className = 'min-btn'; b.title = 'Minimize'; b.setAttribute('aria-expanded', 'true'); b.innerHTML = MIN_ICON;
+    r.appendChild(b); h.appendChild(r);
+    const card = h.parentElement; if (card.classList.contains('min')) b.setAttribute('aria-expanded', 'false');
+    const flip = e => { e.stopPropagation(); const m = card.classList.toggle('min'); b.setAttribute('aria-expanded', !m); b.title = m ? 'Expand' : 'Minimize'; };
+    b.addEventListener('click', flip); h.querySelector(':scope > h4').addEventListener('click', flip);
+  });
 }
 
 /* ---------------- player trends: last 10 games + splits ---------------- */
