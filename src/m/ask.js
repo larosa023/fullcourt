@@ -540,6 +540,7 @@ const ASK_EXAMPLES = IS_W ? [
   'Most threes per game',
   'East standings',
   'Aces leading scorer',
+  "Track: A'ja Wilson over 22.5 points",
 ] : [
   'Who scored the most points last night?',
   'Jayson Tatum last 5 games',
@@ -553,18 +554,19 @@ const ASK_EXAMPLES = IS_W ? [
   'Brunson vs the Pistons',
   'East standings',
   'Hornets leading scorer',
+  'Track: Jayson Tatum over 26.5 points',
 ];
 let askSheet = null;
 function examplesHTML() { return `<div class="ask-ex">${ASK_EXAMPLES.map(q => `<button class="chip" data-askq="${esc(q)}">${esc(q)}</button>`).join('')}</div>`; }
 function askMsgHTML(m) {
-  if (m.me) return `<div class="msg me"><p>${esc(m.q)}</p></div>`;
-  if (m.loading) return `<div class="msg bot loading"><p><span class="dots"><i></i><i></i><i></i></span> Looking that up…</p></div>`;
+  if (m.me) return m.img ? `<div class="msg me img"><img src="${m.img}" alt="Bet slip"></div>` : `<div class="msg me"><p>${esc(m.q).replace(/\n/g, '<br>')}</p></div>`;
+  if (m.loading) return `<div class="msg bot loading"><p><span class="dots"><i></i><i></i><i></i></span> <span class="ld-t">${esc(m.loading === true ? 'Looking that up…' : m.loading)}</span></p></div>`;
   return `<div class="msg bot${m.miss ? ' miss' : ''}"><p>${m.text}</p>${m.html || ''}${m.examples ? examplesHTML() : ''}${m.at ? `<div class="msg-meta">ESPN data · ${esc(m.at)}</div>` : ''}</div>`;
 }
 function renderAsk(scroll = true) {
   if (!askSheet?.alive) return;
   const log = $('.ask-log', askSheet.el);
-  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data. Deep history (past seasons) isn't available.</p>${examplesHTML()}</div>`;
+  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data. Deep history (past seasons) isn't available.</p><p class="ask-bet-tip"><b>Track a bet:</b> type it out, one leg per line, or paste a screenshot of your slip. It shows up under My bets on Scores and updates live.</p>${examplesHTML()}</div>`;
   if (scroll) requestAnimationFrame(() => { askSheet.body.scrollTop = askSheet.body.scrollHeight; });
 }
 async function ask(q) {
@@ -574,12 +576,37 @@ async function ask(q) {
   ASK.log.push({ me: true, q }, { loading: true });
   renderAsk();
   let res;
-  try { res = await answer(q); }
+  try {
+    if (/^\s*(show |see |check )?(my|all my) (bets|parlays?|slips?)\b|^\s*(bets|my bets)\s*\??$/i.test(q)) res = await (await lazy('bets')).betsAnswer();
+    else if (looksLikeBet(q)) res = await answerSlip(q, false);
+    else res = await answer(q);
+  }
   catch (e) { res = { text: "I couldn't reach the stats feed just now. Give it a moment and try again.", miss: true }; }
   ASK.log.pop();
   ASK.log.push({ ...res, at: fmtTime(new Date().toISOString()) });
   if (res.ctx) ASK.ctx = { ...res.ctx, time: res.ctx.time || null };
   ASK.log = ASK.log.slice(-40);
+  ASK.busy = false;
+  renderAsk();
+}
+async function askImage(file) {
+  if (ASK.busy) return;
+  ASK.busy = true;
+  const url = URL.createObjectURL(file);
+  ASK.log.push({ me: true, img: url }, { loading: 'Getting the slip reader ready…' });
+  renderAsk();
+  const say = t => { const el = askSheet?.alive && $('.msg.loading .ld-t', askSheet.el); if (el) el.textContent = t; ASK.log.at(-1).loading = t; };
+  let res;
+  try {
+    const text = await readImage(file, p => say(p < 0.32 ? 'Getting the slip reader ready…' : `Reading your slip… ${Math.round(p * 100)}%`));
+    say('Matching players and games…');
+    res = await answerSlip(text, true);
+  } catch (e) {
+    console.error(e);
+    res = { text: "I couldn't read that image. Check your connection, or type the bet out, one leg per line.", miss: true };
+  }
+  ASK.log.pop();
+  ASK.log.push({ ...res, at: fmtTime(new Date().toISOString()) });
   ASK.busy = false;
   renderAsk();
 }
@@ -591,11 +618,27 @@ function openAsk(q) {
     askSheet.body.innerHTML = '<div class="ask-log" aria-live="polite"></div>';
     const form = document.createElement('form');
     form.className = 'ask-bar';
-    form.innerHTML = `<input id="askInput" type="text" autocomplete="off" spellcheck="false" placeholder="Ask about any player, team or game…" aria-label="Ask a question" enterkeyhint="send"><button class="ask-send" type="submit" aria-label="Ask">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}</button>`;
+    form.innerHTML = `<button class="ask-img" type="button" data-askimg title="Add a bet slip screenshot (or just paste one)" aria-label="Add a bet slip screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-4.8-4.8a1.5 1.5 0 0 0-2.1 0L5 19.5"/></svg></button><input type="file" accept="image/*" hidden id="askFile"><textarea id="askInput" rows="1" autocomplete="off" spellcheck="false" placeholder="Ask anything, or add a bet…" aria-label="Ask a question or add a bet" enterkeyhint="send"></textarea><button class="ask-send" type="submit" aria-label="Ask">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}</button>`;
     askSheet.el.append(form);
-    form.addEventListener('submit', e => { e.preventDefault(); const i = $('#askInput'); const v = i.value; i.value = ''; ask(v); });
+    const inp = $('#askInput', form);
+    const fit = () => { inp.style.height = ''; if (inp.value) inp.style.height = Math.min(160, inp.scrollHeight + 2) + 'px'; };
+    form.addEventListener('submit', e => { e.preventDefault(); const v = inp.value; inp.value = ''; fit(); ask(v); });
+    inp.addEventListener('input', fit);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } });
+    // bet slip screenshots: paste, drop, or pick a file
+    const takeImage = f => { if (f && /^image\//.test(f.type)) askImage(f); };
+    inp.addEventListener('paste', e => { const f = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && /^image\//.test(i.type))?.getAsFile(); if (f) { e.preventDefault(); takeImage(f); } });
+    $('[data-askimg]', form).addEventListener('click', () => $('#askFile', form).click());
+    $('#askFile', form).addEventListener('change', e => { takeImage(e.target.files?.[0]); e.target.value = ''; });
+    askSheet.el.addEventListener('dragover', e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === 'file')) { e.preventDefault(); askSheet.el.classList.add('drop'); } });
+    askSheet.el.addEventListener('dragleave', e => { if (!askSheet.el.contains(e.relatedTarget)) askSheet.el.classList.remove('drop'); });
+    askSheet.el.addEventListener('drop', e => { e.preventDefault(); askSheet.el.classList.remove('drop'); takeImage([...(e.dataTransfer?.files || [])][0]); });
     askSheet.body.addEventListener('click', e => {
       const b = e.target.closest('[data-askq]'); if (b) { ask(b.dataset.askq); return; }
+      const tk = e.target.closest('[data-bettrack]');
+      if (tk) { tk.disabled = true; trackSlip(tk.dataset.bettrack).then(bet => { if (!bet) return; tk.closest('.bs-act').innerHTML = '<span class="bs-done">Tracking · find it under <b>My bets</b> on Scores</span>'; }); return; }
+      const ed = e.target.closest('[data-betedit]');
+      if (ed) { const r = ASK.slips?.[ed.dataset.betedit]; const i = $('#askInput'); if (r && i) { i.value = r.typed; i.dispatchEvent(new Event('input')); i.focus(); } return; }
       const c = e.target.closest('[data-cmpab]'); if (c) { S.cmp = c.dataset.cmpab.split(','); closeAll(); go('compare'); }
     });
     renderAsk(false);
@@ -603,5 +646,289 @@ function openAsk(q) {
   }
   setTimeout(() => $('#askInput')?.focus({ preventScroll: true }), 120);
   if (q) ask(q);
+}
+
+/* =====================================================================
+   BET SLIPS IN ASK — read a typed or pasted (screenshot) bet, match each
+   leg to a player/team and game, then hand it to "My bets" to track live.
+   This module only loads the first time someone types or pastes a bet.
+   ===================================================================== */
+const BET_STATS = [
+  // combos first so "points + rebounds + assists" isn't read as just points
+  [['pts', 'reb', 'ast'], /\b(pra|p ?\+ ?r ?\+ ?a|pts ?\+ ?rebs? ?\+ ?asts?|points,? (\+|and|plus)? ?rebounds,? (\+|and|plus)? ?(and |plus )?assists)\b/],
+  [['pts', 'reb'], /\b(p ?\+ ?r|pts ?\+ ?rebs?|points ?(\+|and|plus) ?rebounds|pr)\b/],
+  [['pts', 'ast'], /\b(p ?\+ ?a|pts ?\+ ?asts?|points ?(\+|and|plus) ?assists|pa)\b/],
+  [['reb', 'ast'], /\b(r ?\+ ?a|rebs? ?\+ ?asts?|rebounds ?(\+|and|plus) ?assists|ra)\b/],
+  [['stl', 'blk'], /\b(stocks|steals ?(\+|and|plus) ?blocks|stl ?\+ ?blk|s ?\+ ?b)\b/],
+  [['tpm'], /\b(threes|three[ -]?pointers?( made)?|3[ -]?pointers?( made)?|3[ -]?pt( made|m)?|3pm|made threes|3s)\b/],
+  [['pts'], /\b(points?|pts)\b/],
+  [['reb'], /\b(rebounds?|rebs?|boards)\b/],
+  [['ast'], /\b(assists?|asts?|dimes)\b/],
+  [['stl'], /\b(steals?|stls?)\b/],
+  [['blk'], /\b(blocks?|blks?|blocked shots)\b/],
+  [['tov'], /\b(turnovers?|tovs?)\b/],
+];
+const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO' };
+const statsShort = st => st.map(k => STAT_SHORT[k]).join('+');
+const BET_STOP = new Set('wager wagered stake risk payout pay paid potential returns return win wins winning to cash out cashout sgp sgpx parlay parlays leg legs alt alternate spread moneyline ml total totals game line lines odds bet bets placed place boost boosted profit fanduel draftkings dk fd betmgm mgm caesars espnbet espn bet365 fanatics hard rock fliff prizepicks underdog same id receipt share pending open settled live player props prop over under o u yes no any time anytime first half quarter q1 1h 1q reg regulation incl ot overtime str more or less at least'.split(' '));
+
+const cleanSlip = s => String(s || '')
+  .replace(/[−–—]/g, '-').replace(/½/g, '.5').replace(/[‘’]/g, "'")
+  .replace(/\b([ou])(\d)/gi, '$1 $2').replace(/\s+/g, ' ').trim();
+
+// does a message look like a bet rather than a question?
+function looksLikeBet(q) {
+  const s = ' ' + cleanSlip(q).toLowerCase() + ' ';
+  if (/^\s*(track|add|log|save)\b.*\b(bet|parlay|slip|leg)s?\b/.test(s) || /^\s*(bet|parlay|my slip)\s*[:\-]/.test(s)) return true;
+  if (/^\s*(who|what|whats|how|when|where|why|did|does|do|is|are|was|were|will|can|should|which)\b/.test(s) || /\?\s*$/.test(s)) return false;
+  const lines = String(q).split(/\n/).filter(l => l.trim()).length;
+  const prop = /\b(over|under|o|u) \d+(\.\d)?\b|\b\d+(\.\d)?\+ /.test(s);
+  const spread = /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(s) && !/(^|\s)[+-]\d{3,4}(\s|$)/.test(s.replace(/(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/g, ' '));
+  const ml = /\b(ml|moneyline|money line|to win)\b/.test(s);
+  return prop || ml || (spread && lines >= 1 && /[a-z]{3}/.test(s)) || lines >= 3 && /\d/.test(s);
+}
+
+// pull money/odds details that belong to the whole slip
+function slipMeta(text) {
+  const t = cleanSlip(text).replace(/,(?=\d{3})/g, '');
+  const num = re => { const m = t.match(re); return m ? +m[1] : null; };
+  const stake = num(/(?:wager(?:ed)?|stake|risk|bet amount|total wager|bet)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i) ?? num(/\$\s?(\d+(?:\.\d{1,2})?)\s*(?:to win|bet|wager|stake|risk|on)/i) ?? num(/(?:^|\s)(\d+(?:\.\d{1,2})?)\s*(?:u|units?)\b/i);
+  let toWin = num(/(?:to win|potential win(?:nings)?|profit)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
+  // "payout"/"returns" include the stake
+  const back = num(/(?:payout|potential payout|to pay|total payout|returns?|potential return)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
+  if (toWin == null && back != null && stake != null && back > stake) toWin = Math.round((back - stake) * 100) / 100;
+  let odds = null;
+  const pm = t.match(/(?:parlay|sgp\+?|same game parlay|\d+\s*(?:-\s*)?legs?|\d+-pick|odds)[^+\-\d]{0,20}([+-]\d{3,5})\b/i);
+  if (pm) odds = +pm[1];
+  return { stake, toWin, odds };
+}
+
+// split typed text / OCR text into pieces that each hold one leg
+function splitLegs(text, fromImage) {
+  const raw = String(text || '').replace(/\r/g, '');
+  if (!fromImage) {
+    let parts = raw.split(/\n|;|\s\|\s|\s&\s|,(?!\d)(?=\s*[a-z])/i).map(s => s.trim()).filter(Boolean);
+    if (parts.length === 1) parts = parts[0].split(/\s+(?:and|plus)\s+(?=[A-Za-z][a-z]+ [A-Za-z])/).map(s => s.trim()).filter(Boolean);
+    return parts.map(s => s.replace(/^\s*(track|add|log|save)( (this|my))?( bet| parlay| slip)?\s*:?\s*/i, '').replace(/^\s*(bet|parlay)\s*:\s*/i, '')).filter(s => /\w/.test(s));
+  }
+  // screenshots: find "anchor" lines that carry a bet line, then gather the text around each one
+  // common misreads: a lone "O" before a line comes out as a zero ("010.5")
+  const lines = raw.split('\n').map(l => cleanSlip(l.replace(/(^|\s)[0Q](\d{1,2}\.5)\b/g, '$1O $2'))).filter(l => l && l.length > 1);
+  const isAnchor = l => /\b(over|under|o|u) \d+(\.\d)?\b/i.test(l) || /\b\d+(\.\d)?\+ /i.test(l + ' ') || /\b\d+\+?\s*(points|pts|rebounds|assists|threes|made threes)\b/i.test(l)
+    || /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(l) && /[a-z]{3}/i.test(l) || /^[+-]\d{1,2}(\.5)?(\s+[+-]\d{3,4})?$/.test(l) || /\b(moneyline|money line|to win)\b/i.test(l) && !/to win\s*\$/i.test(l) || /\bdouble[ -]double\b|\btriple[ -]double\b/i.test(l);
+  const idx = lines.map((l, i) => isAnchor(l) ? i : -1).filter(i => i >= 0);
+  const skip = l => /\b(wager|payout|to win \$|cash ?out|bet id|placed|share|receipt)\b/i.test(l);
+  const out = [];
+  idx.forEach((i, k) => {
+    const lo = k ? idx[k - 1] + 1 : Math.max(0, i - 3), hi = k < idx.length - 1 ? idx[k + 1] - 1 : Math.min(lines.length - 1, i + 3);
+    const near = [];
+    for (let d = 1; d <= 3; d++) for (const j of [i - d, i + d]) if (j >= lo && j <= hi && !skip(lines[j])) near.push(lines[j]);
+    out.push({ text: lines[i], near, ctx: [lines[i], ...near].join(' \n ') });
+  });
+  return out;
+}
+
+// read one leg
+function parseLeg(piece, rows) {
+  const text = typeof piece === 'string' ? piece : piece.text;
+  const ctx = typeof piece === 'string' ? piece : piece.ctx;
+  const all = cleanSlip(ctx);
+  const s = ' ' + all.toLowerCase().replace(/\s*\n\s*/g, ' ') + ' ';
+  const leg = { src: cleanSlip(text) };
+  const oddsRe = /(?:^|[\s(])([+-]\d{3,5})(?=[\s)]|$)/;
+  const om = (' ' + cleanSlip(text) + ' ').match(oddsRe) || (typeof piece === 'string' ? null : (piece.near || []).filter(l => !/parlay|sgp|\bleg|wager|payout|win/i.test(l)).map(l => (' ' + l + ' ').match(oddsRe)).find(Boolean));
+  if (om) leg.odds = +om[1];
+  const noOdds = s.replace(/(^|[\s(])[+-]\d{3,5}(?=[\s)]|$)/g, ' ');
+  // who: the player or team written closest to the bet line
+  const order = typeof piece === 'string' ? [text] : [text, ...(piece.near || [])];
+  const nk = nameKey(all.replace(/\n/g, ' '));
+  let player = null;
+  for (const l of order) {
+    const w = nameKey(l).split(' ').filter(x => x && !BET_STOP.has(x) && !/^\d/.test(x));
+    if (w.join(' ').length >= 4 && (player = matchPlayer(w.join(' '), rows))) break;
+  }
+  let teams = [];
+  for (const l of order) { const f = findTeams(l, ' ' + nameKey(l) + ' ').teams; if (f.length) { teams = f; break; } }
+  if (!teams.length) teams = findTeams(all.replace(/\n/g, ' '), ' ' + nk + ' ').teams;
+  // a "player" match that's really just a team name isn't a player
+  if (player && teams.length && !STAT_TEST(noOdds) && !/\b(over|under|o|u) \d/.test(noOdds) && !/\d\+/.test(noOdds)) player = null;
+  const statLine = order.map(l => ' ' + cleanSlip(l).toLowerCase() + ' ').find(l => STAT_TEST(l)) || noOdds;
+
+  // double / triple double
+  if (player && /\btriple[ -]?double\b/.test(s)) return { ...leg, k: 'td', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, side: /\bno\b/.test(s) ? 'u' : 'o' };
+  if (player && /\bdouble[ -]?double\b/.test(s)) return { ...leg, k: 'dd', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, side: /\bno\b/.test(s) ? 'u' : 'o' };
+
+  // player prop
+  const st = BET_STATS.find(([, re]) => re.test(statLine))?.[0];
+  const lineSrc = ' ' + cleanSlip(text).toLowerCase().replace(/(^|[\s(])[+-]\d{3,5}(?=[\s)]|$)/g, ' ') + ' ';
+  let side = null, line = null, m;
+  const src2 = /\b(over|under|o|u) \d|\d\+|at least|or more|fewer|less/.test(lineSrc) ? lineSrc : noOdds;
+  if ((m = src2.match(/\b(over|under|o|u) (\d+(?:\.\d)?)\b/))) { side = m[1][0]; line = +m[2]; }
+  else if ((m = src2.match(/\b(\d+(?:\.\d)?)\+/)) || (m = src2.match(/\b(?:at least|to (?:score|record|get|have|make)) (\d+)\b/)) || (m = src2.match(/\b(\d+) (?:or more)\b/))) { side = 'o'; line = +m[1] - 0.5; }
+  else if ((m = src2.match(/\b(\d+(?:\.\d)?) (over|under)\b/))) { side = m[2][0]; line = +m[1]; }
+  else if ((m = src2.match(/\b(\d+(?:\.\d)?) (?:or )?(fewer|less)\b/))) { side = 'u'; line = +m[1] + 0.5; }
+  if (player && st && line != null && line < 120) return { ...leg, k: 'prop', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, stats: st, side, line };
+  if (player && line != null && line < 120 && !teams.length) return { ...leg, k: 'prop', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, stats: ['pts'], side, line, guessed: true };
+
+  // team bets
+  if (teams.length) {
+    const t = S.teams[teams[0]];
+    const isTotal = /\b(total|o\/u|over\/under)\b/.test(noOdds) || (line != null && line >= (IS_W ? 120 : 160)) || (line != null && teams.length >= 2 && line >= 60);
+    if (side && line != null && isTotal) {
+      const teamTotal = /\bteam total\b/.test(noOdds) || (teams.length === 1 && line < (IS_W ? 120 : 160));
+      return { ...leg, k: teamTotal ? 'ttotal' : 'total', teamId: t.id, abbr: t.abbr, side, line };
+    }
+    if (/\b(ml|moneyline|money line|to win|win|winner)\b/.test(noOdds) && !/(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(noOdds)) return { ...leg, k: 'ml', teamId: t.id, abbr: t.abbr };
+    // spread: the number right after the team, or any small +/- number
+    const sm = noOdds.match(/(?:^|\s)([+-]\d{1,2}(?:\.5)?)(?=\s|$)/) || noOdds.match(/(?:^|\s)(pk|pick|pick ?em|even)(?=\s|$)/);
+    if (sm) {
+      // when two teams are named, the spread belongs to the team written closest before it
+      let teamId = t.id;
+      if (teams.length > 1) {
+        const pos = noOdds.indexOf(sm[0].trim());
+        let best = -1;
+        for (const id of teams) { const tm = S.teams[id]; for (const key of [tm.abbr, tm.short, tm.name, tm.loc].filter(Boolean)) { const i = noOdds.lastIndexOf(' ' + nameKey(key) + ' ', pos); if (i > best && i <= pos) { best = i; teamId = id; } } }
+      }
+      const tm = S.teams[teamId];
+      return { ...leg, k: 'spread', teamId, abbr: tm.abbr, line: /^[+-]/.test(sm[1]) ? +sm[1] : 0 };
+    }
+    if (teams.length === 1 && om && !side) return { ...leg, k: 'ml', teamId: t.id, abbr: t.abbr };
+  }
+  return { ...leg, k: null };
+}
+const STAT_TEST = s => BET_STATS.some(([, re]) => re.test(s));
+
+// which game is this leg about? today first, then the next couple of days, then last night
+async function gameFor(teamId, pref) {
+  const days = pref ? [pref] : [S.today, addDays(S.today, 1), addDays(S.today, 2), addDays(S.today, -1)];
+  for (const d of days) {
+    let games = d === S.date ? S.games : null;
+    if (!games) { ASK.sb = ASK.sb || {}; games = ASK.sb[d] || (ASK.sb[d] = await scoreboardOn(d).catch(() => [])); }
+    const g = games.find(x => x.home.id === teamId || x.away.id === teamId);
+    if (g) return { g, date: d };
+  }
+  return null;
+}
+
+const legLabel = l => {
+  const side = l.side === 'u' ? 'Under' : 'Over';
+  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${statsShort(l.stats)}`;
+  if (l.k === 'dd') return `${l.name} ${l.side === 'u' ? 'no ' : ''}double-double`;
+  if (l.k === 'td') return `${l.name} ${l.side === 'u' ? 'no ' : ''}triple-double`;
+  if (l.k === 'spread') return `${l.abbr} ${l.line > 0 ? '+' + l.line : l.line === 0 ? 'PK' : l.line}`;
+  if (l.k === 'ml') return `${l.abbr} moneyline`;
+  if (l.k === 'total') return `${l.game || l.abbr} ${side} ${l.line}`;
+  if (l.k === 'ttotal') return `${l.abbr} team total ${side} ${l.line}`;
+  return l.src;
+};
+const legTyped = l => {
+  const side = l.side === 'u' ? 'under' : 'over';
+  const o = l.odds ? ` ${l.odds > 0 ? '+' : ''}${l.odds}` : '';
+  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers' })[k]).join(' + ')}${o}`;
+  if (l.k === 'dd' || l.k === 'td') return `${l.name} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double${o}`;
+  if (l.k === 'spread') return `${l.abbr} ${l.line > 0 ? '+' + l.line : l.line}${o}`;
+  if (l.k === 'ml') return `${l.abbr} moneyline${o}`;
+  if (l.k === 'total') return `${l.game ? l.game.replace(' @ ', '/') : l.abbr} total ${side} ${l.line}${o}`;
+  if (l.k === 'ttotal') return `${l.abbr} team total ${side} ${l.line}${o}`;
+  return l.src;
+};
+
+async function readSlip(text, fromImage) {
+  const rows = await leagueTable();
+  await loadStandings().catch(() => {});
+  const meta = slipMeta(text);
+  const pieces = splitLegs(text, fromImage);
+  const legs = [], missed = [];
+  const seen = new Set();
+  for (const p of pieces) {
+    const l = parseLeg(p, rows);
+    if (!l.k) { const src = typeof p === 'string' ? p : p.text; if (/^\W*(\$|wager|stake|risk|to win|payout|bet amount|odds|parlay|sgp|\d+\s*(u|units?)\b|[+-]\d{3,5}\W*$)/i.test(src.trim()) || /^\s*\$?\d+(\.\d+)?\s*(stake|to win|wager|bet)/i.test(src)) continue; if (!fromImage || /[a-z]{3}/i.test(src)) missed.push(src); continue; }
+    const key = [l.k, l.pid || l.teamId, (l.stats || []).join(), l.side, l.line].join('|');
+    if (seen.has(key)) continue; seen.add(key);
+    const found = l.teamId ? await gameFor(l.teamId) : null;
+    if (found) {
+      const { g, date } = found;
+      l.gid = g.id; l.date = date; l.game = `${g.away.abbr} @ ${g.home.abbr}`; l.when = g.state === 'pre' ? `${date === S.today ? 'Tonight' : fmtDay(date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g);
+    } else l.noGame = true;
+    legs.push(l);
+  }
+  return { legs, missed, meta };
+}
+
+// the confirmation card shown in Ask
+function slipCard(r, token) {
+  const ok = r.legs.filter(l => !l.noGame);
+  const rows = r.legs.map(l => `<div class="bs-leg${l.noGame ? ' warn' : ''}">
+      ${l.pid ? face(l.pid, l.name, 'bs-face', 120) : logo(l.abbr, 48, 'lg bs-face')}
+      <span class="bs-t"><b>${esc(legLabel(l))}</b><small>${l.noGame ? 'No game found in the next few days' : `${esc(l.game)} · ${esc(l.when)}`}${l.guessed ? ' · stat guessed as points' : ''}${l.odds ? ` · ${l.odds > 0 ? '+' : ''}${l.odds}` : ''}</small></span>
+    </div>`).join('');
+  const m = r.meta, money = [m.stake != null ? `$${m.stake} stake` : '', m.toWin != null ? `to win $${m.toWin}` : '', m.odds ? `${m.odds > 0 ? '+' : ''}${m.odds}` : ''].filter(Boolean).join(' · ');
+  return `<div class="bs-card">
+    <div class="bs-h"><b>${ok.length > 1 ? `${ok.length}-leg parlay` : 'Single bet'}</b>${money ? `<span>${esc(money)}</span>` : ''}</div>
+    ${rows}
+    ${r.missed.length ? `<p class="bs-miss">Couldn't read: ${r.missed.slice(0, 4).map(x => `<i>${esc(x.slice(0, 60))}</i>`).join(', ')}</p>` : ''}
+    <div class="bs-act">${ok.length ? `<button class="btn" data-bettrack="${token}">Track this bet</button>` : ''}<button class="btn ghost" data-betedit="${token}">Edit as text</button></div>
+  </div>`;
+}
+
+async function answerSlip(text, fromImage) {
+  const r = await readSlip(text, fromImage);
+  const token = 'b' + Date.now().toString(36);
+  ASK.slips = ASK.slips || {};
+  ASK.slips[token] = { ...r, typed: r.legs.map(legTyped).concat(r.missed).join('\n') + (r.meta.stake != null ? `\n$${r.meta.stake} stake` : '') };
+  if (!r.legs.length) return { text: fromImage ? "I couldn't find a bet on that image. Try a closer crop of the slip, or type it out, one leg per line, like <b>Tatum over 26.5 points</b> or <b>Celtics -4.5</b>." : "I couldn't read that as a bet. Write one leg per line, like <b>Tatum over 26.5 points</b>, <b>Celtics -4.5</b>, <b>Lakers ML</b> or <b>Knicks/Heat under 218.5</b>.", miss: true, html: fromImage && text.trim() ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : '' };
+  const all = r.legs.every(l => !l.noGame);
+  return { text: `${fromImage ? "Here's what I read from your slip." : "Here's your bet."} ${all ? 'Look right? Track it and it shows up under <b>My bets</b> on Scores, updating live.' : 'Some legs need a fix: tap <b>Edit as text</b>.'}`, html: slipCard(r, token) + (fromImage ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : '') };
+}
+
+async function trackSlip(token) {
+  const r = ASK.slips?.[token]; if (!r) return null;
+  const legs = r.legs.filter(l => !l.noGame).map(({ src, guessed, noGame, when, ...l }) => l);
+  if (!legs.length) return null;
+  const bet = { id: token, at: Date.now(), legs, stake: r.meta.stake, toWin: r.meta.toWin, odds: r.meta.odds };
+  const m = await lazy('bets');
+  m.addBet(bet);
+  delete ASK.slips[token];
+  return bet;
+}
+
+/* ---------------- reading screenshots ---------------- */
+let ocrP = null;
+function loadOCR() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  return ocrP || (ocrP = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = '/ocr/tesseract.min.js'; s.async = true;
+    s.onload = () => res(window.Tesseract); s.onerror = () => { ocrP = null; rej(new Error('ocr')); };
+    document.head.append(s);
+  }));
+}
+// sharpen a screenshot for reading: scale up small text, greyscale, and flip dark-mode slips to dark-on-light
+async function prepImage(file) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(2.2, Math.max(1, 1400 / bmp.width));
+  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h), p = d.data;
+  let sum = 0;
+  for (let i = 0; i < p.length; i += 4) { const g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = p[i + 1] = p[i + 2] = g; sum += g; }
+  const dark = sum / (p.length / 4) < 128;
+  for (let i = 0; i < p.length; i += 4) { let g = p[i]; if (dark) g = 255 - g; g = Math.max(0, Math.min(255, (g - 128) * 1.35 + 128)); p[i] = p[i + 1] = p[i + 2] = g; }
+  x.putImageData(d, 0, 0);
+  return c;
+}
+let ocrWorker = null;
+async function readImage(file, onProgress) {
+  const T = await loadOCR();
+  if (!ocrWorker) {
+    ocrWorker = await T.createWorker('eng', 1, {
+      workerPath: '/ocr/worker.min.js', corePath: '/ocr/', langPath: '/ocr/', workerBlobURL: false, gzip: true,
+      logger: m => { if (m.status === 'recognizing text') onProgress?.(0.35 + 0.65 * (m.progress || 0)); else if (/loading|initializ/.test(m.status)) onProgress?.(0.3 * (m.progress || 0)); },
+    });
+  }
+  const canvas = await prepImage(file);
+  const { data } = await ocrWorker.recognize(canvas);
+  return data.text || '';
 }
 

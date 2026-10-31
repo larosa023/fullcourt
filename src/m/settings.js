@@ -1,6 +1,7 @@
 /* ---------------- settings ---------------- */
 const PREFS = [
   ['odds', 'Betting odds', 'Moneylines, spreads, totals and line movement on score cards and in games'],
+  ['bets', 'My bets', 'Bets you track from Ask, on the Scores page'],
   ['watch', 'Your players', 'The strip of starred players at the top of Scores'],
   ['perf', 'Top scorers', 'The scorers and players-to-watch strip under the games'],
   ['picks', "Pick'em", 'Pick the winner of each game and track your record'],

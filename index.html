@@ -51,9 +51,9 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"/assets/core.44fde6f10c.js"}}</script>
-<link rel="modulepreload" href="/assets/core.44fde6f10c.js">
-<link rel="stylesheet" href="/assets/core.ad5109662f.css">
+<script type="importmap">{"imports":{"core":"/assets/core.43a4eb4e60.js"}}</script>
+<link rel="modulepreload" href="/assets/core.43a4eb4e60.js">
+<link rel="stylesheet" href="/assets/core.f05b5adaf5.css">
 </head>
 <body>
 
@@ -120,6 +120,10 @@
             <button class="mv-btn" data-week title="Every game for the next 7 days"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17h3"/></svg>This week</button>
             <button class="mv-btn" data-mv title="Watch several games side by side (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><rect x="13" y="13" width="8" height="7" rx="1.5"/></svg>Multi-view</button>
           </div>
+        </div>
+        <div class="watch-block bet-block" id="betBlock" hidden>
+          <div class="sec-h"><h2 class="h-display">My bets</h2><span class="eyebrow" id="betRec"></span></div>
+          <div class="bt-strip drag-x" id="betStrip" data-drag></div>
         </div>
         <div class="watch-block" id="watchBlock" hidden>
           <div class="sec-h"><h2 class="h-display">Your players</h2><span class="eyebrow">Tap a star on any player to add them</span></div>
@@ -264,6 +268,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="/assets/core.44fde6f10c.js"></script>
+<script type="module" src="/assets/core.43a4eb4e60.js"></script>
 </body>
 </html>

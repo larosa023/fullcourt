@@ -1284,7 +1284,7 @@ a.wt:hover { border-color: var(--accent); transform: translateY(-1px); }
 .watch .card-h .eyebrow { text-transform: none; letter-spacing: .02em; }
 /* settings: hide what's switched off */
 html.no-odds .odds-line, html.no-odds .game .ml, html.no-odds .odds-card, html.no-odds .mvt { display: none !important; }
-html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
+html.no-bets #betBlock, html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
 .set-btn svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .mast .set-btn { display: none; } }
 

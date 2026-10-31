@@ -64,9 +64,44 @@
 .ask-odds b { font-family: var(--mono); font-weight: 600; }
 .ask-bar { flex: none; display: flex; gap: 8px; padding: 12px max(16px, env(safe-area-inset-left, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--bg); }
 .sheet.full .ask-bar { padding-left: max(24px, calc((100vw - 860px) / 2)); padding-right: max(24px, calc((100vw - 860px) / 2)); }
-.ask-bar input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
-.ask-bar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ask-bar input, .ask-bar textarea { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.ask-bar input:focus, .ask-bar textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ask-send { width: 46px; flex: none; border-radius: 14px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; transition: transform .15s; }
 .ask-send:active { transform: scale(.94); }
 .ask-send svg { width: 20px; height: 20px; }
 @media (max-width: 760px) { .ask-vs { grid-template-columns: 1fr; } .msg.me { max-width: 90%; } .ask-odds { padding-left: 8px; } }
+
+/* bet slips */
+.ask-bar textarea { resize: none; line-height: 1.35; max-height: 160px; overflow-y: auto; display: block; }
+.ask-img { width: 46px; flex: none; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); display: grid; place-items: center; transition: color .2s, border-color .2s; }
+.ask-img:hover { color: var(--ink); border-color: var(--hl); }
+.ask-img svg { width: 20px; height: 20px; }
+.ask-bar { align-items: flex-end; }
+.ask-bar .ask-img, .ask-bar .ask-send { height: 46px; }
+.ask-sheet.drop .ask-log { outline: 2px dashed var(--accent); outline-offset: -8px; border-radius: 16px; }
+.ask-bet-tip { font-size: 13px; color: var(--muted); margin-top: -4px; }
+.ask-bet-tip b { color: var(--ink); }
+.msg.me.img { padding: 4px; background: transparent; }
+.msg.me.img img { display: block; max-width: min(240px, 60vw); max-height: 320px; border-radius: 12px; border: 1px solid var(--line); object-fit: cover; object-position: top; }
+.bs-card { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 12px; display: grid; gap: 2px; }
+.bs-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.bs-h b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 15px; text-transform: uppercase; }
+.bs-h span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.bs-leg { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.bs-leg:first-of-type { border-top: 0; }
+.bs-face { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: top; background: var(--surface-3); }
+img.lg.bs-face { background: transparent; border-radius: 0; object-fit: contain; }
+.bs-t { display: grid; gap: 1px; min-width: 0; }
+.bs-t b { font-weight: 650; font-size: 14px; }
+.bs-t small { font-size: 11.5px; color: var(--muted); }
+.bs-leg.warn .bs-t small { color: var(--loss); }
+.bs-miss { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.bs-miss i { font-style: normal; color: var(--ink-2); }
+.bs-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bs-done { font-size: 13px; color: var(--win); padding: 6px 0; }
+.bs-done b { color: inherit; }
+.bs-raw { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.bs-raw summary { cursor: pointer; }
+.bs-raw pre { white-space: pre-wrap; font-family: var(--mono); font-size: 11px; max-height: 200px; overflow: auto; background: var(--surface-2); padding: 8px; border-radius: 8px; margin: 6px 0 0; }
+/* keep the bar clear of the floating "Powered by Netlify" badge */
+.ask-bar { padding-bottom: max(calc(12px + env(safe-area-inset-bottom, 0px)), var(--nfb, 0px)); }

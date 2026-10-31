@@ -457,6 +457,7 @@ async function loadScores({ silent = false } = {}) {
     refreshSit();
     if (S.date === S.today) alertCheck(S.games);
     renderWatch(); renderPicks(); renderOut();
+    if (lsGet(lsKey('fc-bets'))) renderBets(); else { const bb = $('#betBlock'); if (bb) bb.hidden = true; }
     back(); if (silent) Promise.allSettled([document.fonts?.ready]).then(() => requestAnimationFrame(back));
   } catch (e) {
     S.failures++;
@@ -1954,6 +1955,8 @@ function lazy(name) {
 }
 const stub = (name, fn) => (...a) => lazy(name).then(m => m[fn](...a)).catch(err => { console.error(err); toast("Couldn't load that part of Fullcourt. Check your connection and try again."); });
 const openAsk = stub('ask', 'openAsk');
+const renderBets = stub('bets', 'renderBets');
+const removeBet = stub('bets', 'removeBet');
 const renderCompare = stub('compare', 'renderCompare');
 const openMulti = stub('multi', 'openMulti');
 const renderAward = stub('awards', 'renderAward');
@@ -2935,6 +2938,24 @@ function notableCard(d) {
   return list.length ? `<div class="card"><div class="card-h"><h4>Big night</h4><span class="eyebrow">So far</span></div>${notableRows(list)}</div>` : '';
 }
 
+/* ---------------- Netlify's floating badge: keep our bottom bars clear of it ---------------- */
+(function watchBadge() {
+  const fit = f => {
+    const m = [...String(f.style.clipPath || '').matchAll(/M\s*[\d.]+[\s,]+([\d.]+)\s*H/g)].map(x => +x[1]);
+    const h = f.getBoundingClientRect().height;
+    const up = m.length && f.style.display !== 'none' ? Math.max(0, h - Math.min(...m)) : 0;
+    document.documentElement.style.setProperty('--nfb', up ? Math.round(up + 6) + 'px' : '0px');
+  };
+  const hook = () => {
+    const f = document.getElementById('nl-badge-frame') || document.getElementById('nl-hud-frame');
+    if (!f || f._fc) return !!f;
+    f._fc = true; fit(f);
+    new MutationObserver(() => fit(f)).observe(f, { attributes: true, attributeFilter: ['style'] });
+    return true;
+  };
+  if (!hook()) { const mo = new MutationObserver(() => { if (hook()) mo.disconnect(); }); mo.observe(document.body, { childList: true }); setTimeout(() => mo.disconnect(), 20000); }
+})();
+
 /* ================= global events ================= */
 document.addEventListener('click', e => {
   const el = e.target;
@@ -2943,6 +2964,7 @@ document.addEventListener('click', e => {
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
   if (el.closest('[data-adv]')) { toggleAdv(); return; }
+  const bd = el.closest('[data-betdel]'); if (bd) { const c = bd.closest('.bt-card'); if (c && c.closest('.bt-ask')) c.remove(); removeBet(bd.dataset.betdel); return; }
   if (el.closest('[data-news]')) { openNews(); return; }
   if (el.closest('[data-settings]')) { openSettings(); return; }
   if (el.closest('[data-week]')) { openWeek(); return; }
