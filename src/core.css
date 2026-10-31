@@ -156,8 +156,6 @@ main {
 }
 .hs-wrap::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); opacity: var(--fl, 0); }
 .hs-wrap::after { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); opacity: var(--fr, 1); }
-.hs-wrap.on-surface::before { background: linear-gradient(90deg, var(--surface), transparent); }
-.hs-wrap.on-surface::after { background: linear-gradient(-90deg, var(--surface), transparent); }
 .drag-x { cursor: grab; }
 
 /* date rail */
@@ -429,7 +427,6 @@ table.ls { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .pane.anim { animation: viewIn .35s var(--ease); }
 
 .wp svg { width: 100%; height: auto; display: block; }
-.wp-lab { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
 
 .box-wrap { overflow-x: auto; margin: 0 -14px; padding: 0 14px; }
 table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; font-size: 13px; }
@@ -1011,9 +1008,6 @@ html.arriving main { opacity: 0; transition: none; }
 .ser b { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cmp .mid small { font-size: 10.5px; color: var(--muted); font-weight: 500; }
 
-/* big-night badges */
-.bn { display: inline-flex; align-items: center; gap: 4px; flex: none; max-width: 62%; font-size: 11px; font-weight: 700; letter-spacing: .01em; padding: 2px 8px; border-radius: 999px; color: var(--accent); background: color-mix(in oklab, var(--accent) 13%, transparent); border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bn em { font-style: normal; font-weight: 600; opacity: .75; }
 
 /* alerts button (next to "Your team") */
 .fav-wrap { position: absolute; top: 14px; right: 14px; z-index: 2; display: flex; gap: 8px; align-items: center; }
@@ -1233,3 +1227,21 @@ html.arriving main { opacity: 0; transition: none; }
 .career.open .career-b { grid-template-rows: 1fr; }
 .career-in { overflow: hidden; min-height: 0; padding: 0 14px; }
 .career.open .career-in { padding-bottom: 14px; }
+
+/* where to watch */
+.wt-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.wt-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.wt-l { font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding-top: 6px; }
+.wt-c { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.wt { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; max-width: 100%; color: var(--ink); text-decoration: none; }
+.wt b { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt small { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.wt svg { width: 12px; height: 12px; color: var(--accent); flex: none; }
+a.wt { transition: border-color .2s, transform .2s var(--ease); }
+a.wt:hover { border-color: var(--accent); transform: translateY(-1px); }
+.watch .card-h .eyebrow { text-transform: none; letter-spacing: .02em; }
+/* settings: hide what's switched off */
+html.no-odds .odds-line, html.no-odds .game .ml, html.no-odds .odds-card, html.no-odds .mvt { display: none !important; }
+html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
+.set-btn svg { width: 18px; height: 18px; }
+@media (max-width: 760px) { .mast .set-btn { display: none; } }

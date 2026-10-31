@@ -177,7 +177,6 @@ function lineSentence(r) {
   const all = [...bits, ...extra];
   return all.slice(0, -1).join(', ') + ' and ' + all.at(-1);
 }
-const shooting = r => r.fg ? `${r.fg[0]}/${r.fg[1]} FG, ${r.tp[0]}/${r.tp[1]} 3PT, ${r.ft[0]}/${r.ft[1]} FT` : '';
 
 /* ---------------- intents ---------------- */
 async function aPlayerSeason(p, stat, rows) {

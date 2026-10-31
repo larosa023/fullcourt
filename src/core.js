@@ -406,7 +406,7 @@ function oddsCard(odds, sides, label = 'Odds', note) {
   if (!odds) return '';
   const cell = (main, sub, open) => main ? `<div class="cell"><b>${esc(main)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${open && open !== main ? `<small>open ${esc(open)}</small>` : ''}</div>` : '<span style="color:var(--muted)">–</span>';
   const keys = ['away', 'home'];
-  return `<div class="card"><div class="card-h"><h4>${esc(label)}</h4><span class="eyebrow">${esc(odds.provider || '')}</span></div>
+  return `<div class="card odds-card"><div class="card-h"><h4>${esc(label)}</h4><span class="eyebrow">${esc(odds.provider || '')}</span></div>
     <div class="ls-wrap"><table class="odds-t"><colgroup><col class="c-team"><col><col><col></colgroup><thead><tr><th>Team</th><th>ML</th><th>Spread</th><th>Total</th></tr></thead><tbody>
     ${keys.map((k, i) => {
       const x = odds[k], t = i ? odds.under : odds.over, sd = sides[i];
@@ -1034,6 +1034,7 @@ async function openGame(id) {
     }
     cur = { d, sides };
     side += wpChart(d, sides);
+    if (g.state !== 'post') side += watchCard(d, sides);
     if (!pre) side += flowCard(d, sides) + officialsCard(d);
     const clips = pre ? [] : clipList(d);
 
@@ -1219,7 +1220,6 @@ function preGame(d, sides, g) {
   let html = `<div class="card"><div class="card-h"><h4>Game info</h4></div><div class="facts">
     <div class="fact"><span>Tip-off</span><b>${esc(fmtET(g.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET')}</b></div>
     ${d.gameInfo?.venue?.fullName ? `<div class="fact"><span>Arena</span><b>${esc(d.gameInfo.venue.fullName)}</b></div>` : ''}
-    ${tv ? `<div class="fact"><span>Watch</span><b>${esc(tv)}</b></div>` : ''}
     ${ss ? `<div class="fact"><span>Season series</span><b>${esc(ss)}</b></div>` : ''}
     ${d.gameInfo?.officials?.length ? `<div class="fact"><span>Officials</span><b>${esc(d.gameInfo.officials.map(o => o.displayName || o.fullName).join(', '))}</b></div>` : ''}
   </div></div>`;
@@ -1884,7 +1884,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1910,6 +1910,8 @@ const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
 const fillCareer = stub('career', 'fillCareer');
+const openSettings = stub('settings', 'openSettings');
+const openWeek = stub('week', 'openWeek');
 
 /* ---------------- data helpers ---------------- */
 async function leagueTable() {
@@ -2153,6 +2155,37 @@ function officialsCard(d) {
     <div class="ref-list">${o.map((r, i) => `<span class="ref"><i>${i === 0 ? 'Crew chief' : esc(r.position?.displayName || 'Referee')}</i><b>${esc(r.displayName || r.fullName)}</b></span>`).join('')}</div></div>`;
 }
 
+/* ---------------- where to watch ---------------- */
+// official places to watch; anything not listed (local channels, team apps) shows as plain text
+const WATCH_LINKS = [
+  [/^(espn|espn2|espnu|abc|espn deportes)\b/i, 'https://www.espn.com/watch/'],
+  [/prime video|amazon/i, 'https://www.primevideo.com/'],
+  [/^nbc\b|peacock/i, 'https://www.peacocktv.com/'],
+  [/nba tv|league pass/i, IS_W ? 'https://www.wnba.com/' : 'https://www.nba.com/watch'],
+  [/^(tnt|tbs|trutv)\b/i, 'https://www.tntsports.com/'],
+  [/^ion\b/i, 'https://iontelevision.com/'],
+  [/^cbs\b|paramount/i, 'https://www.paramountplus.com/'],
+  [/^dazn\b/i, 'https://www.dazn.com/'],
+];
+function watchCard(d, sides) {
+  const bc = d.header?.competitions?.[0]?.broadcasts || [];
+  if (!bc.length) return '';
+  const groups = [['National', x => x.isNational || /national/i.test(x.market?.type || '')], [`${sides[0].abbr} local`, x => /away/i.test(x.market?.type || '')], [`${sides[1].abbr} local`, x => /home/i.test(x.market?.type || '')]];
+  const seen = new Set();
+  const chip = x => {
+    const name = x.media?.shortName || x.station || ''; if (!name) return '';
+    const url = WATCH_LINKS.find(([re]) => re.test(name))?.[1];
+    const kind = x.type?.shortName === 'Subscription Package' ? 'Package' : x.type?.shortName || '';
+    return url ? `<a class="wt" href="${url}" target="_blank" rel="noopener"><b>${esc(name)}</b>${kind ? `<small>${esc(kind)}</small>` : ''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></a>`
+      : `<span class="wt"><b>${esc(name)}</b>${kind ? `<small>${esc(kind)}</small>` : ''}</span>`;
+  };
+  const rows = groups.map(([label, test]) => {
+    const items = bc.filter(x => test(x) && !seen.has(x.media?.shortName) && seen.add(x.media?.shortName));
+    return items.length ? `<div class="wt-row"><span class="wt-l">${esc(label)}</span><div class="wt-c">${items.map(chip).join('')}</div></div>` : '';
+  }).join('');
+  return rows ? `<div class="card watch"><div class="card-h"><h4>Where to watch</h4><span class="eyebrow">Official links open in a new tab</span></div>${rows}</div>` : '';
+}
+
 /* ---------------- highlight clips (ESPN) ---------------- */
 function clipList(d) {
   return (d.videos || []).map(v => {
@@ -2272,16 +2305,9 @@ function statEdges(d, sides) {
     }).join('')}</div></div>`;
 }
 
-/* ---------------- big-night badges on the score cards ---------------- */
-S.bn = {};
-const BN_KEY = lsKey('fc-bn');
-try { Object.assign(S.bn, JSON.parse(localStorage.getItem(BN_KEY) || '{}')); } catch (e) {}
-function saveBadges() {
-  try {
-    const keep = Object.entries(S.bn).filter(([, v]) => v && v.fin).slice(-400);
-    localStorage.setItem(BN_KEY, JSON.stringify(Object.fromEntries(keep)));
-  } catch (e) {}
-}
+/* ---------------- big nights (40-point games, triple-doubles, comebacks), shown inside the game ---------------- */
+// an old version cached these per game; clear that leftover
+try { localStorage.removeItem(lsKey('fc-bn')); } catch (e) {}
 function bigNight(d) {
   const comp = d.header?.competitions?.[0];
   const state = comp?.status?.type?.state;
@@ -2317,55 +2343,6 @@ function bigNight(d) {
   out.sort((a, b) => b.s - a.s);
   return { list: out, fin: state === 'post' };
 }
-function badgeHTML(g) {
-  const b = S.bn[g.id]?.list;
-  if (!b?.length) return '';
-  return `<span class="bn bn-${b[0].k}" title="${esc(b.map(x => x.who).join(' · '))}">${esc(b[0].label)}${b.length > 1 ? `<em>+${b.length - 1}</em>` : ''}</span>`;
-}
-// The scoreboard already hints at most big nights; only games that might have one get their full details fetched.
-function mightBeBig(g) {
-  const top = (side, re) => Math.max(0, ...(side.leaders.find(l => re.test(l.name))?.leaders || []).map(x => +x.value || parseFloat(x.displayValue) || 0));
-  for (const s of [g.home, g.away]) {
-    const pts = top(s, /^points$/), reb = top(s, /^rebounds$/), ast = top(s, /^assists$/);
-    if (pts >= BIG_PTS) return true;
-    if ((reb >= 10 && ast >= 8) || (ast >= 10 && reb >= 8)) return true;
-  }
-  // a comeback: the winner trailed big at the end of some quarter, or the game went to overtime
-  const w = g.home.winner ? g.home : g.away.winner ? g.away : null, l = w === g.home ? g.away : g.home;
-  if (!w || g.period > 4) return true;
-  let a = 0, b = 0;
-  for (let i = 0; i < Math.min(w.lines.length, l.lines.length); i++) { a += w.lines[i]; b += l.lines[i]; if (b - a >= Math.round(BIG_COMEBACK * 0.6)) return true; }
-  return false;
-}
-let bnBusy = false, bnRender = 0;
-async function fetchBadges() {
-  if (bnBusy) return;
-  const date = S.date;
-  const todo = S.games.filter(g => g.state === 'post' && !S.bn[g.id]?.fin);
-  todo.filter(g => !mightBeBig(g)).forEach(g => { S.bn[g.id] = { list: [], fin: true }; });
-  for (let i = todo.length - 1; i >= 0; i--) if (S.bn[todo[i].id]?.fin) todo.splice(i, 1);
-  if (!todo.length) { saveBadges(); return; }
-  bnBusy = true;
-  const work = async () => {
-    while (todo.length && S.date === date) {
-      const g = todo.shift();
-      try {
-        const r = bigNight(await summaryCached(g.id));
-        if (r) { S.bn[g.id] = r; queueBadgeRender(); }
-      } catch (e) {}
-    }
-  };
-  await sleep(400);
-  await Promise.all([work(), work()]);
-  saveBadges();
-  bnBusy = false;
-  if (S.date !== date) fetchBadges();
-}
-function queueBadgeRender() {
-  clearTimeout(bnRender);
-  bnRender = setTimeout(() => { if (S.view === 'scores') renderGames(false); }, 250);
-}
-
 /* ---------------- favorite-team alerts ---------------- */
 let alertsOn = lsGet(lsKey('fc-alerts')) === '1';
 const canNotify = () => 'Notification' in window;
@@ -2582,7 +2559,7 @@ function lineMoveCard(o, sides) {
   const mls = m.ml.filter(x => x.now && x.open);
   if (mls.length) rows.push(`<div class="lm"><span>Moneyline</span><b>${mls.map(x => `${esc((x.k === 'home' ? sides[1] : sides[0]).abbr)} ${esc(x.open)} → ${esc(x.now)}`).join('<br>')}</b><i></i></div>`);
   if (!rows.length) return '';
-  return `<div class="card"><div class="card-h"><h4>Line movement</h4><span class="eyebrow">Open → now${o.provider ? ' · ' + esc(o.provider) : ''}</span></div><div class="lms">${rows.join('')}</div></div>`;
+  return `<div class="card odds-card"><div class="card-h"><h4>Line movement</h4><span class="eyebrow">Open → now${o.provider ? ' · ' + esc(o.provider) : ''}</span></div><div class="lms">${rows.join('')}</div></div>`;
 }
 
 /* ---------------- my players (watchlist) ---------------- */
@@ -2688,6 +2665,8 @@ async function renderOut() {
 
 /* ---------------- daily pick'em ---------------- */
 let picks = {};
+function resetPicks() { picks = {}; savePicks(); renderPicks(); }
+function clearWatch() { watch = []; lsSet(lsKey('fc-watch'), null); renderWatch(true); }
 try { picks = JSON.parse(lsGet(lsKey('fc-picks')) || '{}') || {}; } catch (e) { picks = {}; }
 const savePicks = () => lsSet(lsKey('fc-picks'), JSON.stringify(picks));
 function settlePicks(games) {
@@ -2804,6 +2783,8 @@ document.addEventListener('click', e => {
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
   if (el.closest('[data-news]')) { openNews(); return; }
+  if (el.closest('[data-settings]')) { openSettings(); return; }
+  if (el.closest('[data-week]')) { openWeek(); return; }
   if (el.closest('[data-alerts]')) { toggleAlerts(); return; }
   const wb = el.closest('[data-watch]'); if (wb) { const id = wb.dataset.watch; toggleWatch(id, S.watchInfo?.[id]); return; }
   const pk = el.closest('[data-pick]'); if (pk) { const [gid, tid] = pk.dataset.pick.split(':'); makePick(gid, tid); return; }

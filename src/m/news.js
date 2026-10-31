@@ -1,7 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
-  { id: '2026-10-31', date: 'Oct 31', items: [
+  { id: '2026-10-31b', date: 'Oct 31', items: [
+    ['Settings', 'New Settings panel (sliders icon in the header, or the phone menu): switch off odds, Pick\'em, Who\'s out, Your players, Top scorers or the ticker, pick a theme, and reset your data.'],
+    ['This week', "Every game for the next 7 days on one page, with national TV and lines. Filter to just your team."],
+    ['Where to watch', 'Upcoming and live games list their channels, with links to the official ESPN, Prime Video, Peacock and League Pass pages.'],
+    ['Cleanup', 'Removed leftover code from earlier features and tidied styles.'],
     ['Career stats', 'Player pages have a Career stats section: tap to expand season-by-season numbers, with playoffs and a show-all for long careers.'],
     ['Game header fits', 'Scores and team names no longer overlap at the top of a game.'],
   ] },

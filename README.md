@@ -6,14 +6,15 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 
 ## What's on it
 
-- **Live scores** that refresh every 15 seconds during games, with a progress bar and score flashes
-- **Odds** for upcoming games: moneyline, spread and over/under (DraftKings, via ESPN), with line movement since open
-- **Game details**: linescore, win probability, box score, team stats, play-by-play and leaders
-- **Standings** for the East, the West and the whole league, with playoff and play-in lines
-- **Teams**: roster with photos, schedule and results, and team stats
-- **Players**: season and career averages, recent games and bio
-- **League leaders** in 11 categories
-- Light and dark mode, and drag-to-scroll on anything that moves sideways
+- **Live scores** for NBA and WNBA (switch leagues in the header), refreshing every 15 seconds during games, with timeouts left, bonus and who's on the court
+- **Games**: box score, win probability, game flow, shot chart, filterable play-by-play, team stats, leaders, ESPN highlight clips, a written recap, officials, where to watch, odds and line movement, and pre-game previews
+- **Scores page extras**: Your players (starred players' live lines), Pick'em, Who's out, top scorers, multi-view and This week
+- **Standings** by conference and league, plus the playoff picture
+- **Teams**: roster, injury report, schedule strip and month calendar, and league-wide team rankings
+- **Players**: averages, last-10 trend chart, splits, recent games, collapsible career stats, and share-as-image
+- **Leaders** in 11 categories, plus Fullcourt's own MVP and Rookie races
+- **Ask Fullcourt**: stats questions in plain English, and **Compare** for head-to-head players
+- Favorite team with game alerts, Settings to hide parts you don't use, What's new, light/dark mode, keyboard shortcuts, and a home-screen app that keeps your last scores when you lose signal
 - All dates and times in Eastern (ET). "Today" switches to the next day at 4 AM ET, so late West Coast games stay on the night they were played.
 
 ## Add it to your iPhone home screen

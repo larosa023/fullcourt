@@ -43,13 +43,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script>
   try { const t = localStorage.getItem('fc-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  // settings: parts you've switched off stay hidden from the first paint
+  try { const p = JSON.parse(localStorage.getItem('fc-prefs') || '{}'); Object.keys(p).forEach(k => { if (p[k] === false) document.documentElement.classList.add('no-' + k); }); } catch (e) {}
   try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"/assets/core.2b87465a00.js"}}</script>
-<link rel="modulepreload" href="/assets/core.2b87465a00.js">
-<link rel="stylesheet" href="/assets/core.0a9d69a89b.css">
+<script type="importmap">{"imports":{"core":"/assets/core.0a1c6b3735.js"}}</script>
+<link rel="modulepreload" href="/assets/core.0a1c6b3735.js">
+<link rel="stylesheet" href="/assets/core.9a785bcf3f.css">
 </head>
 <body>
 
@@ -83,6 +85,7 @@
       <button class="search-btn" id="searchBtn" data-search aria-label="Search players and teams" title="Search (press /)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span class="lbl">Search</span><kbd>/</kbd></button>
       <button class="fav-link" id="favLink" hidden></button>
       <div class="pulse-chip" id="pulse" aria-live="polite"><span class="dot" id="pulseDot"></span><span><strong id="liveCount">—</strong> <span class="txt-long" id="pulseTxt">connecting</span></span></div>
+      <button class="icon-btn set-btn" data-settings aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></button>
       <button class="icon-btn news-btn" data-news aria-label="What's new" title="What's new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg><i class="news-dot" hidden></i></button>
       <button class="icon-btn theme-btn" id="themeBtn" aria-label="Toggle light and dark mode">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7Z"/></svg>
@@ -112,6 +115,7 @@
           </div>
           <div class="day-tools">
             <div class="counts" id="counts"></div>
+            <button class="mv-btn" data-week title="Every game for the next 7 days"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17h3"/></svg>This week</button>
             <button class="mv-btn" data-mv title="Watch several games side by side (M)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="7" rx="1.5"/><rect x="13" y="4" width="8" height="7" rx="1.5"/><rect x="3" y="13" width="8" height="7" rx="1.5"/><rect x="13" y="13" width="8" height="7" rx="1.5"/></svg>Multi-view</button>
           </div>
         </div>
@@ -217,6 +221,8 @@
     <button data-view="compare" style="--i:4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.2"/><circle cx="16" cy="8" r="3.2"/><path d="M3 20c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 20c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5"/></svg><span>Compare</span></button>
     <button data-ask="" style="--i:5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/><path d="M9.6 9.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-.9.8-.9 1.4M12 16h.01"/></svg><span>Ask</span></button>
     <button data-search style="--i:5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>Search</span></button>
+    <button data-week style="--i:6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17h3"/></svg><span>This week</span></button>
+    <button data-settings style="--i:6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg><span>Settings</span></button>
     <button data-news style="--i:6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg><span>What's new</span><i class="news-dot" hidden></i></button>
     <button class="drawer-fav" id="drawerFav" style="--i:7" hidden></button>
   </nav>
@@ -256,6 +262,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="/assets/core.2b87465a00.js"></script>
+<script type="module" src="/assets/core.0a1c6b3735.js"></script>
 </body>
 </html>
