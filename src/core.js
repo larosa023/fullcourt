@@ -720,6 +720,7 @@ function renderTeams() {
   const body = $('#teamsBody');
   requestAnimationFrame(() => placeKnob($('#teamsSeg')));
   if (S.teamsMode === 'ranks') { renderRankings(); return; }
+  if (S.teamsMode === 'moves') { renderMoves(); return; }
   if (!S.standings) {
     body.innerHTML = `<div class="team-grid">${Array.from({ length: 12 }, () => '<div class="sk" style="height:132px"></div>').join('')}</div>`;
     loadStandings().catch(() => { body.innerHTML = `<div class="empty"><b>Teams didn't load</b><button class="btn" data-retry="teams">Try again</button></div>`; });
@@ -1342,6 +1343,7 @@ async function openTeam(id) {
         <span class="r">${e.state === 'post' ? `<span class="${e.win ? 'W' : 'L'}">${e.win ? 'W' : 'L'}</span> ${esc(e.my)}-${esc(e.their)}` : e.state === 'in' ? '<span style="color:var(--live);font-weight:700">Live now</span>' : esc(fmtTime(e.date))}</span>
       </button>`).join('')}
       </div></div></div>` : ''}
+    <div class="tx-wrap" id="tx-${id}"><div class="sk" style="height:260px"></div></div>
     ${evs.length ? `<div class="card cal" id="cal-${id}"></div>` : ''}
     <div>
       <div class="card-h"><h4 class="h-display" style="font-size:18px;margin:0">Roster</h4><span class="eyebrow">${athletes.length} players</span></div>
@@ -1359,6 +1361,8 @@ async function openTeam(id) {
   }).catch(() => { const box = $(`#ir-${id}`, sheet.body); if (box) box.innerHTML = '<div class="card-h"><h4>Injury report</h4></div><p class="ir-clear">The injury report is unavailable right now.</p>'; });
   const s = $('.sg.next', sheet.body);
   if (s) { const r = s.parentElement; r.scrollLeft = s.offsetLeft - 12; }
+  const txBox = $(`#tx-${id}`, sheet.body);
+  if (txBox) fillTeamExtras(id, evs, txBox);
   const calBox = $(`#cal-${id}`, sheet.body);
   if (calBox) {
     const info = calInfo(evs);
@@ -1436,7 +1440,11 @@ async function openPlayer(id) {
     </table></div></div>` : `<div class="empty"><b>No stats yet this season</b></div>`}
     <div class="pl-trends" id="plTrend-${id}"><div class="sk" style="height:250px"></div></div>
     ${glog}
-    <section class="card career" data-career="${id}">
+    <section class="card career" data-fill="log">
+      <button class="career-h" data-careertoggle aria-expanded="false"><span><b>Season game log</b><small>Every game this season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="career-b"><div class="career-in"></div></div>
+    </section>
+    <section class="card career" data-fill="career" data-career="${id}">
       <button class="career-h" data-careertoggle aria-expanded="false"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
@@ -1447,13 +1455,13 @@ async function openPlayer(id) {
   S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
   const tb = $(`#plTrend-${id}`, sheet.body);
   if (tb) playerTrends(id, tb, sAvg);
-  const car = $('.career', sheet.body);
-  if (car) $('[data-careertoggle]', car).addEventListener('click', () => {
+  // collapsible sections: load their data the first time they're opened
+  $$('.career', sheet.body).forEach(car => $('[data-careertoggle]', car).addEventListener('click', () => {
     const open = !car.classList.contains('open');
     car.classList.toggle('open', open);
     $('[data-careertoggle]', car).setAttribute('aria-expanded', open);
-    if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; fillCareer(car, id); }
-  });
+    if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; (car.dataset.fill === 'log' ? fillLog : fillCareer)(car, id); }
+  }));
   if (reg) addShareBtn(sheet, () => sharePlayer({
     id, name, first: bio.firstName || name.split(' ')[0], last: bio.lastName || name.split(' ').slice(1).join(' '),
     jersey: bio.jersey || p.jersey, pos: bio.position?.abbreviation || p.pos, abbr: tm.abbr, teamId,
@@ -1884,7 +1892,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1910,6 +1918,9 @@ const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
 const fillCareer = stub('career', 'fillCareer');
+const fillLog = stub('gamelog', 'fillLog');
+const fillTeamExtras = stub('teamx', 'fillTeamExtras');
+const renderMoves = stub('moves', 'renderMoves');
 const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
 
@@ -2153,6 +2164,19 @@ function officialsCard(d) {
   if (!o.length) return '';
   return `<div class="card refs"><div class="card-h"><h4>Officials</h4><span class="eyebrow">Referee crew</span></div>
     <div class="ref-list">${o.map((r, i) => `<span class="ref"><i>${i === 0 ? 'Crew chief' : esc(r.position?.displayName || 'Referee')}</i><b>${esc(r.displayName || r.fullName)}</b></span>`).join('')}</div></div>`;
+}
+
+/* ---------------- roster moves (shared by the Moves tab and team pages) ---------------- */
+let movesP = null;
+function loadMoves() {
+  if (!movesP) movesP = getJSON(`${API}/transactions?limit=200`, { timeout: 15000 }).then(d => (d.transactions || []).filter(t => t.description)).catch(e => { movesP = null; throw e; });
+  return movesP;
+}
+const moveKind = t => /trade|acquired|in exchange/i.test(t) ? 'trade' : /waiv|releas|reassign|assigned to|recalled/i.test(t) ? 'waive' : /sign|re-sign|extension|claimed/i.test(t) ? 'sign' : 'other';
+const MOVE_LABEL = { trade: 'Trade', waive: 'Waived / assigned', sign: 'Signing', other: 'Other' };
+function moveRow(t, showTeam = true) {
+  const k = moveKind(t.description);
+  return `<div class="mv-row">${showTeam && t.team ? `<button class="mv-tm" data-team="${esc(t.team.id)}">${logo(t.team.abbreviation, 40)}<b>${esc(t.team.abbreviation)}</b></button>` : ''}<div class="mv-txt"><span class="mv-k k-${k}">${MOVE_LABEL[k]}</span><span class="mv-d">${esc(fmtShortDate(t.date))}</span><p>${esc(t.description)}</p></div></div>`;
 }
 
 /* ---------------- where to watch ---------------- */

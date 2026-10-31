@@ -1245,3 +1245,15 @@ html.no-odds .odds-line, html.no-odds .game .ml, html.no-odds .odds-card, html.n
 html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
 .set-btn svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .mast .set-btn { display: none; } }
+
+/* roster moves rows (team pages + Moves tab) */
+.mv-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mv-row:last-child { border-bottom: 0; }
+.mv-tm { display: grid; justify-items: center; gap: 2px; width: 44px; flex: none; font-size: 11px; }
+.mv-tm .lg { width: 26px; height: 26px; }
+.mv-tm b { font-weight: 650; }
+.mv-txt { min-width: 0; flex: 1; }
+.mv-txt p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); }
+.mv-k { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; margin-right: 8px; }
+.mv-k.k-trade { color: var(--accent); } .mv-k.k-sign { color: var(--win); } .mv-k.k-waive { color: var(--loss); } .mv-k.k-other { color: var(--muted); }
+.mv-d { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }

@@ -1,7 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
-  { id: '2026-10-31b', date: 'Oct 31', items: [
+  { id: '2026-10-31c', date: 'Oct 31', items: [
+    ['Team leaders', "Team pages show the team's top 5 in any stat. Tap Points, Rebounds, Assists, Steals, Blocks, 3-pointers, FG% or Minutes to switch."],
+    ['Recent form', 'Team pages chart the last 10 games. Tap Margin, Points scored or Points allowed; tap a bar to open that game.'],
+    ['Season game log', 'Player pages have an expandable log of every game this season, filterable by wins, losses, home, away, 20+ point games and double-doubles.'],
+    ['Roster moves', 'A new Moves tab on Teams lists signings, trades and waivers league-wide, filterable by type and team. Team pages show their own recent moves.'],
     ['Settings', 'New Settings panel (sliders icon in the header, or the phone menu): switch off odds, Pick\'em, Who\'s out, Your players, Top scorers or the ticker, pick a theme, and reset your data.'],
     ['This week', "Every game for the next 7 days on one page, with national TV and lines. Filter to just your team."],
     ['Where to watch', 'Upcoming and live games list their channels, with links to the official ESPN, Prime Video, Peacock and League Pass pages.'],
