@@ -104,6 +104,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   background: var(--surface); border: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap;
 }
 .pulse-chip strong { color: var(--ink); font-weight: 600; }
+/* keep the chip one width as its text ticks ("just now" → "12s ago"), so the buttons beside it never wobble */
+.pulse-chip { min-width: 74px; justify-content: center; font-variant-numeric: tabular-nums; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.on { background: var(--live); box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 60%, transparent); animation: ping 1.6s infinite; }
 @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 55%, transparent); } 80%, 100% { box-shadow: 0 0 0 7px transparent; } }
@@ -631,12 +633,16 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .search-btn svg { width: 17px; height: 17px; }
 .search-btn:hover { color: var(--ink); border-color: var(--hl); }
 .fav-link { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 13.5px; transition: border-color .2s; }
+@media (min-width: 1341px) { .fav-link { min-width: 104px; justify-content: center; } .mast-right { gap: 8px; } .mast-in { gap: 16px; } }
 .fav-link .lg { width: 22px; height: 22px; }
 .fav-link .star { color: var(--accent); font-size: 13px; }
 .fav-link:hover { border-color: var(--hl); }
-@media (max-width: 1180px) { .pulse-chip .txt-long { display: none; } }
-@media (max-width: 1060px) { .search-btn .lbl, .search-btn kbd { display: none; } .search-btn { width: 38px; justify-content: center; padding: 0; } .fav-link .lbl { display: none; } }
-@media (max-width: 920px) { .nav button { padding: 8px 10px; } .mast-in { gap: 12px; } }
+/* the header has no room for the 'updated 12s ago' text next to everything else; it lives in the chip's tooltip */
+.pulse-chip .txt-long { display: none; }
+@media (max-width: 1340px) { .search-btn .lbl, .search-btn kbd { display: none; } .search-btn { width: 38px; justify-content: center; padding: 0; } .fav-link .lbl { display: none; } }
+@media (min-width: 761px) and (max-width: 1200px) { .nav button { padding: 8px 10px; } .mast-in { gap: 12px; } .mast-right { gap: 8px; } .pulse-chip { min-width: 0; padding: 6px 10px; } .pulse-chip strong { display: none; } }
+@media (min-width: 761px) and (max-width: 1000px) { .nav button { padding: 8px 8px; font-size: 13.5px; } .nav { margin-left: 0; } .mast .brand b, .mast .brand .lg-badge { display: none; } .mast .fav-link { display: none; } }
+@media (min-width: 761px) and (max-width: 900px) { .mast .pulse-chip { display: none; } .mast-in { gap: 8px; } .nav button { padding: 8px 6px; } }
 
 /* ticker */
 .ticker { border-top: 1px solid var(--line); }
@@ -752,7 +758,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .ask-btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px 0 11px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line)); background: color-mix(in oklab, var(--accent) 9%, var(--surface)); color: var(--ink); font-size: 13.5px; font-weight: 650; transition: border-color .2s, transform .2s var(--ease); }
 .ask-btn svg { width: 17px; height: 17px; color: var(--accent); }
 .ask-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
-@media (max-width: 1060px) { .ask-btn .lbl { display: none; } .ask-btn { width: 38px; justify-content: center; padding: 0; } }
+@media (max-width: 1340px) { .ask-btn .lbl { display: none; } .ask-btn { width: 38px; justify-content: center; padding: 0; } }
 @media (max-width: 760px) { .ask-btn { display: none !important; } }
 
 .sp-row.sp-ask .sp-ic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in oklab, var(--accent) 14%, var(--surface)); color: var(--accent); flex: none; }
@@ -804,11 +810,13 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 @media (max-width: 440px) { :root[data-league="wnba"] .brand { gap: 6px; } :root[data-league="wnba"] .lg-badge { padding: 2px 4px; font-size: 9.5px; margin-left: 0; } :root[data-league="wnba"] .mast-in { gap: 8px; } :root[data-league="wnba"] .mast-right { gap: 7px; } }
 @media (max-width: 385px) { :root[data-league="wnba"] .brand b { font-size: 19px; } }
 /* league switch: the header stays put; only the page content softly fades out, and back in once the new league has loaded */
-main { transition: opacity .22s ease; }
-html.switching main { opacity: 0; }
-html.arriving main { opacity: 0; transition: none; }
+html { scrollbar-gutter: stable; }
+main, #ticker, #favLink { transition: opacity .22s ease; }
+html.switching main, html.switching #ticker, html.switching #favLink { opacity: 0; }
+html.arriving main, html.arriving #ticker, html.arriving #favLink { opacity: 0; transition: none; }
+html.switching .mast, html.switching .mast * { transition: color .22s ease, background-color .22s ease, border-color .22s ease, fill .22s ease, stroke .22s ease, opacity .22s ease !important; }
 .lg-switch button { transition: background .25s, color .25s; }
-@media (prefers-reduced-motion: reduce) { main { transition: none; } }
+@media (prefers-reduced-motion: reduce) { main, #ticker, #favLink { transition: none; } }
 
 /* =================== timeouts / bonus =================== */
 :root { --warn: #844B00; }

@@ -506,7 +506,8 @@ function updatePulse(err) {
 function tickPulse() {
   if (!S.lastUpdate) return;
   const s = Math.round((Date.now() - S.lastUpdate) / 1000);
-  $('#pulseTxt').textContent = S.offline ? '· no signal, saved scores' : s < 5 ? '· updated just now' : s < 60 ? `· updated ${s}s ago` : `· updated ${Math.floor(s / 60)}m ago`;
+  const pt = $('#pulseTxt'); pt.textContent = S.offline ? '· no signal, saved scores' : s < 5 ? '· updated just now' : s < 60 ? `· updated ${s}s ago` : `· updated ${Math.floor(s / 60)}m ago`;
+  $('#pulse').title = ($('#liveCount').textContent + ' ' + pt.textContent).replace('·', '').replace(/\s+/g, ' ').trim();
 }
 setInterval(tickPulse, 1000);
 
