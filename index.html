@@ -49,9 +49,9 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"/assets/core.c170080c53.js"}}</script>
-<link rel="modulepreload" href="/assets/core.c170080c53.js">
-<link rel="stylesheet" href="/assets/core.0edecac088.css">
+<script type="importmap">{"imports":{"core":"/assets/core.c3b60e3068.js"}}</script>
+<link rel="modulepreload" href="/assets/core.c3b60e3068.js">
+<link rel="stylesheet" href="/assets/core.b624a6d44b.css">
 </head>
 <body>
 
@@ -174,7 +174,7 @@
   <section class="view" id="v-leaders" aria-label="Leaders">
     <div class="eyebrow">Per game · qualified players</div>
     <h1 class="h-display page-title">League leaders</h1>
-    <div class="hs-wrap"><div class="hs chips drag-x" id="leadChips" data-drag></div></div>
+    <div class="lead-bar"><div class="hs-wrap"><div class="hs chips drag-x" id="leadChips" data-drag></div></div><div id="leadAdv"></div></div>
     <div id="leadBody"></div>
   </section>
 
@@ -262,6 +262,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="/assets/core.c170080c53.js"></script>
+<script type="module" src="/assets/core.c3b60e3068.js"></script>
 </body>
 </html>

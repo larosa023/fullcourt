@@ -6,3 +6,5 @@
 .car-more { display: flex; margin: 12px auto 0; }
 .car-none { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 .car-tbl th:first-child, .car-tbl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+.car-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.car-top .car-seg { margin-bottom: 0; }

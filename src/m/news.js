@@ -1,7 +1,8 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
-  { id: '2026-10-31c', date: 'Oct 31', items: [
+  { id: '2026-10-31d', date: 'Oct 31', items: [
+    ['Advanced stats', 'An Advanced switch on box scores (TS%, eFG%, usage, game score), team stats (ratings, pace, four factors), player splits, game logs and career stats (efficiency, shot profile, per 36), team rankings and Leaders. It remembers your choice everywhere.'],
     ['Team leaders', "Team pages show the team's top 5 in any stat. Tap Points, Rebounds, Assists, Steals, Blocks, 3-pointers, FG% or Minutes to switch."],
     ['Recent form', 'Team pages chart the last 10 games. Tap Margin, Points scored or Points allowed; tap a bar to open that game.'],
     ['Season game log', 'Player pages have an expandable log of every game this season, filterable by wins, losses, home, away, 20+ point games and double-doubles.'],

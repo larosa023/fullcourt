@@ -763,11 +763,20 @@ function barVars(teamIdOrAbbr) {
   return `--bl:${css(l)};--bd:${css(d)}`;
 }
 function renderLeadChips() {
-  $('#leadChips').innerHTML = LEADER_CATS.map((c, i) => `<button class="chip" data-lead="${i}" aria-pressed="${i === S.leadKey}">${esc(c.k)}</button>`).join('');
+  $('#leadAdv').innerHTML = advBtn();
+  $('#leadChips').innerHTML = leadCats().map((c, i) => `<button class="chip" data-lead="${i}" aria-pressed="${i === S.leadKey}">${esc(c.k)}</button>`).join('');
   dragScroll($('#leadChips'));
 }
+// advanced leader boards are worked out from the full player table
+const ADV_LEADER_CATS = [
+  { k: 'True shooting', u: 'TS%', adv: 'ts' }, { k: 'Effective FG', u: 'eFG%', adv: 'efg' }, { k: 'Points per 36', u: 'PTS/36', adv: 'p36' },
+  { k: 'Assist/turnover', u: 'AST/TO', adv: 'ato' }, { k: 'Stocks', u: 'STL+BLK', adv: 'stocks' }, { k: 'Free throw rate', u: 'FTA/FGA', adv: 'ftr' }, { k: '3-point rate', u: '3PA/FGA', adv: 'tpr' },
+];
+const leadCats = () => advOn ? ADV_LEADER_CATS : LEADER_CATS;
+document.addEventListener('fcadv', () => { S.leadKey = 0; renderLeadChips(); if (S.view === 'leaders') loadLeaders(); });
 async function loadLeaders() {
-  const c = LEADER_CATS[S.leadKey];
+  const c = leadCats()[S.leadKey];
+  if (c.adv) return renderAdvLeader(c);
   if (c.award) return renderAward(c);
   const body = $('#leadBody');
   const key = c.cat + '.' + c.name;
@@ -782,7 +791,7 @@ async function loadLeaders() {
     }
   }
   await ensureTeamColors();
-  if (LEADER_CATS[S.leadKey] !== c) return;
+  if (leadCats()[S.leadKey] !== c) return;
   const d = S.leadCache[key];
   const idx = (d.categories || []).find(x => x.name === c.cat)?.names?.indexOf(c.name) ?? -1;
   const gpIdx = (d.categories || []).find(x => x.name === 'general')?.names?.indexOf('gamesPlayed') ?? -1;
@@ -1092,6 +1101,8 @@ async function openGame(id) {
     };
     sheet.body.onchange = e => { const sel = e.target.closest('[data-shplayer]'); if (sel) { shotF.pid = sel.value; renderPane(); } };
     renderPane();
+    if (!sheet._adv) { sheet._adv = true; const onAdv = () => { if (!sheet.alive) { document.removeEventListener('fcadv', onAdv); return; } if (tab === 'box' || tab === 'team') sheet._render?.(); }; document.addEventListener('fcadv', onAdv); }
+    sheet._render = renderPane;
     const plays = d.plays || [];
     lastPlayId = plays.at(-1)?.id || lastPlayId;
     first = false;
@@ -1106,8 +1117,9 @@ function boxScore(d, sides, bi) {
   if (!teams.length) return `<div class="empty" style="border:0"><b>No box score yet</b>Stats appear once the game tips off.</div>`;
   const side = sides[bi];
   const T = teams.find(t => t.team?.id === side.id) || teams[bi];
-  const st = T.statistics?.[0];
-  if (!st) return '';
+  const st0 = T.statistics?.[0];
+  if (!st0) return '';
+  const st = advOn ? { ...st0, ...advBox(st0, st0.labels || st0.names) } : st0;
   const labels = st.labels || st.names;
   const ptsIdx = labels.indexOf('PTS');
   const shotIdx = new Set(['FG', '3PT', 'FT'].map(l => labels.indexOf(l)).filter(i => i >= 0));
@@ -1167,8 +1179,8 @@ function boxScore(d, sides, bi) {
   const injRows = boxInj.length || extraInj.length ? `<tr class="sub inj-h"><td colspan="${labels.length + 1}">Injured</td></tr>` + boxInj.map(row).join('') + extraInj.map(n => `<tr class="dnp inj-row" ${n.id ? `data-player="${n.id}" style="cursor:pointer"` : ''}>
       <td><span class="pl">${face(n.id, n.name, '', 80)}<b>${esc(n.short || n.name)}</b>${n.jersey ? `<span class="jno">#${esc(n.jersey)}</span>` : ''}<span>${esc(n.pos)}</span></span><div class="inj-line inj-red">${injuryText(n)}</div></td>
       <td colspan="${labels.length}"></td></tr>`).join('') : '';
-  return `<div class="card-h"><div class="seg"><span class="knob"></span>${sides.map((s, i) => `<button data-bside="${i}" aria-pressed="${i === bi}">${esc(s.abbr)}</button>`).join('')}</div><span class="eyebrow">Tap a player for season stats</span></div>
-  <div class="box-wrap drag-x" data-drag><table class="box">
+  return `<div class="card-h"><div class="seg"><span class="knob"></span>${sides.map((s, i) => `<button data-bside="${i}" aria-pressed="${i === bi}">${esc(s.abbr)}</button>`).join('')}</div>${advBtn()}</div>${advOn ? `<p class="adv-note">${ADV_HELP}</p>` : ''}
+  <div class="box-wrap drag-x" data-drag><table class="box${advOn ? ' adv' : ''}">
     <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="${shotIdx.has(i) ? 'sc' : ''}">${esc(l)}</th>`).join('')}</tr></thead>
     <tbody>
       ${groups.map(([title, list, cls]) => `<tr class="sub ${cls}"><td colspan="${labels.length + 1}">${title}</td></tr>${list.map(a => cls ? row(a).replace('<tr class="', '<tr class="on-court ') : row(a)).join('')}`).join('')}
@@ -1186,8 +1198,18 @@ function teamCompare(d, sides) {
   const labs = want.filter(l => get(A, l) && get(H, l));
   const ac = teamColor(sides[0].id), hc = teamColor(sides[1].id);
   const inverse = l => /turnover|foul/i.test(l);
-  return `<div class="cmp">
+  const ad = advOn ? advTeams(d, sides) : null;
+  const ADV_T = [['ortg', 'Offensive rating', 1], ['drtg', 'Defensive rating', -1], ['net', 'Net rating', 1], ['pace', `Pace (possessions per ${GAME_MIN})`, 0], ['ts', 'True shooting %', 1], ['efg', 'Effective FG %', 1], ['tov', 'Turnover %', -1], ['orb', 'Offensive rebound %', 1], ['ftr', 'Free throw rate', 1]];
+  const advRows = ad ? ADV_T.map(([k, l, dir]) => {
+    const av = ad[0][k], hv = ad[1][k], m = Math.max(Math.abs(av), Math.abs(hv)) || 1;
+    const aw = dir > 0 ? av > hv : dir < 0 ? av < hv : false, hw = dir > 0 ? hv > av : dir < 0 ? hv < av : false;
+    return `<div class="cmp-row"><span class="l" style="${aw || !dir ? '' : 'color:var(--muted)'}">${advNum(av)}</span>
+      <div class="mid"><span>${esc(l)}</span><div class="cmp-bars"><div><i data-w="${Math.abs(av) / m * 100}" style="background:${ac}"></i></div><div><i data-w="${Math.abs(hv) / m * 100}" style="background:${hc}"></i></div></div></div>
+      <span class="r" style="${hw || !dir ? '' : 'color:var(--muted)'}">${advNum(hv)}</span></div>`;
+  }).join('') : '';
+  return `<div class="card-h" style="justify-content:flex-end">${advBtn()}</div><div class="cmp">
     <div class="cmp-row"><span class="l">${esc(sides[0].abbr)}</span><span></span><span class="r">${esc(sides[1].abbr)}</span></div>
+    ${ad ? `<div class="cmp-sec">Advanced · per 100 possessions</div>${advRows}<div class="cmp-sec">Box score</div>` : ''}
     ${labs.map(l => {
       const a = get(A, l).displayValue, h = get(H, l).displayValue;
       const av = parseFloat(a) || 0, hv = parseFloat(h) || 0, m = Math.max(av, hv) || 1;
@@ -1892,7 +1914,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1919,6 +1941,7 @@ const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
 const fillCareer = stub('career', 'fillCareer');
 const fillLog = stub('gamelog', 'fillLog');
+const renderAdvLeader = stub('advlead', 'renderAdvLeader');
 const fillTeamExtras = stub('teamx', 'fillTeamExtras');
 const renderMoves = stub('moves', 'renderMoves');
 const openSettings = stub('settings', 'openSettings');
@@ -2164,6 +2187,63 @@ function officialsCard(d) {
   if (!o.length) return '';
   return `<div class="card refs"><div class="card-h"><h4>Officials</h4><span class="eyebrow">Referee crew</span></div>
     <div class="ref-list">${o.map((r, i) => `<span class="ref"><i>${i === 0 ? 'Crew chief' : esc(r.position?.displayName || 'Referee')}</i><b>${esc(r.displayName || r.fullName)}</b></span>`).join('')}</div></div>`;
+}
+
+
+/* ================= advanced stats (worked out from the box score numbers) ================= */
+let advOn = lsGet('fc-adv') === '1';
+const GAME_MIN = LG === 'wnba' ? 40 : 48;
+const advBtn = () => `<button class="adv-btn" data-adv aria-pressed="${advOn}" title="Switch to advanced stats"><i></i>Advanced</button>`;
+function toggleAdv() {
+  advOn = !advOn;
+  lsSet('fc-adv', advOn ? '1' : null);
+  $$('[data-adv]').forEach(b => b.setAttribute('aria-pressed', advOn));
+  document.dispatchEvent(new Event('fcadv'));
+}
+const splitMA = v => { const m = /^\s*([\d.]+)-([\d.]+)\s*$/.exec(String(v ?? '')); return m ? [+m[1], +m[2]] : [NaN, NaN]; };
+const advPct = v => Number.isFinite(v) ? (v * 100).toFixed(1) : '–';
+const advNum = (v, d = 1) => Number.isFinite(v) ? v.toFixed(d) : '–';
+const tsPct = (pts, fga, fta) => fga + 0.44 * fta > 0 ? pts / (2 * (fga + 0.44 * fta)) : NaN;
+const efgPct = (fgm, tpm, fga) => fga > 0 ? (fgm + 0.5 * tpm) / fga : NaN;
+const astTo = (ast, tov) => tov > 0 ? ast / tov : NaN;
+const ADV_HELP = 'TS% true shooting · eFG% effective FG · USG% share of team plays used · GmSc game score';
+// box score row -> advanced numbers
+const ADV_BOX = ['MIN', 'PTS', 'TS%', 'eFG%', 'USG%', 'AST/TO', 'GmSc', '+/-'];
+function advBox(st, lab) {
+  const ix = k => lab.indexOf(k);
+  const parse = s => {
+    const n = k => parseFloat(s?.[ix(k)]) || 0;
+    const [fgm, fga] = splitMA(s?.[ix('FG')]), [tpm] = splitMA(s?.[ix('3PT')]), [ftm, fta] = splitMA(s?.[ix('FT')]);
+    return { min: n('MIN'), pts: n('PTS'), ast: n('AST'), tov: n('TO'), stl: n('STL'), blk: n('BLK'), orb: n('OREB'), drb: n('DREB'), pf: n('PF'), pm: s?.[ix('+/-')] ?? '', fgm: fgm || 0, fga: fga || 0, tpm: tpm || 0, ftm: ftm || 0, fta: fta || 0 };
+  };
+  const ps = (st.athletes || []).map(a => a.stats?.length ? parse(a.stats) : null);
+  const tot = st.totals?.length ? parse(st.totals) : null;
+  const tm = tot || ps.filter(Boolean).reduce((s, p) => { Object.keys(p).forEach(k => { if (typeof p[k] === 'number') s[k] = (s[k] || 0) + p[k]; }); return s; }, {});
+  const tmMin = ps.reduce((s, p) => s + (p?.min || 0), 0) || GAME_MIN * 5;
+  const tmPoss = (tm.fga || 0) + 0.44 * (tm.fta || 0) + (tm.tov || 0);
+  const gmsc = p => p.pts + 0.4 * p.fgm - 0.7 * p.fga - 0.4 * (p.fta - p.ftm) + 0.7 * p.orb + 0.3 * p.drb + p.stl + 0.7 * p.ast + 0.7 * p.blk - 0.4 * p.pf - p.tov;
+  const row = p => [p.min, p.pts, advPct(tsPct(p.pts, p.fga, p.fta)), advPct(efgPct(p.fgm, p.tpm, p.fga)), p.min && tmPoss ? advPct(((p.fga + 0.44 * p.fta + p.tov) * (tmMin / 5)) / (p.min * tmPoss)) : '–', advNum(astTo(p.ast, p.tov)), advNum(gmsc(p)), p.pm].map(String);
+  return {
+    labels: ADV_BOX,
+    athletes: (st.athletes || []).map((a, i) => ps[i] ? { ...a, stats: row(ps[i]) } : a),
+    totals: [String(Math.round(tmMin)), String(tm.pts ?? ''), advPct(tsPct(tm.pts, tm.fga, tm.fta)), advPct(efgPct(tm.fgm, tm.tpm, tm.fga)), '', advNum(astTo(tm.ast, tm.tov)), '', ''],
+  };
+}
+// team box -> four factors + ratings for both sides
+function advTeams(d, sides) {
+  const teams = d.boxscore?.players || [];
+  const get = s => {
+    const T = teams.find(t => t.team?.id === s.id)?.statistics?.[0]; if (!T?.totals?.length) return null;
+    const lab = T.labels || T.names || [], ix = k => lab.indexOf(k), n = k => parseFloat(T.totals[ix(k)]) || 0;
+    const [fgm, fga] = splitMA(T.totals[ix('FG')]), [tpm] = splitMA(T.totals[ix('3PT')]), [ftm, fta] = splitMA(T.totals[ix('FT')]);
+    const min = (T.athletes || []).reduce((x, a) => x + (parseFloat(a.stats?.[ix('MIN')]) || 0), 0) || GAME_MIN * 5;
+    return { pts: n('PTS'), orb: n('OREB'), drb: n('DREB'), tov: n('TO'), fgm, fga, tpm, ftm, fta, min };
+  };
+  const A = get(sides[0]), H = get(sides[1]); if (!A || !H) return null;
+  const poss = t => t.fga - t.orb + t.tov + 0.44 * t.fta;
+  const P = (poss(A) + poss(H)) / 2 || 1, mins = Math.max(A.min, H.min, GAME_MIN * 5) / 5;
+  const side = (t, o) => ({ ortg: 100 * t.pts / P, drtg: 100 * o.pts / P, net: 100 * (t.pts - o.pts) / P, pace: GAME_MIN * P / mins, efg: efgPct(t.fgm, t.tpm, t.fga) * 100, tov: 100 * t.tov / (t.fga + 0.44 * t.fta + t.tov), orb: 100 * t.orb / ((t.orb + o.drb) || 1), ftr: 100 * t.fta / (t.fga || 1), ts: tsPct(t.pts, t.fga, t.fta) * 100 });
+  return [side(A, H), side(H, A)];
 }
 
 /* ---------------- roster moves (shared by the Moves tab and team pages) ---------------- */
@@ -2450,24 +2530,39 @@ async function playerTrends(id, box, seasonAvg) {
       <div class="tr-sum">${cats.map(([k, l]) => { const l10 = games.reduce((s, g) => s + g[k], 0) / games.length; const d = l10 - box._avg[k]; return `<span>${l} <b>${l10.toFixed(1)}</b>${whole ? '' : ` <em class="${d >= 0.05 ? 'up' : d <= -0.05 ? 'down' : ''}">${d >= 0 ? '+' : ''}${d.toFixed(1)} vs season</em>`}</span>`; }).join('')}</div>
     </div>`;
   }
-  if (sp?.splitCategories) {
-    const lab = sp.labels || [];
-    const pickRows = [['split', /^home$/i, 'Home'], ['split', /^road$|^away$/i, 'Away'], ['byResult', /^wins?$/i, 'Wins'], ['byResult', /^loss/i, 'Losses']];
-    const cols = ['GP', 'MIN', 'PTS', 'REB', 'AST', 'FG%', '3P%'].filter(c => lab.includes(c));
-    const rows = pickRows.map(([cat, re, name]) => {
-      const s = sp.splitCategories.find(c => c.name === cat)?.splits?.find(x => re.test(x.displayName || ''));
-      return s ? { name, v: cols.map(c => s.stats[lab.indexOf(c)]) } : null;
-    }).filter(Boolean);
-    if (rows.length) html += `<div class="card"><div class="card-h"><h4>Splits</h4><span class="eyebrow">This season, per game</span></div><div class="box-wrap drag-x" data-drag><table class="split-tbl">
-      <thead><tr><th></th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td>${r.v.map(x => `<td>${esc(x ?? '–')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
-  }
+  if (sp?.splitCategories) { box._sp = sp; html += '<div class="card splits-card"></div>'; }
   if (!html) { box.remove(); return; }
   box.innerHTML = html;
   box.classList.add('in');
   wireDrag(box);
   const seg = $('[data-trseg]', box);
   if (seg) { placeKnob(seg); drawTrend(box, 'pts'); seg.addEventListener('click', e => { const b = e.target.closest('[data-tr]'); if (!b) return; $$('button', seg).forEach(x => x.setAttribute('aria-pressed', x === b)); placeKnob(seg); drawTrend(box, b.dataset.tr); }); }
+  const sc = $('.splits-card', box);
+  if (sc) { drawSplits(sc, box._sp); const onAdv = () => { if (!sc.isConnected) { document.removeEventListener('fcadv', onAdv); return; } drawSplits(sc, box._sp); }; document.addEventListener('fcadv', onAdv); }
+}
+// Splits card: basic per-game numbers, or advanced (shooting efficiency, shot profile, per-36)
+function drawSplits(card, sp) {
+  const lab = sp.labels || [];
+  const pickRows = [['split', /^all splits$/i, 'Season'], ['split', /^home$/i, 'Home'], ['split', /^road$|^away$/i, 'Away'], ['byResult', /^wins?$/i, 'Wins'], ['byResult', /^loss/i, 'Losses']];
+  const found = pickRows.map(([cat, re, name]) => { const s = sp.splitCategories.find(c => c.name === cat)?.splits?.find(x => re.test(x.displayName || '')); return s ? { name, s: s.stats } : null; }).filter(Boolean);
+  if (!found.length) { card.remove(); return; }
+  const g = (r, k) => r.s[lab.indexOf(k)];
+  let cols, rows;
+  if (!advOn) {
+    cols = ['GP', 'MIN', 'PTS', 'REB', 'AST', 'FG%', '3P%'].filter(c => lab.includes(c));
+    rows = found.map(r => ({ name: r.name, v: cols.map(c => g(r, c)) }));
+  } else {
+    cols = ['GP', 'TS%', 'eFG%', '3PA rate', 'FT rate', 'AST/TO', 'PTS/36', 'REB/36', 'AST/36'];
+    rows = found.map(r => {
+      const [fgm, fga] = splitMA(g(r, 'FG')), [tpm, tpa] = splitMA(g(r, '3PT')), [, fta] = splitMA(g(r, 'FT'));
+      const n = k => parseFloat(g(r, k)) || 0, min = n('MIN'), per = k => min ? advNum(n(k) * 36 / min) : '–';
+      return { name: r.name, v: [g(r, 'GP'), advPct(tsPct(n('PTS'), fga, fta)), advPct(efgPct(fgm, tpm, fga)), fga ? advPct(tpa / fga) : '–', fga ? advPct(fta / fga) : '–', advNum(astTo(n('AST'), n('TO'))), per('PTS'), per('REB'), per('AST')] };
+    });
+  }
+  card.innerHTML = `<div class="card-h"><h4>Splits</h4>${advBtn()}</div>${advOn ? '<p class="adv-note">TS% true shooting · eFG% effective FG · 3PA and FT rate per shot · per 36 minutes</p>' : ''}<div class="box-wrap drag-x" data-drag><table class="split-tbl">
+    <thead><tr><th></th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td>${r.v.map(x => `<td>${esc(x ?? '–')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  wireDrag(card);
 }
 function drawTrend(box, k) {
   const games = box._games || [], avg = box._avg?.[k] || 0;
@@ -2806,6 +2901,7 @@ document.addEventListener('click', e => {
   const v = el.closest('[data-view]');
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
+  if (el.closest('[data-adv]')) { toggleAdv(); return; }
   if (el.closest('[data-news]')) { openNews(); return; }
   if (el.closest('[data-settings]')) { openSettings(); return; }
   if (el.closest('[data-week]')) { openWeek(); return; }

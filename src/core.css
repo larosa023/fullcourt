@@ -1257,3 +1257,18 @@ html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html
 .mv-k { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; margin-right: 8px; }
 .mv-k.k-trade { color: var(--accent); } .mv-k.k-sign { color: var(--win); } .mv-k.k-waive { color: var(--loss); } .mv-k.k-other { color: var(--muted); }
 .mv-d { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+/* advanced stats toggle */
+.adv-btn { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--muted); transition: border-color .2s, color .2s; white-space: nowrap; }
+.adv-btn i { position: relative; width: 26px; height: 15px; border-radius: 999px; background: var(--surface-3); transition: background .25s; flex: none; }
+.adv-btn i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .3); transition: transform .25s var(--ease); }
+.adv-btn[aria-pressed="true"] { color: var(--ink); border-color: color-mix(in oklab, var(--accent) 50%, var(--line)); }
+.adv-btn[aria-pressed="true"] i { background: var(--accent); }
+.adv-btn[aria-pressed="true"] i::after { transform: translateX(11px); }
+.adv-btn:hover { border-color: var(--hl); color: var(--ink); }
+.adv-note { margin: -4px 0 10px; font-size: 11.5px; color: var(--muted); }
+table.box.adv { min-width: 560px; }
+.cmp-sec { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 12px 0 4px; border-bottom: 1px solid var(--line); }
+.lead-bar { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lead-bar .hs-wrap { flex: 1; min-width: 0; }
+#leadAdv { flex: none; margin-bottom: 18px; }

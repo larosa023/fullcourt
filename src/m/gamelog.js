@@ -14,11 +14,16 @@ async function fillLog(card, id) {
     const rows = log.filter(test[f]);
     const shown = all ? rows : rows.slice(0, LIMIT);
     const avg = k => rows.length ? (rows.reduce((s, g) => s + g[k], 0) / rows.length).toFixed(1) : '–';
-    box.innerHTML = `<div class="tx-chips">${FILTERS.map(([k, l]) => `<button class="chip sm" data-logf="${k}" aria-pressed="${k === f}">${l}<em>${log.filter(test[k]).length}</em></button>`).join('')}</div>
+    const A = advOn;
+    const head = A ? ['Date', 'Opp', 'Result', 'MIN', 'PTS', 'TS%', 'eFG%', 'FGA', '3PA', 'FTA', 'AST/TO'] : ['Date', 'Opp', 'Result', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'FG', '3PT', 'FT'];
+    const cells = g => A ? [g.min, `<b>${g.pts}</b>`, advPct(tsPct(g.pts, g.fg[1], g.ft[1])), advPct(efgPct(g.fg[0], g.tp[0], g.fg[1])), g.fg[1], g.tp[1], g.ft[1], advNum(astTo(g.ast, g.tov))] : [g.min, `<b>${g.pts}</b>`, g.reb, g.ast, g.stl, g.blk, g.tov, sp(g.fg), sp(g.tp), sp(g.ft)];
+    const sum = k => rows.reduce((s, g) => s + (Array.isArray(g[k]) ? 0 : g[k]), 0), sumA = (k, i) => rows.reduce((s, g) => s + g[k][i], 0);
+    const foot = A ? [avg('min'), `<b>${avg('pts')}</b>`, advPct(tsPct(sum('pts'), sumA('fg', 1), sumA('ft', 1))), advPct(efgPct(sumA('fg', 0), sumA('tp', 0), sumA('fg', 1))), rows.length ? (sumA('fg', 1) / rows.length).toFixed(1) : '–', rows.length ? (sumA('tp', 1) / rows.length).toFixed(1) : '–', rows.length ? (sumA('ft', 1) / rows.length).toFixed(1) : '–', advNum(astTo(sum('ast'), sum('tov')))] : [avg('min'), `<b>${avg('pts')}</b>`, avg('reb'), avg('ast'), avg('stl'), avg('blk'), avg('tov'), '', '', ''];
+    box.innerHTML = `<div class="car-top"><span class="eyebrow">${A ? 'TS% true shooting · eFG% effective FG' : 'Tap a game to open it'}</span>${advBtn()}</div><div class="tx-chips">${FILTERS.map(([k, l]) => `<button class="chip sm" data-logf="${k}" aria-pressed="${k === f}">${l}<em>${log.filter(test[k]).length}</em></button>`).join('')}</div>
       ${rows.length ? `<div class="box-wrap drag-x" data-drag><table class="split-tbl car-tbl log-tbl">
-        <thead><tr><th>Date</th><th>Opp</th><th>Result</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FG</th><th>3PT</th><th>FT</th></tr></thead>
-        <tbody>${shown.map(g => `<tr data-game="${esc(g.id)}"><td><b>${esc(g.date ? fmtShortDate(g.date) : '')}</b></td><td><span class="car-tm">${esc(g.atVs === '@' ? '@' : 'vs')} ${g.opp ? logo(g.opp, 32) : ''}${esc(g.opp)}</span></td><td><span class="${g.res === 'W' ? 'strk-w' : g.res === 'L' ? 'strk-l' : ''}">${esc(g.res)}</span> ${esc(g.score)}</td><td>${g.min}</td><td><b>${g.pts}</b></td><td>${g.reb}</td><td>${g.ast}</td><td>${g.stl}</td><td>${g.blk}</td><td>${g.tov}</td><td>${sp(g.fg)}</td><td>${sp(g.tp)}</td><td>${sp(g.ft)}</td></tr>`).join('')}</tbody>
-        <tfoot><tr><td><b>Average</b></td><td></td><td>${rows.length} G</td><td>${avg('min')}</td><td><b>${avg('pts')}</b></td><td>${avg('reb')}</td><td>${avg('ast')}</td><td>${avg('stl')}</td><td>${avg('blk')}</td><td>${avg('tov')}</td><td></td><td></td><td></td></tr></tfoot>
+        <thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${shown.map(g => `<tr data-game="${esc(g.id)}"><td><b>${esc(g.date ? fmtShortDate(g.date) : '')}</b></td><td><span class="car-tm">${esc(g.atVs === '@' ? '@' : 'vs')} ${g.opp ? logo(g.opp, 32) : ''}${esc(g.opp)}</span></td><td><span class="${g.res === 'W' ? 'strk-w' : g.res === 'L' ? 'strk-l' : ''}">${esc(g.res)}</span> ${esc(g.score)}</td>${cells(g).map(x => `<td>${x}</td>`).join('')}</tr>`).join('')}</tbody>
+        <tfoot><tr><td><b>${A ? 'Season' : 'Average'}</b></td><td></td><td>${rows.length} G</td>${foot.map(x => `<td>${x}</td>`).join('')}</tr></tfoot>
       </table></div>
       ${rows.length > LIMIT ? `<button class="btn ghost car-more" data-logmore>${all ? 'Show fewer games' : `Show all ${rows.length} games`}</button>` : ''}` : '<p class="car-none">No games match.</p>'}`;
     wireDrag(box);
@@ -27,5 +32,7 @@ async function fillLog(card, id) {
     const b = e.target.closest('[data-logf]'); if (b) { f = b.dataset.logf; all = false; const x = $('.tx-chips', box).scrollLeft; draw(); $('.tx-chips', box).scrollLeft = x; return; }
     if (e.target.closest('[data-logmore]')) { all = !all; draw(); if (!all) card.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); }
   });
+  const onAdv = () => { if (!card.isConnected) { document.removeEventListener('fcadv', onAdv); return; } draw(); };
+  document.addEventListener('fcadv', onAdv);
   draw();
 }

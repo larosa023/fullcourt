@@ -38,7 +38,7 @@ async function renderAward(c) {
     catch (e) { body.innerHTML = `<div class="empty"><b>Couldn't build the race</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`; return; }
   }
   await ensureTeamColors();
-  if (LEADER_CATS[S.leadKey] !== c) return;
+  if (leadCats()[S.leadKey] !== c) return;
   const list = S.leadCache[key];
   if (!list.length) { body.innerHTML = `<div class="empty"><b>Too early to call</b>The race fills in once players have a few games in.</div>`; return; }
   list.forEach(x => rememberPlayer({ id: x.r.id, displayName: x.r.name, shortName: x.r.short, position: { abbreviation: x.r.pos } }, x.r.teamId));
