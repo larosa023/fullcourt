@@ -1435,7 +1435,6 @@ async function openPlayer(id) {
   const reg = st?.splits?.find(s => /regular/i.test(s.displayName)) || st?.splits?.[0];
   const pick = l => { const i = labels.indexOf(l); return i >= 0 && reg ? reg.stats[i] : '–'; };
   const facts = [
-    ['Position', bio.position?.displayName || p.pos],
     ['Height', bio.displayHeight], ['Weight', bio.displayWeight], ['Age', bio.age],
     ['Experience', bio.displayExperience || (bio.experience?.years != null ? (bio.experience.years ? `${bio.experience.years} yrs` : 'Rookie') : null)],
     ['College', bio.college?.name], ['Born', bio.displayBirthPlace || [bio.birthPlace?.city, bio.birthPlace?.state || bio.birthPlace?.country].filter(Boolean).join(', ')],
@@ -1464,7 +1463,8 @@ async function openPlayer(id) {
       ${face(id, name, 'face', 700)}
       <div class="txt">
         <h2 class="h-display">${esc(bio.firstName || name.split(' ')[0])}<br>${esc(bio.lastName || name.split(' ').slice(1).join(' '))}</h2>
-        <p>${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.abbreviation || p.pos)}` : ''}</p>
+        <p>${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
+        ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       </div>
     </div>
     ${reg ? `<div class="big3">${[['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST']].map(([k, l]) => `<div><span>${l} · ${esc(reg.displayName.replace('Regular Season', 'Season'))}</span><b>${esc(pick(k))}</b></div>`).join('')}</div>` : ''}
@@ -1482,7 +1482,7 @@ async function openPlayer(id) {
       <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
-    ${facts.length ? `<div class="card"><div class="card-h"><h4>Bio</h4></div><div class="facts">${facts.map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>` : ''}
+    <div class="splits-slot"></div>
     <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button>${watchBtnHTML(id)}</div>`;
   wireDrag(sheet.body);
   S.watchInfo = S.watchInfo || {};
@@ -2572,6 +2572,8 @@ async function playerTrends(id, box, seasonAvg) {
   const seg = $('[data-trseg]', box);
   if (seg) { placeKnob(seg); drawTrend(box, 'pts'); seg.addEventListener('click', e => { const b = e.target.closest('[data-tr]'); if (!b) return; $$('button', seg).forEach(x => x.setAttribute('aria-pressed', x === b)); placeKnob(seg); drawTrend(box, b.dataset.tr); }); }
   const sc = $('.splits-card', box);
+  const slot = box.parentElement?.querySelector('.splits-slot');
+  if (sc && slot) { slot.replaceWith(sc); if (!box.children.length) box.remove(); }
   if (sc) { drawSplits(sc, box._sp); const onAdv = () => { if (!sc.isConnected) { document.removeEventListener('fcadv', onAdv); return; } drawSplits(sc, box._sp); }; document.addEventListener('fcadv', onAdv); }
 }
 // Splits card: basic per-game numbers, or advanced (shooting efficiency, shot profile, per-36)
