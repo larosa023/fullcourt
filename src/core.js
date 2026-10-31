@@ -419,6 +419,15 @@ function oddsCard(odds, sides, label = 'Odds', note) {
     <div class="odds-note">${note || 'Lines can move up to tip-off. Shown for reference only.'}</div></div>`;
 }
 
+/* live refreshes swap a lot of markup at once; hold the page's height and scroll spot so nothing jumps */
+let holdT = 0;
+function holdScroll(el = $('#v-scores')) {
+  if (!el) return () => {};
+  const y = window.scrollY;
+  el.style.minHeight = el.offsetHeight + 'px';
+  clearTimeout(holdT); holdT = setTimeout(() => { el.style.minHeight = ''; }, 3000);
+  return () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo({ top: y, behavior: 'instant' }); };
+}
 let gamesFilter = 'all';
 async function loadScores({ silent = false } = {}) {
   checkRollover();
@@ -439,12 +448,14 @@ async function loadScores({ silent = false } = {}) {
       g.oddsMoving = S.tipOdds[g.id] !== sig;
     }
     S.lastUpdate = Date.now(); S.failures = 0;
+    const back = silent ? holdScroll() : () => {};
     renderGames(!silent);
     updatePulse();
     refreshTicker();
     refreshSit();
     if (S.date === S.today) alertCheck(S.games);
     renderWatch(); renderPicks(); renderOut();
+    back(); if (silent) Promise.allSettled([document.fonts?.ready]).then(() => requestAnimationFrame(back));
   } catch (e) {
     S.failures++;
     if (!silent || !S.games.length) renderGamesError();
@@ -883,7 +894,7 @@ async function refreshSit() {
   const res = await Promise.all(live.map(g => summaryCached(g.id, 15000).then(d => [g.id, situation(d)]).catch(() => null)));
   let changed = false;
   res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); changed = true; });
-  if (changed && S.view === 'scores') renderGames(false);
+  if (changed && S.view === 'scores') { const back = holdScroll(); renderGames(false); back(); }
 }
 
 /* ================= flyout stack ================= */
@@ -1101,6 +1112,7 @@ async function openGame(id) {
     };
     sheet.body.onchange = e => { const sel = e.target.closest('[data-shplayer]'); if (sel) { shotF.pid = sel.value; renderPane(); } };
     renderPane();
+    sheet.body.scrollTop = prevScroll;
     if (!sheet._adv) { sheet._adv = true; const onAdv = () => { if (!sheet.alive) { document.removeEventListener('fcadv', onAdv); return; } if (tab === 'box' || tab === 'team') sheet._render?.(); }; document.addEventListener('fcadv', onAdv); }
     sheet._render = renderPane;
     const plays = d.plays || [];
@@ -2986,5 +2998,5 @@ alertTick();
 try { const gq = new URLSearchParams(location.search).get('game'); if (gq) { history.replaceState(null, '', location.pathname + location.hash); setTimeout(() => openGame(gq), 300); } } catch (e) {}
 loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" style="padding:20px"><b>Standings unavailable</b><button class="btn" data-retry="standings">Retry</button></div>`; });
 // refresh "tips in" countdowns & time labels each minute
-setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) renderGames(false); }, 60000);
+setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) { const back = holdScroll(); renderGames(false); back(); } }, 60000);
 }
