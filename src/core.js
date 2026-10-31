@@ -154,7 +154,8 @@ function dragScroll(el) {
   window.addEventListener('pointermove', e => {
     if (!down) return;
     const dx = e.clientX - sx;
-    if (!moved && Math.abs(dx) > 5) { moved = true; el.classList.add('dragging'); }
+    if (!moved && Math.abs(dx) > 5) { moved = true; el.classList.add('dragging'); document.documentElement.classList.add('no-sel'); getSelection()?.removeAllRanges(); }
+    if (moved) e.preventDefault();
     if (moved) {
       el.scrollLeft = sl - dx;
       const now = performance.now(), dt = now - lastT;
@@ -162,10 +163,11 @@ function dragScroll(el) {
       lastX = e.clientX; lastT = now;
     }
   });
+  document.addEventListener('selectstart', e => { if (down && moved) e.preventDefault(); });
   window.addEventListener('pointerup', () => {
     if (!down) return; down = false;
     if (!moved) return;
-    el.classList.remove('dragging');
+    el.classList.remove('dragging'); document.documentElement.classList.remove('no-sel'); getSelection()?.removeAllRanges();
     el._sup = Date.now();
     if (reduced) return;
     let vel = v * 16;
@@ -1462,8 +1464,10 @@ async function openPlayer(id) {
       <span class="jn">${esc(bio.jersey || p.jersey || '')}</span>
       ${face(id, name, 'face', 700)}
       <div class="txt">
+        <div class="pl-who">
         <h2 class="h-display">${esc(bio.firstName || name.split(' ')[0])}<br>${esc(bio.lastName || name.split(' ').slice(1).join(' '))}</h2>
         <p>${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
+        </div>
         ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       </div>
     </div>
