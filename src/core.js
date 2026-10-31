@@ -1436,6 +1436,10 @@ async function openPlayer(id) {
     </table></div></div>` : `<div class="empty"><b>No stats yet this season</b></div>`}
     <div class="pl-trends" id="plTrend-${id}"><div class="sk" style="height:250px"></div></div>
     ${glog}
+    <section class="card career" data-career="${id}">
+      <button class="career-h" data-careertoggle aria-expanded="false"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="career-b"><div class="career-in"></div></div>
+    </section>
     ${facts.length ? `<div class="card"><div class="card-h"><h4>Bio</h4></div><div class="facts">${facts.map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div></div>` : ''}
     <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button>${watchBtnHTML(id)}</div>`;
   wireDrag(sheet.body);
@@ -1443,6 +1447,13 @@ async function openPlayer(id) {
   S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
   const tb = $(`#plTrend-${id}`, sheet.body);
   if (tb) playerTrends(id, tb, sAvg);
+  const car = $('.career', sheet.body);
+  if (car) $('[data-careertoggle]', car).addEventListener('click', () => {
+    const open = !car.classList.contains('open');
+    car.classList.toggle('open', open);
+    $('[data-careertoggle]', car).setAttribute('aria-expanded', open);
+    if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; fillCareer(car, id); }
+  });
   if (reg) addShareBtn(sheet, () => sharePlayer({
     id, name, first: bio.firstName || name.split(' ')[0], last: bio.lastName || name.split(' ').slice(1).join(' '),
     jersey: bio.jersey || p.jersey, pos: bio.position?.abbreviation || p.pos, abbr: tm.abbr, teamId,
@@ -1873,7 +1884,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-30c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1898,6 +1909,7 @@ const sharePlayer = stub('share', 'sharePlayer');
 const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
+const fillCareer = stub('career', 'fillCareer');
 
 /* ---------------- data helpers ---------------- */
 async function leagueTable() {

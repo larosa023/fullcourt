@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-31', date: 'Oct 31', items: [
+    ['Career stats', 'Player pages have a Career stats section: tap to expand season-by-season numbers, with playoffs and a show-all for long careers.'],
+    ['Game header fits', 'Scores and team names no longer overlap at the top of a game.'],
+  ] },
   { id: '2026-10-30c', date: 'Oct 30', items: [
     ['Mini scoreboard removed', 'The pop-out mini scoreboard has been taken out.'],
     ['Faster loading', 'The site now loads about 40% less up front. Extras like Ask, Compare, rankings and sharing load the first time you open them, and updates only re-download what changed.'],

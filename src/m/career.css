@@ -1,0 +1,8 @@
+.car-seg { margin-bottom: 10px; }
+.car-tbl { min-width: 640px; }
+.car-tbl tfoot td { border-top: 2px solid var(--line); border-bottom: 0; }
+.car-tm { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.car-tm .lg { width: 18px; height: 18px; }
+.car-more { display: flex; margin: 12px auto 0; }
+.car-none { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.car-tbl th:first-child, .car-tbl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }

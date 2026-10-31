@@ -1219,3 +1219,17 @@ html.arriving main { opacity: 0; transition: none; }
 
 .gh-main { align-items: start; }
 .gh-score { align-self: start; margin-top: clamp(10px, 4.5cqi, 22px); }
+
+/* career stats (collapsible) */
+.career { padding: 0; overflow: hidden; }
+.career-h { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; text-align: left; }
+.career-h span { display: grid; gap: 1px; }
+.career-h b { font-family: var(--display); font-stretch: 72%; font-weight: 800; text-transform: uppercase; font-size: 16px; letter-spacing: .01em; }
+.career-h small { font-size: 12px; color: var(--muted); }
+.career-h .chev { width: 18px; height: 18px; color: var(--muted); transition: transform .3s var(--ease); flex: none; }
+.career.open .career-h .chev { transform: rotate(180deg); }
+.career-h:hover b { color: var(--accent); }
+.career-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease); }
+.career.open .career-b { grid-template-rows: 1fr; }
+.career-in { overflow: hidden; min-height: 0; padding: 0 14px; }
+.career.open .career-in { padding-bottom: 14px; }
