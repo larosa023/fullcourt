@@ -260,8 +260,8 @@
 .bs-act .bs-exp { flex: none; padding: 0 14px; }
 .bs-books { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .bs-books[hidden] { display: none; }
-.bs-books button { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 650; font-size: 13.5px; color: var(--ink); }
-.bs-books button:hover { border-color: var(--accent); }
+.bs-books button, .bs-books .bs-book { height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 650; font-size: 13.5px; color: var(--ink); }
+.bs-books button:hover, .bs-books .bs-book:hover { border-color: var(--accent); }
 .bs-books .bs-note { grid-column: 1 / -1; margin: 2px 0 0; }
 /* first basket */
 .bg-fb { margin: 0 14px 10px; border-top: 1px solid var(--line); padding-top: 8px; }
@@ -317,3 +317,4 @@ em.est.alt { color: var(--accent); border-color: color-mix(in oklab, var(--accen
 .bd-oddsbtn .shx { display: none; }
 .bd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: 2px; }
 @media (max-width: 760px) { .bd-ctrl .bd-oddsbtn { padding: 8px 10px; } .bd-oddsbtn .lgx { display: none; } .bd-oddsbtn .shx { display: inline-block; } }
+.bs-books .bs-book { display: grid; place-items: center; text-decoration: none; }
