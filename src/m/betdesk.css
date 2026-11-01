@@ -372,3 +372,12 @@ em.est.alt { color: var(--accent); border-color: color-mix(in oklab, var(--accen
   .bd-slip:not(.open) .bs-pill em { font-style: normal; font-weight: 700; font-size: 14px; opacity: .9; font-variant-numeric: tabular-nums; }
   .bd-slip:not(.open) .bs-bar svg { width: 16px; height: 16px; color: inherit; opacity: .85; }
 }
+/* phones: the pill sits bottom-left, level with Netlify's badge on the right */
+@media (max-width: 760px) {
+  .bd-slip:not(.open) { left: 12px; transform: none; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 215px); }
+  .bd-slip:not(.open) .bs-bar { gap: 8px; padding: 6px 12px 6px 6px; }
+  .bd-slip:not(.open) .bs-pill b .wd { display: none; }
+  .bd-slip:not(.open) .bs-pill { gap: 6px; }
+  .bd-slip:not(.open) .bs-pill b { font-size: 15px; }
+  .bd-slip:not(.open) .bs-pill em { font-size: 13px; }
+}

@@ -62,7 +62,7 @@ import{$ as w,$$ as _t,IS_W as ot,LG as ve,S as q,addDays as wt,esc as $,face as
 ${l.join(`
 `)}${!d&&p.stake?`
 ${C(p.stake)} at ${p.amer} pays ${C(p.pays)}`:""}`;try{navigator.clipboard.writeText(b).then(()=>_(`Picks copied: paste them in ${a[1]}`),()=>_(`Opening ${a[1]}`))}catch{_(`Opening ${a[1]}`)}}function E(){const t=w("#v-bets");if(!t)return;let a=w("#bdSlip");if(!S.legs.length){a?.remove(),w("#bsScrim")?.classList.remove("on");return}a||(a=document.createElement("div"),a.id="bdSlip",a.className="bd-slip",t.append(a),$e(a));const d=it(),i=S.legs.length,l=e=>P.find(u=>u[0]===e),p=new Set(S.legs.map(e=>e.gid)).size<i;a.classList.toggle("open",!!S.open);let b=w("#bsScrim");b||(b=document.createElement("div"),b.id="bsScrim",b.className="bs-scrim",b.addEventListener("click",()=>{S.open=!1,H(),E()}),t.append(b)),b.classList.toggle("on",!!S.open),a.innerHTML=`<button class="bs-bar" data-slipopen aria-expanded="${!!S.open}">
-      <span class="bs-n">${i}</span><span class="bs-t"><b>${i>1?`${i}-leg parlay`:"Single"}</b><small>${d.amer} \xB7 ${C(d.stake)} pays ${C(d.pays)}</small></span><span class="bs-pill"><b>${i>1?"Parlay":"Single"} ${d.amer}</b><em>${C(d.pays)}</em></span>
+      <span class="bs-n">${i}</span><span class="bs-t"><b>${i>1?`${i}-leg parlay`:"Single"}</b><small>${d.amer} \xB7 ${C(d.stake)} pays ${C(d.pays)}</small></span><span class="bs-pill"><b><span class="wd">${i>1?"Parlay":"Single"} </span>${d.amer}</b><em>${C(d.pays)}</em></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
     </button>
     <div class="bs-body">
