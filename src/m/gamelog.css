@@ -10,3 +10,5 @@
 .car-more { display: flex; margin: 12px auto 0; }
 .car-none { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 .car-tbl th:first-child, .car-tbl td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+.log-tbl tfoot tr.log-tot td { border-top: 1px solid var(--line); }
+.log-tbl tfoot td small { display: block; font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
