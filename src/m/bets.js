@@ -60,6 +60,11 @@ function gradeLeg(l, d) {
   const g = gameState(d);
   if (!g) return { st: 'pending', text: 'Waiting for the game' };
   const fin = g.state === 'post', live = g.state === 'in';
+  // ruled out (on the game's injury report as Out and not in the box score): books void the leg
+  if ((l.k === 'prop' || l.k === 'dd' || l.k === 'td') && l.pid) {
+    const b0 = boxStats(d, l.pid), out = (d?.injuries || []).some(t => (t.injuries || []).some(i => String(i.athlete?.id) === String(l.pid) && /^out/i.test(i.status || i.type?.description || '')));
+    if (out && (!b0 || b0.dnp)) return { st: 'void', g, now: null, text: 'Ruled out · leg void' };
+  }
   if (g.state === 'pre') return { st: 'pending', g, text: `${g.away.abbr} @ ${g.home.abbr}` };
   const mine = l.teamId && (g.home.id === l.teamId ? g.home : g.away.id === l.teamId ? g.away : null);
   const opp = mine && (mine === g.home ? g.away : g.home);
@@ -158,10 +163,10 @@ function betCard(b, res) {
   const win = payout(b, res);
   const head = b.dfs ? `${b.legs.length}-pick entry` : b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
   const pill = { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st];
-  const done = res.filter(r => r.st === 'won').length;
+  const done = res.filter(r => r.st === 'won').length, voids = res.filter(r => r.st === 'void').length;
   const mini = readMin().has(b.id);
   return `<div class="bt-card ${st}${mini ? ' mini' : ''}" data-bid="${esc(b.id)}">
-    <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small>${done}/${b.legs.length} hit</small>` : ''}</span>
+    <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small>${done}/${b.legs.length - voids}${voids ? ` · ${voids} void` : ' hit'}</small>` : ''}</span>
       <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
       <button class="bt-sh" data-betshare="${esc(b.id)}" title="Share as an image" aria-label="Share this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
@@ -170,7 +175,7 @@ function betCard(b, res) {
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
       <span class="bt-fc">${l.pid && (l.k === 'prop' || l.k === 'dd' || l.k === 'td') ? face(l.pid, l.name || '', 'bt-face', 80) : l.abbr ? logo(l.abbr, 40) : ''}</span>
       <span class="bt-t"><b>${esc(legName(l))}</b><small>${esc(r.text || '')}${r.g && r.st !== 'pending' ? ` · ${esc(r.g.label)}` : ''}</small>
-        ${(l.k === 'prop' || l.k === 'total' || l.k === 'ttotal' || l.k === 'dd' || l.k === 'td') && r.st && r.st !== 'pending' ? `<span class="bt-bar"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i>${r.need != null && l.k !== 'dd' && l.k !== 'td' ? `<em style="left:${Math.min(100, Math.round(r.need / Math.max(r.need, r.now || 0, 0.5) * 100))}%"></em>` : ''}</span>` : ''}
+        ${(l.k === 'prop' || l.k === 'total' || l.k === 'ttotal' || l.k === 'dd' || l.k === 'td') && r.st && r.st !== 'pending' && r.st !== 'void' ? `<span class="bt-bar"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i>${r.need != null && l.k !== 'dd' && l.k !== 'td' ? `<em style="left:${Math.min(100, Math.round(r.need / Math.max(r.need, r.now || 0, 0.5) * 100))}%"></em>` : ''}</span>` : ''}
       </span>
       <span class="bt-v">${r.now != null && (l.k === 'prop' || l.k === 'total' || l.k === 'ttotal') ? `<b>${r.now}</b><small>/${l.line}</small>` : r.g && r.st === 'pending' ? `<small>${esc(r.g.label)}</small>` : ''}</span>
     </button>`; }).join('')}</div>
