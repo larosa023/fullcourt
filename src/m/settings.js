@@ -24,8 +24,7 @@ function openSettings() {
         ${PREFS.map(([k, t, d]) => { const on = p[k] !== false; return `<button class="set-row" role="switch" aria-checked="${on}" data-pref="${k}"><span><b>${esc(t)}</b><small>${esc(d)}</small></span><i class="sw"><i></i></i></button>`; }).join('')}
       </div></section>
       <section><h3 class="set-h">Appearance</h3><div class="set-list">
-        <button class="set-row" data-settheme><span><b>Theme</b><small>${document.documentElement.dataset.theme ? (isDark() ? 'Dark' : 'Light') + ' (chosen by you)' : 'Matches your device'}</small></span><em class="set-val">${isDark() ? 'Dark' : 'Light'}</em></button>
-        ${document.documentElement.dataset.theme ? `<button class="set-row" data-themeauto><span><b>Match my device</b><small>Follow your phone or computer's light/dark setting</small></span><em class="set-val">Use</em></button>` : ''}
+        <button class="set-row" data-settheme><span><b>Theme</b><small>Colors for the whole site</small></span><em class="set-val">${esc((THEMES.find(t => t[0] === themeId()) || THEMES[0])[1])}</em></button>
       </div></section>
       <section><h3 class="set-h">Your data</h3><p class="set-note">Saved only in this browser, separately for ${LGN} and ${IS_W ? 'NBA' : 'WNBA'} mode.</p><div class="set-list">
         <button class="set-row" data-clearpicks><span><b>Reset Pick'em</b><small>Clear your picks, record and streak</small></span><em class="set-val danger">Reset</em></button>
@@ -37,8 +36,8 @@ function openSettings() {
   sheet.body.addEventListener('click', e => {
     const r = e.target.closest('[data-pref]');
     if (r) { const on = r.getAttribute('aria-checked') !== 'true'; setPref(r.dataset.pref, on); r.setAttribute('aria-checked', on); return; }
-    if (e.target.closest('[data-settheme]')) { $('#themeBtn').click(); setTimeout(draw, 700); return; }
-    if (e.target.closest('[data-themeauto]')) { delete document.documentElement.dataset.theme; lsSet('fc-theme', null); $$('img.lg').forEach(i => { i.src = logoSrc(i.dataset.ab, +i.dataset.s); }); draw(); return; }
+    const st = e.target.closest('[data-settheme]');
+    if (st) { openThemeMenu(st); const t = setInterval(() => { if (!$('.theme-menu')) { clearInterval(t); if (sheet.alive) draw(); } }, 300); return; }
     const cp = e.target.closest('[data-clearpicks]');
     if (cp) { if (cp.dataset.armed) { resetPicks(); toast("Pick'em reset"); delete cp.dataset.armed; $('.set-val', cp).textContent = 'Done'; } else { cp.dataset.armed = '1'; $('.set-val', cp).textContent = 'Tap again'; } return; }
     const cw = e.target.closest('[data-clearwatch]');

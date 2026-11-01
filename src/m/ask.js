@@ -1053,7 +1053,13 @@ const PROP_STATS = [
   ['tpm', '3PM', 'threes', [1, 2, 3, 4, 5, 6]],
   ['pra', 'PRA', 'points + rebounds + assists', [20, 25, 30, 35, 40, 45, 50]],
 ];
-const propVal = (g, k) => k === 'pra' ? g.pts + g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
+// combo markets the Bet desk shows (not used for prop ideas)
+const PROP_MORE = [
+  ['pr', 'P+R', 'points + rebounds', [15, 20, 25, 30, 35, 40]],
+  ['pa', 'P+A', 'points + assists', [15, 20, 25, 30, 35, 40]],
+  ['ra', 'R+A', 'rebounds + assists', [6, 8, 10, 12, 15, 20]],
+];
+const propVal = (g, k) => k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
 async function poolMap(items, n, fn) {
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; } } }));
@@ -1215,7 +1221,8 @@ function propChart(log, k, m) {
     <line x1="0" x2="${W}" y1="${lineY.toFixed(1)}" y2="${lineY.toFixed(1)}" class="ln"/><text x="${W - 4}" y="${(lineY - 5).toFixed(1)}" class="lt">${m}+</text>
   </svg>`;
 }
-async function openPropDetail(pid, k, m0) {
+async function openPropDetail(pid, k, m0, extra) {
+  if (extra) ASK.pctx[pid] = { ...(ASK.pctx[pid] || {}), ...extra };
   const c = ASK.pctx[pid];
   const sheet = openSheet('Prop detail');
   sheet.el.classList.add('pd-sheet');
@@ -1228,7 +1235,7 @@ async function openPropDetail(pid, k, m0) {
   const ctx = c || {};
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
-  const [, short, word] = PROP_STATS.find(s => s[0] === k);
+  const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
   let m = m0;
   const draw = () => {
     const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);

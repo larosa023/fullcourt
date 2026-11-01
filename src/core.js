@@ -189,25 +189,55 @@ function dragScroll(el) {
 const wireDrag = (root = document) => $$('[data-drag]', root).forEach(dragScroll);
 
 /* ================= theme ================= */
-function setTheme(next, origin) {
-  const apply = () => {
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('fc-theme', next); } catch (e) {}
+// themes: each is a light or dark base (so everything keyed to dark mode keeps working) plus an optional palette ("skin")
+const THEMES = [
+  ['system', 'Match device', null, null, ['#E8DFCF', '#0C0E11']],
+  ['dark', 'Dark', 'dark', null, ['#0C0E11', '#232831']],
+  ['midnight', 'Midnight', 'dark', 'midnight', ['#0A0F1E', '#1E2A4D']],
+  ['oled', 'Pure black', 'dark', 'oled', ['#000000', '#1A1A1D']],
+  ['hardwood', 'Hardwood', 'dark', 'hardwood', ['#17120D', '#33281D']],
+  ['forest', 'Forest', 'dark', 'forest', ['#0B1410', '#1E3127']],
+  ['light', 'Paper', 'light', null, ['#E8DFCF', '#F4EDE0']],
+  ['clean', 'Clean white', 'light', 'clean', ['#F4F5F7', '#FFFFFF']],
+  ['ice', 'Ice', 'light', 'ice', ['#E6EDF5', '#F7FAFD']],
+];
+const themeId = () => { const r = document.documentElement; return r.dataset.skin || r.dataset.theme || 'system'; };
+function applyTheme(id, origin) {
+  const t = THEMES.find(x => x[0] === id) || THEMES[0];
+  const root = document.documentElement;
+  const go = () => {
+    if (t[2]) root.dataset.theme = t[2]; else delete root.dataset.theme;
+    if (t[3]) root.dataset.skin = t[3]; else delete root.dataset.skin;
+    lsSet('fc-theme', t[2]); lsSet('fc-skin', t[3]);
     $$('img.lg').forEach(i => { i.onerror = null; i.src = logoSrc(i.dataset.ab, +i.dataset.s); i.onerror = () => { i.onerror = null; i.src = logoSrc(i.dataset.ab, +i.dataset.s, false); }; });
-    $('meta[name="theme-color"]').content = next === 'dark' ? '#0C0E11' : '#E8DFCF';
+    const m = $('meta[name="theme-color"]'); if (m) m.content = getComputedStyle(root).getPropertyValue('--bg').trim() || (isDark() ? '#0C0E11' : '#E8DFCF');
   };
-  if (!document.startViewTransition || reduced) return apply();
-  const r = origin.getBoundingClientRect();
-  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  if (!origin || !document.startViewTransition || reduced) return go();
+  const r = origin.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-  const vt = document.startViewTransition(apply);
-  vt.ready.then(() => {
-    document.documentElement.animate(
-      { clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
-      { duration: 650, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
-  }).catch(() => {});
+  document.startViewTransition(go).ready.then(() => document.documentElement.animate({ clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] }, { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
 }
-$('#themeBtn').addEventListener('click', e => setTheme(isDark() ? 'light' : 'dark', e.currentTarget));
+// a small menu under the theme button
+function openThemeMenu(btn) {
+  const old = $('.theme-menu'); if (old) { old.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
+  const cur = themeId();
+  const menu = document.createElement('div');
+  menu.className = 'theme-menu'; menu.setAttribute('role', 'menu');
+  menu.innerHTML = `<div class="tm-h">Theme</div>${THEMES.map(([id, name, mode, , sw]) => `<button role="menuitemradio" aria-checked="${id === cur}" data-themeid="${id}"><i class="tm-sw" style="--a:${sw[0]};--b:${sw[1]}"></i><span>${esc(name)}</span><small>${mode ? (mode === 'dark' ? 'Dark' : 'Light') : 'Auto'}</small><svg class="tm-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button>`).join('')}`;
+  document.body.append(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.top = Math.round(r.bottom + 8) + 'px';
+  menu.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => menu.classList.add('on'));
+  const close = () => { menu.classList.remove('on'); btn.setAttribute('aria-expanded', 'false'); setTimeout(() => menu.remove(), 160); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc_); removeEventListener('resize', close); };
+  const outside = e => { if (!menu.contains(e.target) && !btn.contains(e.target)) close(); };
+  const esc_ = e => { if (e.key === 'Escape') { close(); btn.focus(); } };
+  document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc_); addEventListener('resize', close);
+  menu.addEventListener('click', e => { const b = e.target.closest('[data-themeid]'); if (!b) return; applyTheme(b.dataset.themeid, btn); $$('[data-themeid]', menu).forEach(x => x.setAttribute('aria-checked', x === b)); setTimeout(close, 180); });
+  $('[aria-checked="true"]', menu)?.focus({ preventScroll: true });
+}
+$('#themeBtn').addEventListener('click', e => openThemeMenu(e.currentTarget));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (!document.documentElement.dataset.theme) $$('img.lg').forEach(i => i.src = logoSrc(i.dataset.ab, +i.dataset.s));
 });
@@ -222,7 +252,7 @@ function placeKnob(seg) {
 }
 
 /* ================= routing ================= */
-const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare'];
+const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets'];
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
   S.view = view;
@@ -235,6 +265,7 @@ function go(view, push = true) {
   if (view === 'teams') renderTeams();
   if (view === 'leaders') loadLeaders();
   if (view === 'compare') renderCompare();
+  if (view === 'bets') renderBetDesk();
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 /* ---- phone menu drawer ---- */
@@ -1938,7 +1969,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31f'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31g'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -1959,6 +1990,8 @@ const renderBets = stub('bets', 'renderBets');
 const removeBet = stub('bets', 'removeBet');
 const toggleBetMin = stub('bets', 'toggleBetMin');
 const renderCompare = stub('compare', 'renderCompare');
+const renderBetDesk = stub('betdesk', 'renderBetDesk');
+const openPropDetail = stub('ask', 'openPropDetail');
 const openMulti = stub('multi', 'openMulti');
 const renderAward = stub('awards', 'renderAward');
 const shareGame = stub('share', 'shareGame');

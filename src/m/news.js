@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-31g', date: 'Oct 31', items: [
+    ['Bet desk', 'A new Bets tab: today\'s DraftKings player props for every market with each player\'s hit rate on that exact line (last 5, last 10, season, vs tonight\'s opponent), averages, opponent defense and line moves, plus a Game lines view with projections. Tap a row for the full breakdown or + to track it.'],
+    ['Themes', 'The palette button at the top now opens a theme menu: Midnight, Pure black, Hardwood, Forest, Paper, Clean white, Ice and more.'],
+  ] },
   { id: '2026-10-31f', date: 'Oct 31', items: [
     ['Prop ideas in Ask', 'Ask "best props tonight", "Knicks game picks" or "Wembanyama props" for players who keep clearing their marks, matchup and injury notes, and how each game line compares with the teams\' scoring. Tap + to track one.'],
     ['Game log totals', 'The season game log now has a Totals row, and shooting percentages in the averages.'],
