@@ -5,7 +5,7 @@
 const BET_KEY = () => lsKey('fc-bets');
 const readBets = () => { try { return JSON.parse(lsGet(BET_KEY()) || '[]') || []; } catch (e) { return []; } };
 const writeBets = list => lsSet(BET_KEY(), list.length ? JSON.stringify(list.slice(-200)) : null);
-const BSTAT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM' };
+const BSTAT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM', fpts: 'FPTS', oreb: 'OREB', dreb: 'DREB', fg2: '2PM', pf: 'PF' };
 const KEEP_SETTLED = 20 * 3600e3;
 const MIN_KEY = () => lsKey('fc-bets-min');
 const readMin = () => { try { return new Set(JSON.parse(lsGet(MIN_KEY()) || '[]')); } catch (e) { return new Set(); } };
@@ -32,7 +32,7 @@ function boxStats(d, pid) {
     const lab = st.labels || st.names || [], v = k => a.stats[lab.indexOf(k)];
     const n = k => +(v(k) ?? 0) || 0;
     const ma = (k, i) => +(String(v(k) || '0-0').split('-')[i]) || 0;
-    return { pts: n('PTS'), reb: n('REB'), ast: n('AST'), stl: n('STL'), blk: n('BLK'), tov: n('TO'), tpm: ma('3PT', 0), tpa: ma('3PT', 1), fgm: ma('FG', 0), fga: ma('FG', 1), ftm: ma('FT', 0), fta: ma('FT', 1), min: n('MIN') };
+    return { pts: n('PTS'), reb: n('REB'), ast: n('AST'), stl: n('STL'), blk: n('BLK'), tov: n('TO'), tpm: ma('3PT', 0), tpa: ma('3PT', 1), fgm: ma('FG', 0), fga: ma('FG', 1), ftm: ma('FT', 0), fta: ma('FT', 1), min: n('MIN'), oreb: n('OREB'), dreb: n('DREB'), pf: n('PF'), fg2: ma('FG', 0) - ma('3PT', 0), fpts: Math.round((n('PTS') + 1.2 * n('REB') + 1.5 * n('AST') + 3 * n('BLK') + 3 * n('STL') - n('TO')) * 10) / 10 };
   }
   return null;
 }
@@ -156,7 +156,7 @@ const money = v => v == null ? '' : '$' + (Math.round(v * 100) / 100).toLocaleSt
 function betCard(b, res) {
   const st = b.result || betStatus(res);
   const win = payout(b, res);
-  const head = b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
+  const head = b.dfs ? `${b.legs.length}-pick entry` : b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
   const pill = { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st];
   const done = res.filter(r => r.st === 'won').length;
   const mini = readMin().has(b.id);

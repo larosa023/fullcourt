@@ -106,3 +106,7 @@ img.lg.bs-face { background: transparent; border-radius: 0; object-fit: contain;
 /* keep the bar clear of the floating "Powered by Netlify" badge */
 .ask-bar { padding-bottom: max(calc(12px + env(safe-area-inset-bottom, 0px)), var(--nfb, 0px)); }
 .bs-odd { font-style: normal; color: var(--warn, var(--loss)); }
+.bs-editor { display: grid; gap: 8px; margin-top: 8px; }
+.bs-edit { width: 100%; min-height: 90px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.45; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); box-sizing: border-box; }
+.bs-edit:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bs-editor .bs-act { margin-top: 0; }

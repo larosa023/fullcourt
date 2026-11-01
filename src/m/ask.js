@@ -638,7 +638,30 @@ function openAsk(q) {
       const tk = e.target.closest('[data-bettrack]');
       if (tk) { tk.disabled = true; trackSlip(tk.dataset.bettrack).then(bet => { if (!bet) return; tk.closest('.bs-act').innerHTML = '<span class="bs-done">Tracking · find it under <b>My bets</b> on Scores</span>'; }); return; }
       const ed = e.target.closest('[data-betedit]');
-      if (ed) { const r = ASK.slips?.[ed.dataset.betedit]; const i = $('#askInput'); if (r && i) { i.value = r.typed; i.dispatchEvent(new Event('input')); i.focus(); } return; }
+      if (ed) {
+        // edit right in the card: the slip as plain text, one leg per line, then read it again in place
+        const tok = ed.dataset.betedit, r = ASK.slips?.[tok], cardEl = ed.closest('.bs-card') || ed.closest('.msg');
+        if (!r || !cardEl) return;
+        cardEl.querySelector('.bs-editor')?.remove();
+        const box = document.createElement('div'); box.className = 'bs-editor';
+        box.innerHTML = `<textarea class="bs-edit" spellcheck="false" aria-label="Edit the bet, one leg per line">${esc(r.typed)}</textarea><div class="bs-act"><button class="btn" data-betreread="${tok}">Update</button><button class="btn ghost" data-betcancel>Cancel</button></div>`;
+        const act = cardEl.querySelector(':scope > .bs-act'); if (act) act.hidden = true;
+        cardEl.append(box);
+        const ta = box.querySelector('textarea'); const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(320, ta.scrollHeight + 2) + 'px'; };
+        ta.addEventListener('input', grow); grow(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+        return;
+      }
+      const cx = e.target.closest('[data-betcancel]');
+      if (cx) { const cardEl = cx.closest('.bs-card') || cx.closest('.msg'); cx.closest('.bs-editor').remove(); const act = cardEl?.querySelector(':scope > .bs-act'); if (act) act.hidden = false; return; }
+      const rr = e.target.closest('[data-betreread]');
+      if (rr) {
+        const tok = rr.dataset.betreread, ta = rr.closest('.bs-editor')?.querySelector('textarea'); if (!ta || ASK.busy) return;
+        rr.disabled = true; rr.textContent = 'Reading…';
+        const i = ASK.log.findIndex(m => m.token === tok);
+        answerSlip(ta.value, false).then(res => { if (i >= 0) ASK.log[i] = { ...res, at: fmtTime(new Date().toISOString()) }; renderAsk(false); })
+          .catch(() => { rr.disabled = false; rr.textContent = 'Update'; });
+        return;
+      }
       const c = e.target.closest('[data-cmpab]'); if (c) { S.cmp = c.dataset.cmpab.split(','); closeAll(); go('compare'); }
     });
     renderAsk(false);
@@ -660,6 +683,12 @@ const BET_STATS = [
   [['pts', 'ast'], /\b(p ?\+ ?a|pts ?\+ ?asts?|points ?(\+|and|plus) ?assists|pa)\b/],
   [['reb', 'ast'], /\b(r ?\+ ?a|rebs? ?\+ ?asts?|rebounds ?(\+|and|plus) ?assists|ra)\b/],
   [['stl', 'blk'], /\b(stocks|steals ?(\+|and|plus) ?blocks|stl ?\+ ?blk|s ?\+ ?b)\b/],
+  [['fpts'], /\b(fantasy( score| points| pts)?|fpts|fs)\b/],
+  [['stl', 'blk'], /\b(blks? ?\+ ?stls?|blocks ?(\+|and|plus) ?steals)\b/],
+  [['oreb'], /\b(offensive rebounds?|off(ensive)? rebs?|oreb)\b/],
+  [['dreb'], /\b(defensive rebounds?|def(ensive)? rebs?|dreb)\b/],
+  [['fg2'], /\b(two[ -]point(ers?)?( made| fg made)?|2[ -]?pt( made| fg made)?|2pm|2-pointers? made)\b/],
+  [['pf'], /\b(personal fouls?|fouls?|pf)\b/],
   // attempts and makes before the plain stats, so "three pointers attempted" isn't read as made threes
   [['tpa'], /\b((threes|three[ -]?point(ers?)?|3[ -]?point(ers?)?|3[ -]?pt|3p) (field goals? )?attempt(ed|s)?|3pa|three point attempts)\b/],
   [['fta'], /\b(free[ -]throws? attempt(ed|s)?|fta)\b/],
@@ -674,7 +703,7 @@ const BET_STATS = [
   [['blk'], /\b(blocks?|blks?|blocked shots)\b/],
   [['tov'], /\b(turnovers?|tovs?)\b/],
 ];
-const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM' };
+const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM', fpts: 'FPTS', oreb: 'OREB', dreb: 'DREB', fg2: '2PM', pf: 'PF' };
 const statsShort = st => st.map(k => STAT_SHORT[k]).join('+');
 const BET_STOP = new Set('wager wagered stake risk payout pay paid potential returns return win wins winning to cash out cashout sgp sgpx parlay parlays leg legs alt alternate spread moneyline ml total totals game line lines odds bet bets placed place boost boosted profit fanduel draftkings dk fd betmgm mgm caesars espnbet espn bet365 fanatics hard rock fliff prizepicks underdog same id receipt share pending open settled live player props prop over under o u yes no any time anytime first half quarter q1 1h 1q reg regulation incl ot overtime str more or less at least'.split(' '));
 
@@ -688,7 +717,7 @@ function looksLikeBet(q) {
   if (/^\s*(track|add|log|save)\b.*\b(bet|parlay|slip|leg)s?\b/.test(s) || /^\s*(bet|parlay|my slip)\s*[:\-]/.test(s)) return true;
   if (/^\s*(who|what|whats|how|when|where|why|did|does|do|is|are|was|were|will|can|should|which)\b/.test(s) || /\?\s*$/.test(s)) return false;
   const lines = String(q).split(/\n/).filter(l => l.trim()).length;
-  const prop = /\b(over|under|o|u) \d+(\.\d)?\b|\b\d+(\.\d)?\+ /.test(s);
+  const prop = /\b(over|under|o|u|more|less|higher|lower) \d+(\.\d)?\b|\b\d+(\.\d)?\+ |\b\d+(\.\d)? [a-z+ ]{2,30} (more|less|higher|lower)\b/.test(s);
   const spread = /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(s) && !/(^|\s)[+-]\d{3,4}(\s|$)/.test(s.replace(/(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/g, ' '));
   const ml = /\b(ml|moneyline|money line|to win)\b/.test(s);
   return prop || ml || (spread && lines >= 1 && /[a-z]{3}/.test(s)) || lines >= 3 && /\d/.test(s);
@@ -698,7 +727,7 @@ function looksLikeBet(q) {
 function slipMeta(text) {
   const t = cleanSlip(text).replace(/,(?=\d{3})/g, '');
   const num = re => { const m = t.match(re); return m ? +m[1] : null; };
-  let stake = num(/(?:wager(?:ed)?|stake|risk|bet amount|total wager|bet)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i) ?? num(/\$\s?(\d+(?:\.\d{1,2})?)\s*(?:to win|bet|wager|stake|risk|on)/i) ?? num(/(?:^|\s)(\d+(?:\.\d{1,2})?)\s*(?:u|units?)\b/i);
+  let stake = num(/(?:wager(?:ed)?|stake|risk|bet amount|total wager|entry(?: fee)?|bet)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i) ?? num(/\$\s?(\d+(?:\.\d{1,2})?)\s*(?:to win|to pay|bet|wager|stake|risk|entry|on)/i) ?? num(/(?:^|\s)(\d+(?:\.\d{1,2})?)\s*(?:u|units?)\b/i);
   let toWin = num(/(?:to win|potential win(?:nings)?|profit)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
   // "payout"/"returns" include the stake
   const back = num(/(?:payout|potential payout|to pay|total payout|returns?|potential return)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
@@ -722,11 +751,12 @@ function slipMeta(text) {
       if (pay) toWin = Math.round((pay - stake) * 100) / 100;
     }
   }
-  return { stake, toWin, odds };
+  const dfs = /\b(prizepicks|underdog|power play|flex play|pick'?em|\d+[- ]pick|sleeper|pick6|more|less|higher|lower)\b/i.test(t) && !/\b(parlay|sgp)\b/i.test(t);
+  return { stake, toWin, odds, dfs };
 }
 
 // split typed text / OCR text into pieces that each hold one leg
-function splitLegs(text, fromImage) {
+function splitLegs(text, fromImage, rows) {
   const raw = String(text || '').replace(/\r/g, '');
   if (!fromImage) {
     let parts = raw.split(/\n|;|\s\|\s|\s&\s|,(?!\d)(?=\s*[a-z])/i).map(s => s.trim()).filter(Boolean);
@@ -736,6 +766,31 @@ function splitLegs(text, fromImage) {
   // screenshots: find "anchor" lines that carry a bet line, then gather the text around each one
   // common misreads: a lone "O" before a line comes out as a zero ("010.5")
   const lines = raw.split('\n').map(l => cleanSlip(l.replace(/(^|\s)[0Q](\d{1,2}\.5)\b/g, '$1O $2'))).filter(l => l && l.length > 1);
+  // Pick'em apps (PrizePicks, Underdog, Sleeper, Pick6): each pick is a block that starts with the player's name,
+  // then the line ("25.5 Points") and More/Less (or Higher/Lower). Split on the names.
+  if (rows && /\b(more|less|higher|lower|prizepicks|underdog|power play|flex play|pick'?em|demon|goblin|fantasy score|sleeper|pick6)\b/i.test(raw)) {
+    const keys = rows.map(r => [r, nameKey(r.name).replace(/ (jr|sr|ii|iii|iv)$/, '')]).filter(([, k]) => k.includes(' '));
+    const strong = l => { const k = ' ' + nameKey(l).replace(/ (jr|sr|ii|iii|iv)( |$)/g, ' ').trim() + ' '; return keys.find(([, rk]) => k.includes(' ' + rk + ' '))?.[0] || null; };
+    // arrow icons fuse onto the word ("↑ More" reads as "MMore", "↓ Less" as "Vless")
+    for (let i = 0; i < lines.length; i++) lines[i] = lines[i].replace(/(^|\s)[^\s]{0,2}?(more|less|higher|lower)\b/gi, (m, a, w) => `${a}${w}`);
+    const starts = lines.map((l, i) => strong(l) ? i : -1).filter(i => i >= 0);
+    const isLine = l => /(^|\s)\d{1,3}(\.\d)?(\s|$)/.test(l) && !/\d{1,2}:\d{2}|\$|%/.test(l) && (STAT_TEST(' ' + l.toLowerCase() + ' ') || /^\W*\d{1,3}(\.\d)?\W*$/.test(l) || /\b(more|less|higher|lower)\b/i.test(l));
+    if (starts.length) {
+      const out = [];
+      starts.forEach((st, k) => {
+        const end = k < starts.length - 1 ? starts[k + 1] - 1 : Math.min(lines.length - 1, st + 7);
+        const blk = lines.slice(st, end + 1);
+        let li = blk.findIndex((l, j) => j > 0 && isLine(l));
+        if (li < 0 && isLine(blk[0])) li = 0;
+        if (li < 0) return;
+        const near = blk.filter((_, j) => j !== li);
+        // both More and Less printed (the pick screen, not a placed entry): can't tell which was picked
+        const both = /\b(more|higher)\b/i.test(blk.join(' ')) && /\b(less|lower)\b/i.test(blk.join(' '));
+        out.push({ text: blk[li], near, ctx: [blk[li], ...near].join(' \n '), both });
+      });
+      if (out.length) return out;
+    }
+  }
   const isAnchor = l => /\b(over|under|o|u) \d+(\.\d)?\b/i.test(l) || /\b\d+(\.\d)?\+ /i.test(l + ' ') || /\b\d+\+?\s*(points|pts|rebounds|assists|threes|made threes)\b/i.test(l)
     || /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(l) && /[a-z]{3}/i.test(l) || /^[+-]\d{1,2}(\.5)?(\s+[+-]\d{3,4})?$/.test(l) || /\b(moneyline|money line|to win)\b/i.test(l) && !/to win\s*\$/i.test(l) || /\bdouble[ -]double\b|\btriple[ -]double\b/i.test(l);
   const idx = lines.map((l, i) => isAnchor(l) ? i : -1).filter(i => i >= 0);
@@ -795,12 +850,24 @@ function parseLeg(piece, rows) {
   const st = BET_STATS.find(([, re]) => re.test(statLine))?.[0];
   const lineSrc = ' ' + cleanSlip(text).toLowerCase().replace(/(^|[\s(])[+-]\d{3,5}(?=[\s)]|$)/g, ' ') + ' ';
   let side = null, line = null, m;
-  const src2 = /\b(over|under|o|u) \d|\d\+|at least|or more|fewer|less/.test(lineSrc) ? lineSrc : noOdds;
+  const src2 = /\b(over|under|o|u) \d|\d\+|at least|or more|fewer|less|more|higher|lower/.test(lineSrc) ? lineSrc : noOdds;
+  const dfsSide = w => /^(more|higher|over|o)$/.test(w) ? 'o' : 'u';
   if ((m = src2.match(/\b(over|under|o|u) (\d+(?:\.\d)?)\b/))) { side = m[1][0]; line = +m[2]; }
+  else if ((m = src2.match(/\b(more|higher|less|lower) (?:than )?(\d+(?:\.\d)?)\b/))) { side = dfsSide(m[1]); line = +m[2]; }
+  else if ((m = src2.match(/\b(\d+(?:\.\d)?) (?:[a-z+\- ]{0,40} )?(more|higher|less|lower)\b/))) { side = dfsSide(m[2]); line = +m[1]; }
   else if ((m = src2.match(/\b(\d+(?:\.\d)?)\+/)) || (m = src2.match(/\b(?:at least|to (?:score|record|get|have|make)) (\d+)\b/)) || (m = src2.match(/\b(\d+) (?:or more)\b/))) { side = 'o'; line = +m[1] - 0.5; }
   else if ((m = src2.match(/\b(\d+(?:\.\d)?) (over|under)\b/))) { side = m[2][0]; line = +m[1]; }
   else if ((m = src2.match(/\b(\d+(?:\.\d)?) (?:or )?(fewer|less)\b/))) { side = 'u'; line = +m[1] + 0.5; }
-  if (player && st && line != null && line < 120) return { ...leg, k: 'prop', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, stats: st, side, line };
+  if (player && st && line == null) {
+    const nm = (' ' + cleanSlip(text).toLowerCase() + ' ').match(/(?:^|\s)(\d{1,3}(?:\.\d)?)(?=\s|$)/) || statLine.match(/(?:^|\s)(\d{1,3}\.\d)(?=\s|$)/);
+    if (nm) {
+      line = +nm[1];
+      const sw = order.map(l => ' ' + cleanSlip(l).toLowerCase() + ' ').map(l => l.match(/\b(more|higher|less|lower|over|under)\b/)).find(Boolean);
+      side = sw ? dfsSide(sw[1]) : 'o';
+      if (!sw || piece.both) leg.sideGuess = true;
+    }
+  }
+  if (player && st && line != null && line < 400) return { ...leg, k: 'prop', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, stats: st, side, line };
   if (player && line != null && line < 120 && !teams.length) return { ...leg, k: 'prop', pid: player.id, name: player.name, teamId: player.teamId, abbr: player.abbr, stats: ['pts'], side, line, guessed: true };
 
   // team bets
@@ -854,10 +921,10 @@ const legLabel = l => {
   if (l.k === 'ttotal') return `${l.abbr} team total ${side} ${l.line}`;
   return l.src;
 };
-const legTyped = l => {
-  const side = l.side === 'u' ? 'under' : 'over';
+const legTyped = (l, dfs) => {
+  const side = dfs ? (l.side === 'u' ? 'less' : 'more') : l.side === 'u' ? 'under' : 'over';
   const o = l.odds ? ` ${l.odds > 0 ? '+' : ''}${l.odds}` : '';
-  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers', tpa: 'three pointers attempted', fga: 'field goals attempted', fgm: 'field goals made', fta: 'free throws attempted', ftm: 'free throws made' })[k]).join(' + ')}${o}`;
+  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers', tpa: 'three pointers attempted', fga: 'field goals attempted', fgm: 'field goals made', fta: 'free throws attempted', ftm: 'free throws made', fpts: 'fantasy score', oreb: 'offensive rebounds', dreb: 'defensive rebounds', fg2: 'two pointers made', pf: 'fouls' })[k]).join(' + ')}${o}`;
   if (l.k === 'dd' || l.k === 'td') return `${l.name} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double${o}`;
   if (l.k === 'spread') return `${l.abbr} ${l.line > 0 ? '+' + l.line : l.line}${o}`;
   if (l.k === 'ml') return `${l.abbr} moneyline${o}`;
@@ -870,7 +937,7 @@ async function readSlip(text, fromImage) {
   const rows = await leagueTable();
   await loadStandings().catch(() => {});
   const meta = slipMeta(text);
-  const pieces = splitLegs(text, fromImage);
+  const pieces = splitLegs(text, fromImage, rows);
   const legs = [], missed = [];
   const seen = new Set();
   for (const p of pieces) {
@@ -898,11 +965,11 @@ function slipCard(r, token) {
   const ok = r.legs.filter(l => !l.noGame);
   const rows = r.legs.map(l => `<div class="bs-leg${l.noGame ? ' warn' : ''}">
       ${l.pid ? face(l.pid, l.name, 'bs-face', 120) : logo(l.abbr, 48, 'lg bs-face')}
-      <span class="bs-t"><b>${esc(legLabel(l))}</b><small>${l.noGame ? 'No game found in the next few days' : `${esc(l.game)} · ${esc(l.when)}`}${l.guessed ? ' · stat guessed as points' : ''}${l.odd ? ` · <em class="bs-odd">${esc(l.odd)}</em>` : ''}${l.odds ? ` · ${l.odds > 0 ? '+' : ''}${l.odds}` : ''}</small></span>
+      <span class="bs-t"><b>${esc(legLabel(l))}</b><small>${l.noGame ? 'No game found in the next few days' : `${esc(l.game)} · ${esc(l.when)}`}${l.guessed ? ' · stat guessed as points' : ''}${l.sideGuess ? ' · <em class="bs-odd">check More/Less</em>' : ''}${l.odd ? ` · <em class="bs-odd">${esc(l.odd)}</em>` : ''}${l.odds ? ` · ${l.odds > 0 ? '+' : ''}${l.odds}` : ''}</small></span>
     </div>`).join('');
-  const m = r.meta, money = [m.stake != null ? `$${m.stake} stake` : '', m.toWin != null ? `to win $${m.toWin}` : '', m.odds ? `${m.odds > 0 ? '+' : ''}${m.odds}` : ''].filter(Boolean).join(' · ');
+  const m = r.meta, money = [m.stake != null ? `$${m.stake} ${m.dfs ? 'entry' : 'stake'}` : '', m.toWin != null ? `to win $${m.toWin}` : '', m.odds ? `${m.odds > 0 ? '+' : ''}${m.odds}` : ''].filter(Boolean).join(' · ');
   return `<div class="bs-card">
-    <div class="bs-h"><b>${ok.length > 1 ? `${ok.length}-leg parlay` : 'Single bet'}</b>${money ? `<span>${esc(money)}</span>` : ''}</div>
+    <div class="bs-h"><b>${r.meta.dfs ? `${ok.length}-pick entry` : ok.length > 1 ? `${ok.length}-leg parlay` : 'Single bet'}</b>${money ? `<span>${esc(money)}</span>` : ''}</div>
     ${rows}
     ${r.missed.length ? `<p class="bs-miss">Couldn't read: ${r.missed.slice(0, 4).map(x => `<i>${esc(x.slice(0, 60))}</i>`).join(', ')}</p>` : ''}
     <div class="bs-act">${ok.length ? `<button class="btn" data-bettrack="${token}">Track this bet</button>` : ''}<button class="btn ghost" data-betedit="${token}">Edit as text</button></div>
@@ -913,17 +980,18 @@ async function answerSlip(text, fromImage) {
   const r = await readSlip(text, fromImage);
   const token = 'b' + Date.now().toString(36);
   ASK.slips = ASK.slips || {};
-  ASK.slips[token] = { ...r, typed: r.legs.map(legTyped).concat(r.missed).join('\n') + (r.meta.stake != null ? `\n$${r.meta.stake} stake` : '') };
-  if (!r.legs.length) return { text: fromImage ? "I couldn't find a bet on that image. Try a closer crop of the slip, or type it out, one leg per line, like <b>Tatum over 26.5 points</b> or <b>Celtics -4.5</b>." : "I couldn't read that as a bet. Write one leg per line, like <b>Tatum over 26.5 points</b>, <b>Celtics -4.5</b>, <b>Lakers ML</b> or <b>Knicks/Heat under 218.5</b>.", miss: true, html: fromImage && text.trim() ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : '' };
+  const m = r.meta, money = [m.stake != null ? `$${m.stake} ${m.dfs ? 'entry' : 'stake'}` : '', m.toWin != null ? `to win $${m.toWin}` : '', m.odds ? `parlay odds ${m.odds > 0 ? '+' : ''}${m.odds}` : ''].filter(Boolean).join(' ');
+  ASK.slips[token] = { ...r, typed: r.legs.length ? r.legs.map(l => legTyped(l, r.meta.dfs)).concat(r.missed).join('\n') + (money ? `\n${money}` : '') : fromImage ? '' : String(text).trim() };
+  if (!r.legs.length) return { text: fromImage ? "I couldn't find a bet on that image. Try a closer crop of the slip, or type it out, one leg per line, like <b>Tatum over 26.5 points</b> or <b>Celtics -4.5</b>." : "I couldn't read that as a bet. Write one leg per line, like <b>Tatum over 26.5 points</b>, <b>Celtics -4.5</b>, <b>Lakers ML</b> or <b>Knicks/Heat under 218.5</b>.", miss: true, token, html: `${fromImage && text.trim() ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : ''}<div class="bs-act"><button class="btn ghost" data-betedit="${token}">${fromImage ? 'Type it out instead' : 'Edit'}</button></div>` };
   const all = r.legs.every(l => !l.noGame);
-  return { text: `${fromImage ? "Here's what I read from your slip." : "Here's your bet."} ${all ? 'Look right? Track it and it shows up under <b>My bets</b> on Scores, updating live.' : 'Some legs need a fix: tap <b>Edit as text</b>.'}`, html: slipCard(r, token) + (fromImage ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : '') };
+  return { token, text: `${fromImage ? "Here's what I read from your slip." : "Here's your bet."} ${all ? 'Look right? Track it and it shows up under <b>My bets</b> on Scores, updating live.' : 'Some legs need a fix: tap <b>Edit as text</b>.'}`, html: slipCard(r, token) + (fromImage ? `<details class="bs-raw"><summary>What I read</summary><pre>${esc(text.trim().slice(0, 1200))}</pre></details>` : '') };
 }
 
 async function trackSlip(token) {
   const r = ASK.slips?.[token]; if (!r) return null;
-  const legs = r.legs.filter(l => !l.noGame).map(({ src, guessed, noGame, when, odd, ...l }) => l);
+  const legs = r.legs.filter(l => !l.noGame).map(({ src, guessed, noGame, when, odd, sideGuess, ...l }) => l);
   if (!legs.length) return null;
-  const bet = { id: token, at: Date.now(), legs, stake: r.meta.stake, toWin: r.meta.toWin, odds: r.meta.odds };
+  const bet = { id: token, at: Date.now(), legs, stake: r.meta.stake, toWin: r.meta.toWin, odds: r.meta.odds, ...(r.meta.dfs ? { dfs: true } : {}) };
   const m = await lazy('bets');
   m.addBet(bet);
   delete ASK.slips[token];
