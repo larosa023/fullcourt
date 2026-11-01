@@ -234,3 +234,8 @@
 #bdMain.bd-blur { position: relative; }
 #bdMain.bd-blur > * { filter: blur(10px); pointer-events: none; user-select: none; -webkit-user-select: none; transition: filter .2s; }
 #bdMain.bd-blur::after { content: 'Hidden for screen sharing'; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); pointer-events: none; }
+
+/* wide screens: the parlay slip sits in the empty margin beside the table instead of over it */
+@media (min-width: 1960px) {
+  .bd-slip { right: auto; left: calc(50% + 660px + 20px); width: min(380px, calc((100vw - 1320px) / 2 - 40px)); }
+}
