@@ -1377,6 +1377,11 @@ async function openPropDetail(pid, k, m0, extra) {
     }
     return `<div class="card pd-card"><div class="card-h"><h4>Compare</h4><select class="bd-sel pd-csel" data-pdcmp aria-label="Compare with"><option value="">Pick a player…</option>${peers.map(x => `<option value="${x.pid}" ${x.pid === cmp ? 'selected' : ''}>${esc(x.name)} (${esc(x.abbr)}) ${x.line ?? ''}</option>`).join('')}</select></div>${body || '<p class="pp-note">Last 10 games side by side against each player\'s own line, same market.</p>'}</div>`;
   };
+  // odds for the line he's set: the book's when it matches, the alt ladder for overs, otherwise -110 to edit in the slip
+  const slipOdds = () => {
+    const ln = m - 0.5, B = ctx.book, a = (ctx.alts || []).find(x => x.t === m);
+    return { o: B && B.line === ln && Number.isFinite(B.over) ? B.over : a && Number.isFinite(a.o) ? a.o : null, u: B && B.line === ln && Number.isFinite(B.under) ? B.under : null };
+  };
   const matchupCard = () => {
     if (IS_W || !g) return '';
     const rows = [];
@@ -1460,6 +1465,7 @@ async function openPropDetail(pid, k, m0, extra) {
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
       ${altCard(all)}${cmpCard()}
+      ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(); return `<div class="pd-slip"><span>Add <b>${m - 0.5}</b> ${short} to your parlay</span><button class="btn" data-pdslip="o">Over ${o.o != null ? `<em>${o.o > 0 ? '+' + o.o : o.o}</em>` : ''}</button><button class="btn ghost" data-pdslip="u">Under ${o.u != null ? `<em>${o.u > 0 ? '+' + o.u : o.u}</em>` : ''}</button></div>`; })() : ''}
       <div class="btn-row"><button class="btn" data-pdtrack>Track over ${m - 0.5} ${short}</button><button class="btn ghost" data-player="${r.id}">Open ${esc(r.last || r.name)}'s profile</button>${g ? `<button class="btn ghost" data-game="${g.id}">Open the game</button>` : ''}</div>
       <p class="pp-note">Trends from his games this season, not a guarantee and not betting advice. Your book's line may differ.</p>
     </div>`;
@@ -1473,6 +1479,9 @@ async function openPropDetail(pid, k, m0, extra) {
     }
     const rg = e.target.closest('[data-pdrng]'); if (rg) { rng = rg.dataset.pdrng; draw(); return; }
     if (e.target.closest('[data-pdmin]')) { showMin = !showMin; lsSet('fc-pd-min', showMin ? '1' : null); draw(); return; }
+    const ps = e.target.closest('[data-pdslip]');
+    if (ps) { const side = ps.dataset.pdslip, o = slipOdds(), odds = (side === 'u' ? o.u : o.o) ?? -110;
+      lazy('betdesk').then(b => b.addSlipLeg({ pid: String(r.id), k, side, line: m - 0.5, odds, est: (side === 'u' ? o.u : o.o) == null, name: r.name, teamId: r.teamId, abbr: r.abbr, gid: g.id, game: ctx.gameLabel || `${g.away.abbr} @ ${g.home.abbr}`, date: (g.date || '').slice(0, 10).replace(/-/g, ''), time: g.state === 'pre' ? fmtTime(g.date) : statusText(g) })); return; }
     const am = e.target.closest('[data-pdmark]');
     if (am) { m = +am.dataset.pdmark; draw(); return; }
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }

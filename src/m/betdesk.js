@@ -71,6 +71,10 @@ async function gameProps(g) {
   BD.lines.set(g.id, { t: Date.now(), rows });
   return rows;
 }
+async function prevOf(pid, yr) {
+  const k = pid + '@' + yr; if (BD.logs.has(k)) return BD.logs.get(k);
+  const p = gameLog(pid, yr).then(l => l.filter(x => x.min > 0)).catch(() => []); BD.logs.set(k, p); return p;
+}
 async function logOf(pid) {
   if (BD.logs.has(pid)) return BD.logs.get(pid);
   const p = gameLog(pid).then(l => l.filter(x => x.min > 0)).catch(() => []);
@@ -88,7 +92,17 @@ function rowStats(r, side = BD.side) {
   const lg = (r.log || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
   const vals = lg.map(g => bdVal(g, r.k));
   const vsOpp = lg.filter(g => g.opp === r.opp.abbr || String(g.oppId) === String(r.opp.id)).map(g => bdVal(g, r.k));
-  if (r.est) { if (!vals.length) return null; const L = vals.slice(0, 10), mean = L.reduce((a, b) => a + b, 0) / L.length; r.line = Math.floor(mean) + 0.5; }
+  if (r.est) {
+    // no book line: Fullcourt's. Early in a season a handful of games swing it, so lean on last season too:
+    // his recent average blended with last season's, averaged with the median of his last 15 games
+    if (!vals.length) return null;
+    const pv = (r.prevLog || []).map(g => bdVal({ ...g, _pid: r.pid }, r.k)).filter(v => v != null);
+    const cur = vals.slice(0, 10), mCur = cur.reduce((a, b) => a + b, 0) / cur.length;
+    const w = pv.length >= 10 ? Math.max(0, 10 - cur.length) : 0, mPrev = pv.length ? pv.reduce((a, b) => a + b, 0) / pv.length : 0;
+    const blend = (cur.length * mCur + w * mPrev) / (cur.length + w);
+    const L15 = [...vals, ...pv].slice(0, 15).sort((a, b) => a - b), med = L15.length % 2 ? L15[L15.length >> 1] : (L15[L15.length / 2 - 1] + L15[L15.length / 2]) / 2;
+    r.line = Math.max(0.5, Math.floor((blend + med) / 2) + 0.5);
+  }
   const L5 = vals.slice(0, 5), L10 = vals.slice(0, 10), avg = L10.length ? L10.reduce((a, b) => a + b, 0) / L10.length : null;
   const s = side;
   const h5 = bdPct(L5, r.line, s), h10 = bdPct(L10, r.line, s), hs = bdPct(vals, r.line, s), hv = bdPct(vsOpp, r.line, s);
@@ -268,7 +282,11 @@ async function bdDraw() {
   const order = [...new Set([...list.filter(x => mkHas(x.k)), ...list].map(x => String(x.pid)))];
   let done = 0, pending = null;
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
-  await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
+  const seasonYr = (() => { const n = new Date(); return n.getFullYear() + (n.getMonth() >= 7 ? 1 : 0); })();
+  await poolRun(order, 6, async pid => { const log = await logOf(pid);
+    const needPrev = log.length < 10 && list.some(x => String(x.pid) === pid && x.est && !Q1.has(x.k));
+    const prev = needPrev ? await prevOf(pid, seasonYr - 1) : null;
+    list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
   if (BD.all === list) BD.allDone = true;
   refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
@@ -582,7 +600,7 @@ function bdWire(body) {
     if (row && !e.target.closest('button') && !Q1.has(row.dataset.bdrow.split('|')[1])) {
       const [pid, k, line] = row.dataset.bdrow.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k);
       if (!x) return;
-      openPropDetail(pid, k, Math.floor(+line) + 1, { r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) });
+      openPropDetail(pid, k, Math.floor(+line) + 1, { r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) });
     }
   });
   body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; bdTable($('#bdMain')); } });
@@ -599,6 +617,14 @@ const inSlip = x => SLIP.legs.some(l => legKey(l.pid, l.k) === legKey(x.pid, x.k
 const decOf = o => { const n = +o; return n > 0 ? 1 + n / 100 : n < 0 ? 1 + 100 / -n : 1; };
 const amerOf = d => d >= 2 ? '+' + Math.round((d - 1) * 100) : d > 1 ? String(Math.round(-100 / (d - 1))) : '–';
 const usd = v => '$' + (Math.round(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// a leg built in the prop breakdown (any line he picked there)
+function addSlipLeg(l) {
+  const i = SLIP.legs.findIndex(y => legKey(y.pid, y.k) === legKey(l.pid, l.k));
+  if (i >= 0) SLIP.legs.splice(i, 1, l); else SLIP.legs.push(l);
+  SLIP.open = true; saveSlip(); drawSlip();
+  if ($('#bdMain') && BD.tab === 'props') bdTable($('#bdMain'), true);
+  toast(S.view === 'bets' ? `Added to your parlay: ${l.name} ${l.side === 'u' ? 'under' : 'over'} ${l.line}` : `Added to your parlay in the Bets tab`);
+}
 function toggleSlip(x) {
   const i = SLIP.legs.findIndex(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
   if (i >= 0) SLIP.legs.splice(i, 1);
