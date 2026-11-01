@@ -169,6 +169,7 @@ function betCard(b, res) {
     ${st === 'live' && b.legs.length > 1 ? needLine(b, res) : ''}
     <div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
+      <span class="bt-fc">${l.pid && (l.k === 'prop' || l.k === 'dd' || l.k === 'td') ? face(l.pid, l.name || '', 'bt-face', 80) : l.abbr ? logo(l.abbr, 40) : ''}</span>
       <span class="bt-t"><b>${esc(legName(l))}</b><small>${esc(r.text || '')}${r.g && r.st !== 'pending' ? ` · ${esc(r.g.label)}` : ''}</small>
         ${(l.k === 'prop' || l.k === 'total' || l.k === 'ttotal' || l.k === 'dd' || l.k === 'td') && r.st && r.st !== 'pending' ? `<span class="bt-bar"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i>${r.need != null && l.k !== 'dd' && l.k !== 'td' ? `<em style="left:${Math.min(100, Math.round(r.need / Math.max(r.need, r.now || 0, 0.5) * 100))}%"></em>` : ''}</span>` : ''}
       </span>

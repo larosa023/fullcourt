@@ -59,3 +59,12 @@
 .bt-sh { display: grid; place-items: center; width: 24px; height: 24px; margin: -2px 0; border-radius: 7px; color: var(--muted); flex: none; }
 .bt-sh:hover { color: var(--ink); background: var(--hl-bg); }
 .bt-sh svg { width: 15px; height: 15px; }
+/* player face (or team logo) beside each leg */
+.bt-leg { grid-template-columns: 20px 34px minmax(0, 1fr) auto; }
+.bt-fc { width: 34px; height: 34px; display: grid; place-items: center; }
+.bt-fc .bt-face { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: top; background: var(--surface-2); }
+.bt-fc .lg { width: 24px; height: 24px; }
+.bt-card.mini .bt-leg { grid-template-columns: 20px 24px minmax(0, 1fr) auto; }
+.bt-card.mini .bt-fc, .bt-card.mini .bt-fc .bt-face { width: 24px; height: 24px; }
+.bt-card.mini .bt-fc .lg { width: 18px; height: 18px; }
+.bt-fc .avatar { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); }
