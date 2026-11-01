@@ -146,6 +146,12 @@ function privApply() {
   if (b) { b.hidden = !tab; b.setAttribute('aria-pressed', on); b.innerHTML = `${on ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.9M6.4 6.4C3.9 8.1 2.5 12 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.6-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'}<span>${on ? 'Show' : 'Hide'}</span>`; b.title = on ? 'Show your numbers' : 'Blur your numbers (for screen sharing)'; }
   $('#bdMain')?.classList.toggle('bd-blur', on && tab);
 }
+function tabChrome(slate) {
+  const hist = BD.tab === 'mine' || BD.tab === 'record';
+  $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${hist ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  $('.bd-days')?.toggleAttribute('hidden', hist);
+  privApply();
+}
 let drawN = 0;
 async function bdDraw() {
   const n = ++drawN, main = $('#bdMain'); if (!main) return;
@@ -153,10 +159,9 @@ async function bdDraw() {
   const slate = await bdSlate(BD.day);
   if (n !== drawN) return;
   const games = slate.games.filter(g => g.state !== 'post');
-  $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${BD.tab === 'mine' || BD.tab === 'record' ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
-  $('.bd-days')?.toggleAttribute('hidden', BD.tab === 'mine' || BD.tab === 'record');
-  privApply();
-  if (BD.tab === 'mine') { main.innerHTML = '<div class="sk" style="height:300px"></div>'; const m = await lazy('bets'); const html = await m.historyHTML(); if (n === drawN) main.innerHTML = html; return; }
+  tabChrome(slate);
+
+  if (BD.tab === 'mine') { const sk = setTimeout(() => { if (n === drawN) main.innerHTML = '<div class="sk" style="height:300px"></div>'; }, 150); const m = await lazy('bets'); const html = await m.historyHTML(); clearTimeout(sk); if (n === drawN) main.innerHTML = html; return; }
   if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
   snapLeans(slate.date, games);
@@ -206,7 +211,7 @@ async function bdDraw() {
       seen.add(String(p.id));
     }
   }
-  BD.all = list;
+  BD.all = list; BD.allDay = BD.day; BD.allDone = false;
   bdTable(main);
   // fill hit rates as each player's games arrive (players in the shown market first)
   const order = [...new Set([...list.filter(x => x.k === BD.mk), ...list].map(x => String(x.pid)))];
@@ -214,6 +219,7 @@ async function bdDraw() {
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
   await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
+  if (BD.all === list) BD.allDone = true;
   snapProps(slate.date, list); checkStars(list);
   if (Q1.has(BD.mk)) loadQ1(games, n, main);
 }
@@ -373,8 +379,8 @@ async function gradeSignals() {
   return o;
 }
 async function drawRecord(main, n) {
-  main.innerHTML = '<div class="sk" style="height:300px"></div>';
-  const o = await gradeSignals(); if (n !== drawN) return;
+  const sk = setTimeout(() => { if (n === drawN) main.innerHTML = '<div class="sk" style="height:300px"></div>'; }, 150);
+  const o = await gradeSignals(); clearTimeout(sk); if (n !== drawN) return;
   const props = Object.entries(o).flatMap(([date, d]) => Object.values(d.props || {}).map(x => ({ ...x, date })));
   const leans = Object.entries(o).flatMap(([date, d]) => Object.values(d.leans || {}).map(x => ({ ...x, date })));
   const rec = a => { const w = a.filter(x => x.res === 'w').length, l = a.filter(x => x.res === 'l').length, p = a.filter(x => x.res === 'p').length; return { w, l, p, pct: w + l ? w / (w + l) : null }; };
@@ -450,7 +456,13 @@ function bdWire(body) {
   body.dataset.wired = '1';
   body.addEventListener('click', e => {
     if (e.target.closest('[data-bdpriv]')) { lsSet('fc-bd-priv', privOn() ? null : '1'); privApply(); return; }
-    const t = e.target.closest('[data-bdt]'); if (t) { BD.tab = t.dataset.bdt; $$('[data-bdt]').forEach(b => b.setAttribute('aria-pressed', b === t)); bdDraw(); return; }
+    const t = e.target.closest('[data-bdt]'); if (t) {
+      if (t.dataset.bdt === BD.tab) return;
+      BD.tab = t.dataset.bdt; $$('[data-bdt]').forEach(b => b.setAttribute('aria-pressed', b === t)); placeKnob($('[data-bdtab]'));
+      const sl = BD.slates.get(BD.day);
+      if (BD.tab === 'props' && sl && BD.all && BD.allDay === BD.day && BD.allDone) { drawN++; tabChrome(sl); bdTable($('#bdMain')); return; }
+      if (sl) tabChrome(sl);
+      bdDraw(); return; }
     const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
     const m = e.target.closest('[data-bdmk]'); if (m) { BD.mk = m.dataset.bdmk; saveView(); BD.cap = 150; if (BD.mk === 'all' && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (Q1.has(BD.mk)) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
