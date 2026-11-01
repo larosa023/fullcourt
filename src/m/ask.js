@@ -1058,8 +1058,10 @@ const PROP_MORE = [
   ['pr', 'P+R', 'points + rebounds', [15, 20, 25, 30, 35, 40]],
   ['pa', 'P+A', 'points + assists', [15, 20, 25, 30, 35, 40]],
   ['ra', 'R+A', 'rebounds + assists', [6, 8, 10, 12, 15, 20]],
+  ['fga', 'FGA', 'field goals attempted', [8, 10, 12, 15, 18, 20, 25]],
+  ['tpa', '3PA', 'three pointers attempted', [3, 4, 5, 6, 8, 10, 12]],
 ];
-const propVal = (g, k) => k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
+const propVal = (g, k) => k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
 async function poolMap(items, n, fn) {
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; } } }));
