@@ -278,8 +278,8 @@ async function historyHTML() {
   const weeks = new Map();
   for (const b of done) { const k = weekOf(b.settledAt || b.at).getTime(); const o = weeks.get(k) || { w: 0, l: 0, p: 0, net: 0, st: 0 }; o[{ won: 'w', lost: 'l', push: 'p' }[b.result]]++; o.net += net(b) ?? 0; if (b.stake != null && b.result !== 'push') o.st += b.stake; weeks.set(k, o); }
   // legs by market
-  const MK = { pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: 'Threes', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast', ml: 'Moneyline', spread: 'Spread', total: 'Game total', ttotal: 'Team total', dd: 'Double-double', td: 'Triple-double' };
-  const mkOf = l => l.k !== 'prop' ? l.k : ({ 'pts,reb,ast': 'pra', 'pts,reb': 'pr', 'pts,ast': 'pa', 'reb,ast': 'ra', 'ast,reb': 'ra' })[l.stats.join(',')] || (l.stats.length === 1 ? l.stats[0] : 'other');
+  const MK = { pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: 'Threes', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast', stl: 'Steals', blk: 'Blocks', sb: 'Stl+Blk', ml: 'Moneyline', spread: 'Spread', total: 'Game total', ttotal: 'Team total', dd: 'Double-double', td: 'Triple-double' };
+  const mkOf = l => l.k !== 'prop' ? l.k : ({ 'pts,reb,ast': 'pra', 'pts,reb': 'pr', 'pts,ast': 'pa', 'reb,ast': 'ra', 'ast,reb': 'ra', 'stl,blk': 'sb' })[l.stats.join(',')] || (l.stats.length === 1 ? l.stats[0] : 'other');
   const legs = new Map();
   for (const b of done) (b.legRes || []).forEach((r, i) => { if (r !== 'won' && r !== 'lost') return; const k = mkOf(b.legs[i]); const o = legs.get(k) || { w: 0, l: 0 }; o[r === 'won' ? 'w' : 'l']++; legs.set(k, o); });
   const best = w.filter(b => payout(b) != null).sort((a, b) => payout(b) - payout(a))[0];

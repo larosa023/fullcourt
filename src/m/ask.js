@@ -1060,8 +1060,11 @@ const PROP_MORE = [
   ['ra', 'R+A', 'rebounds + assists', [6, 8, 10, 12, 15, 20]],
   ['fga', 'FGA', 'field goals attempted', [8, 10, 12, 15, 18, 20, 25]],
   ['tpa', '3PA', 'three pointers attempted', [3, 4, 5, 6, 8, 10, 12]],
+  ['stl', 'STL', 'steals', [1, 2, 3, 4]],
+  ['blk', 'BLK', 'blocks', [1, 2, 3, 4]],
+  ['sb', 'STL+BLK', 'steals + blocks', [1, 2, 3, 4, 5]],
 ];
-const propVal = (g, k) => k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
+const propVal = (g, k) => k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'sb' ? g.stl + g.blk : k === 'tpm' ? g.tp[0] : g[k];
 async function poolMap(items, n, fn) {
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; } } }));
@@ -1272,7 +1275,7 @@ async function matesOut(r) {
   } catch (e) { return []; }
 }
 // with/without: his numbers per 36 with that teammate on the floor vs off it (PBPStats, this season, or last if thin)
-const WOWY_STAT = { pts: r => r.Points, reb: r => r.Rebounds, ast: r => r.Assists, tpm: r => r.FG3M, pra: r => r.Points + r.Rebounds + r.Assists, pr: r => r.Points + r.Rebounds, pa: r => r.Points + r.Assists, ra: r => r.Rebounds + r.Assists, fga: r => (r.FG2A || 0) + (r.FG3A || 0), tpa: r => r.FG3A };
+const WOWY_STAT = { pts: r => r.Points, reb: r => r.Rebounds, ast: r => r.Assists, tpm: r => r.FG3M, pra: r => r.Points + r.Rebounds + r.Assists, pr: r => r.Points + r.Rebounds, pa: r => r.Points + r.Assists, ra: r => r.Rebounds + r.Assists, fga: r => (r.FG2A || 0) + (r.FG3A || 0), tpa: r => r.FG3A, stl: r => r.Steals, blk: r => r.Blocks, sb: r => (r.Steals || 0) + (r.Blocks || 0) };
 async function wowy(r, mate, k) {
   const P = await pbpTeams(); const tid = P?.tid?.[pbpAbbr(r.abbr)]; if (!tid) return null;
   const [me, them] = await Promise.all([pbpPlayerId(r.name), pbpPlayerId(mate.name)]); if (!me || !them) return null;
@@ -1431,7 +1434,7 @@ async function openPropDetail(pid, k, m0, extra) {
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
           <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}</small>
-          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
+          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa', 'stl', 'blk', 'sb'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
         </div>
       </div>
       ${(() => {
