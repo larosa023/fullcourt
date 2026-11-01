@@ -92,6 +92,7 @@ async function renderBetDesk() {
   const body = $('#bdBody'); if (!body) return;
   if (IS_W) { body.innerHTML = `<div class="empty"><b>Bet desk is NBA only for now</b>Sportsbook props come back when the WNBA season starts.</div>`; return; }
   if (!body.dataset.wired) bdWire(body);
+  drawSlip();
   body.innerHTML = `${bdShell()}<div id="bdMain"><div class="sk" style="height:60px;margin-bottom:10px"></div><div class="sk" style="height:520px"></div></div>`;
   await Promise.all([leagueTable(), loadStandings().catch(() => {})]).catch(() => {});
   bdDraw();
@@ -216,13 +217,14 @@ function bdTable(main, keepScroll, final) {
           <td class="nm dk ${s?.diff > 0 ? 'pos' : s?.diff < 0 ? 'neg' : ''}">${s?.diff != null ? (s.diff > 0 ? '+' : '') + s.diff.toFixed(1) : '–'}</td>
           <td class="nm dk">${dr ? `<span class="bd-def ${dr >= 21 ? 'soft' : dr <= 10 ? 'tough' : ''}">${ordN(dr)}</span>` : '–'}</td>
           <td class="sc dk">${s?.edge != null ? `<span class="bd-score"><i style="width:${Math.round(Math.max(0, Math.min(1, s.edge)) * 100)}%"></i></span>` : ''}</td>
-          <td class="tr">${Q1.has(x.k) ? '' : `<button class="bd-add" data-bdtrack="${x.pid}|${x.k}|${x.line}" title="Track this" aria-label="Track ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line}">+</button>`}</td>
+          <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
+
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>Try another market or game.</div>`}
     ${total > list.length ? `<div class="bd-more"><button class="btn ghost" data-bdmore>Show ${Math.min(150, total - list.length)} more of ${total}</button></div>` : ''}
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Props aren't posted yet for ${esc(BD.missing.join(', '))}. Books usually add them the morning of the game.</p>` : ''}
-    <p class="bd-note">${loading ? '<span class="bd-ld"></span> Loading each player\'s games… ' : ''}Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown. Trends, not betting advice.</p>`;
+    <p class="bd-note">${loading ? '<span class="bd-ld"></span> Loading each player\'s games… ' : ''}Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
   placeKnob($('[data-bdsideseg]', main));
@@ -259,8 +261,8 @@ function bdWire(body) {
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
     const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; bdTable($('#bdMain'), true); return; }
     const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } bdTable($('#bdMain'), true); return; }
-    const tr = e.target.closest('[data-bdtrack]');
-    if (tr) { const [pid, k, line] = tr.dataset.bdtrack.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const mk = MARKETS.find(q => q[0] === k); if (x && !Q1.has(k)) openAsk(`Track: ${x.p.name} ${BD.side === 'u' ? 'under' : 'over'} ${line} ${mk[4]} ${amer(BD.side === 'u' ? x.under : x.over)}`); return; }
+    const sl = e.target.closest('[data-bdslip]');
+    if (sl) { const [pid, k] = sl.dataset.bdslip.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); if (x) { toggleSlip(x); bdTable($('#bdMain'), true); } return; }
     const row = e.target.closest('[data-bdrow]');
     if (row && !e.target.closest('button') && !Q1.has(row.dataset.bdrow.split('|')[1])) {
       const [pid, k, line] = row.dataset.bdrow.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k);
@@ -270,4 +272,79 @@ function bdWire(body) {
   });
   body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; bdTable($('#bdMain')); } });
   body.addEventListener('input', e => { if (e.target.matches('[data-bdq]')) { BD.q = e.target.value; clearTimeout(BD.qt); BD.qt = setTimeout(() => { const pos = e.target.selectionStart; bdTable($('#bdMain'), true); const q = $('[data-bdq]'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 200); } });
+}
+
+/* ---------------- parlay builder ---------------- */
+const SLIP_KEY = 'fc-slip';
+const STATS_OF = { pts: ['pts'], reb: ['reb'], ast: ['ast'], tpm: ['tpm'], pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'], fga: ['fga'], tpa: ['tpa'] };
+const SLIP = (() => { try { const v = JSON.parse(sessionStorage.getItem(SLIP_KEY) || 'null'); if (v && Array.isArray(v.legs)) return v; } catch (e) {} return { legs: [], stake: 10, open: false }; })();
+const saveSlip = () => { try { sessionStorage.setItem(SLIP_KEY, JSON.stringify(SLIP)); } catch (e) {} };
+const legKey = (pid, k) => `${pid}|${k}`;
+const inSlip = x => SLIP.legs.some(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
+const decOf = o => { const n = +o; return n > 0 ? 1 + n / 100 : n < 0 ? 1 + 100 / -n : 1; };
+const amerOf = d => d >= 2 ? '+' + Math.round((d - 1) * 100) : d > 1 ? String(Math.round(-100 / (d - 1))) : '–';
+const usd = v => '$' + (Math.round(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function toggleSlip(x) {
+  const i = SLIP.legs.findIndex(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
+  if (i >= 0) SLIP.legs.splice(i, 1);
+  else {
+    const side = BD.side, odds = x.est ? -115 : +(side === 'u' ? x.under : x.over) || -110;
+    SLIP.legs.push({ pid: String(x.pid), k: x.k, side, line: x.line, odds, est: !!x.est, name: x.p.name, teamId: x.p.teamId, abbr: x.p.abbr, gid: x.g.id, game: `${x.g.away.abbr} @ ${x.g.home.abbr}`, date: (x.g.date || '').slice(0, 10).replace(/-/g, ''), time: x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g) });
+    if (SLIP.legs.length === 1) SLIP.open = true;
+  }
+  saveSlip(); drawSlip();
+}
+function slipMath() {
+  const d = SLIP.legs.reduce((a, l) => a * decOf(l.odds), 1), stake = Math.max(0, +SLIP.stake || 0);
+  return { d, stake, pays: stake * d, win: stake * (d - 1), amer: SLIP.legs.length ? amerOf(d) : '–' };
+}
+function drawSlip() {
+  const view = $('#v-bets'); if (!view) return;
+  let dock = $('#bdSlip');
+  if (!SLIP.legs.length) { dock?.remove(); return; }
+  if (!dock) { dock = document.createElement('div'); dock.id = 'bdSlip'; dock.className = 'bd-slip'; view.append(dock); wireSlip(dock); }
+  const m = slipMath(), n = SLIP.legs.length, mk = k => MARKETS.find(q => q[0] === k);
+  const sameGame = new Set(SLIP.legs.map(l => l.gid)).size < n;
+  dock.classList.toggle('open', !!SLIP.open);
+  dock.innerHTML = `<button class="bs-bar" data-slipopen aria-expanded="${!!SLIP.open}">
+      <span class="bs-n">${n}</span><span class="bs-t"><b>${n > 1 ? `${n}-leg parlay` : 'Single'}</b><small>${m.amer} · ${usd(m.stake)} pays ${usd(m.pays)}</small></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
+    </button>
+    <div class="bs-body">
+      <div class="bs-legs">${SLIP.legs.map((l, i) => `<div class="bs-lg">
+        ${face(l.pid, l.name, 'bs-lf', 120)}
+        <span class="bs-lt"><b>${esc(l.name)}</b><small>${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${esc(mk(l.k)[2])} · ${esc(l.game)}</small></span>
+        <label class="bs-od" title="${l.est ? 'No book price in the feed: set your own odds' : 'DraftKings odds (you can change them)'}"><input inputmode="numeric" value="${l.odds > 0 ? '+' + l.odds : l.odds}" data-slipodds="${i}" aria-label="Odds for ${esc(l.name)}">${l.est ? '<em>est</em>' : ''}</label>
+        <button class="bs-x" data-slipdel="${i}" aria-label="Remove ${esc(l.name)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button>
+      </div>`).join('')}</div>
+      <div class="bs-sum">
+        <label class="bs-stake"><span>Stake</span><span class="bs-in">$<input inputmode="decimal" value="${m.stake}" data-slipstake aria-label="Stake"></span></label>
+        <div><span>Odds</span><b>${m.amer}</b></div>
+        <div><span>To win</span><b>${usd(m.win)}</b></div>
+        <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
+      </div>
+      ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
+      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost" data-slipclear>Clear</button></div>
+    </div>`;
+}
+function wireSlip(dock) {
+  dock.addEventListener('click', e => {
+    if (e.target.closest('[data-slipopen]')) { SLIP.open = !SLIP.open; saveSlip(); drawSlip(); return; }
+    const d = e.target.closest('[data-slipdel]'); if (d) { SLIP.legs.splice(+d.dataset.slipdel, 1); saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-sliptrack]')) {
+      const m = slipMath();
+      const legs = SLIP.legs.map(l => ({ k: 'prop', pid: l.pid, name: l.name, teamId: l.teamId, abbr: l.abbr, stats: STATS_OF[l.k], side: l.side, line: l.line, gid: l.gid, date: l.date, game: l.game, odds: l.odds }));
+      const bet = { id: 'p' + Date.now().toString(36), at: Date.now(), legs, stake: m.stake || null, odds: legs.length > 1 ? Math.round(m.d >= 2 ? (m.d - 1) * 100 : -100 / (m.d - 1)) : null, toWin: m.stake ? Math.round(m.win * 100) / 100 : null };
+      lazy('bets').then(b => b.addBet(bet));
+      SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true);
+    }
+  });
+  const num = v => { const n = parseFloat(String(v).replace(/[^\d.+-]/g, '')); return Number.isFinite(n) ? n : null; };
+  dock.addEventListener('change', e => {
+    const o = e.target.closest('[data-slipodds]');
+    if (o) { const v = num(o.value); if (v && Math.abs(v) >= 100) SLIP.legs[+o.dataset.slipodds].odds = Math.round(v); saveSlip(); drawSlip(); return; }
+    const st = e.target.closest('[data-slipstake]'); if (st) { const v = num(st.value); SLIP.stake = v != null && v >= 0 ? v : SLIP.stake; saveSlip(); drawSlip(); }
+  });
+  dock.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) e.target.blur(); });
 }
