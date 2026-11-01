@@ -119,6 +119,7 @@ async function bdDraw() {
   main.innerHTML = `<div class="sk" style="height:520px"></div>`;
   const per = await Promise.all(games.map(g => gameProps(g).catch(() => [])));
   BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
+  BD.missingIds = new Set(games.filter((g, i) => !per[i].length).map(g => g.id));
   const all = per.flat();
   if (n !== drawN) return;
   const games2 = new Map(games.map(g => [g.id, g]));
@@ -144,7 +145,9 @@ async function bdDraw() {
   for (const g of games) for (const side of [g.home, g.away]) {
     const opp = side === g.home ? g.away : g.home;
     for (const p of rows.filter(r => r.teamId === side.id && r.gp >= 2 && (r.min || 0) >= 18)) {
-      for (const k of EST) list.push({ pid: String(p.id), k, gid: g.id, line: null, est: true, p, g, opp, at: side === g.home ? 'vs' : '@' });
+      // games the books haven't posted yet get Fullcourt lines in every market, so every game shows up
+      const noBook = BD.missingIds?.has(g.id);
+      for (const k of [...EST, ...(noBook ? MARKETS.filter(m => m[3]).map(m => m[0]) : [])]) list.push({ pid: String(p.id), k, gid: g.id, line: null, est: true, p, g, opp, at: side === g.home ? 'vs' : '@' });
       seen.add(String(p.id));
     }
   }
@@ -206,7 +209,7 @@ function bdTable(main, keepScroll, final) {
       <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag><button class="chip" data-bdmk="all" aria-pressed="${ALL}">All stats</button>${MARKETS.map(m => `<button class="chip${EST.has(m[0]) ? ' est' : ''}" data-bdmk="${m[0]}" aria-pressed="${m[0] === BD.mk}">${m[1]}</button>`).join('')}</div></div>
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
-        <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All games with props</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
+        <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All ${games.length} games</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
         <input class="bd-q" type="search" placeholder="Find a player" value="${esc(BD.q)}" data-bdq aria-label="Find a player">
       </div>
     </div>
@@ -233,7 +236,7 @@ function bdTable(main, keepScroll, final) {
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>Try another market or game.</div>`}
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
-    ${BD.missing?.length ? `<p class="bd-note bd-miss">Props aren't posted yet for ${esc(BD.missing.join(', '))}. Books usually add them the morning of the game.</p>` : ''}
+    ${BD.missing?.length ? `<p class="bd-note bd-miss">Sportsbook props aren't posted yet for ${esc(BD.missing.join(', '))}, so those games show Fullcourt lines marked <em class="est">est</em> (set at each player's recent average) until the book's lines arrive, usually the morning of the game.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
     <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
