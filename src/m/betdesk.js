@@ -735,7 +735,7 @@ function drawSlip() {
   if (!sc) { sc = document.createElement('div'); sc.id = 'bsScrim'; sc.className = 'bs-scrim'; sc.addEventListener('click', () => { SLIP.open = false; saveSlip(); drawSlip(); }); view.append(sc); }
   sc.classList.toggle('on', !!SLIP.open);
   dock.innerHTML = `<button class="bs-bar" data-slipopen aria-expanded="${!!SLIP.open}">
-      <span class="bs-n">${n}</span><span class="bs-t"><b>${n > 1 ? `${n}-leg parlay` : 'Single'}</b><small>${m.amer} · ${usd(m.stake)} pays ${usd(m.pays)}</small></span>
+      <span class="bs-n">${n}</span><span class="bs-t"><b>${n > 1 ? `${n}-leg parlay` : 'Single'}</b><small>${m.amer} · ${usd(m.stake)} pays ${usd(m.pays)}</small></span><span class="bs-pill"><b>${n > 1 ? 'Parlay' : 'Single'} ${m.amer}</b><em>${usd(m.pays)}</em></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
     </button>
     <div class="bs-body">
