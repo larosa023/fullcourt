@@ -163,3 +163,13 @@
   .bd-mkm { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: var(--muted); margin-bottom: -2px; }
   #v-bets { padding-bottom: 110px; }
 }
+/* one type size across the row: everything matches the Line column except the game/time under the name */
+.bd-t td.ln b, .bd-t td.od, .bd-t td.mk .bd-mkt, .bd-t td.nm, .bd-pill, .bd-def, .bd-pl b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 18px; line-height: 1.15; }
+.bd-pill { min-width: 54px; padding: 2px 6px; }
+.bd-def { padding: 1px 6px; }
+.bd-pl b { letter-spacing: .005em; }
+.bd-t td.od .bd-pill.na, .bd-pill.na { font-family: var(--display); font-weight: 800; font-size: 18px; }
+@media (max-width: 760px) {
+  .bd-t td.ln b, .bd-t td.od, .bd-t td.nm, .bd-pill, .bd-def, .bd-pl b { font-size: 16px; }
+  .bd-pill { min-width: 44px; padding: 2px 4px; }
+}
