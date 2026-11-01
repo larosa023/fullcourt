@@ -1,9 +1,15 @@
 name: probe
 on: { push: { branches: [trk-test] } }
+permissions: { contents: write }
 jobs:
   p:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: |
           H=(-H 'Referer: https://www.nba.com/' -H 'Origin: https://www.nba.com' -H 'Accept: application/json' -H 'x-nba-stats-origin: stats' -H 'x-nba-stats-token: true' -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36')
-          curl -s -m 40 "${H[@]}" "https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=10/30/2026&DateTo=10/30/2026&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=Totals&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2026-27&SeasonSegment=&SeasonType=Regular%20Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=" | head -c 1500; echo; echo EXIT $?
+          Q="College=&Conference=&Country=&DateFrom=10/30/2026&DateTo=10/30/2026&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=Totals&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&Season=2026-27&SeasonSegment=&SeasonType=Regular%20Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight="
+          curl -s -m 50 -w '\nHTTP %{http_code} %{time_total}\n' "${H[@]}" "https://stats.nba.com/stats/leaguedashptstats?$Q&PtMeasureType=Passing" > pass.txt || echo "curl failed $?" >> pass.txt
+          curl -s -m 50 -w '\nHTTP %{http_code} %{time_total}\n' "${H[@]}" "https://stats.nba.com/stats/leaguedashptstats?$Q&PtMeasureType=Rebounding" > reb.txt || echo "curl failed $?" >> reb.txt
+          git config user.name bot; git config user.email bot@users.noreply.github.com
+          git add pass.txt reb.txt; git commit -m "probe result [skip ci]"; git push
