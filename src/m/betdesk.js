@@ -23,6 +23,10 @@ const EST = new Set(['fga', 'tpa', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', '
 const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map() };
 // your last market, side and sort come back next time
 try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar }); } catch (e) {}
+// markets can be combined (pts,reb,...); 'all' is every book market
+const mkSel = () => BD.mk === 'all' ? null : BD.mk.split(',').filter(k => MARKETS.some(m => m[0] === k));
+const mkHas = k => BD.mk === 'all' ? !Q1.has(k) : mkSel().includes(k);
+const mkQ1 = () => (mkSel() || []).some(k => Q1.has(k));
 const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir, radar: BD.radar }));
 const readStars = () => { try { return JSON.parse(lsGet('fc-bd-stars') || '{}') || {}; } catch (e) { return {}; } };
 const writeStars = o => lsSet('fc-bd-stars', Object.keys(o).length ? JSON.stringify(o) : null);
@@ -261,7 +265,7 @@ async function bdDraw() {
   BD.all = list; BD.allDay = BD.day; BD.allDone = false;
   bdTable(main);
   // fill hit rates as each player's games arrive (players in the shown market first)
-  const order = [...new Set([...list.filter(x => x.k === BD.mk), ...list].map(x => String(x.pid)))];
+  const order = [...new Set([...list.filter(x => mkHas(x.k)), ...list].map(x => String(x.pid)))];
   let done = 0, pending = null;
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
   await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
@@ -269,7 +273,7 @@ async function bdDraw() {
   if (BD.all === list) BD.allDone = true;
   refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
   snapProps(slate.date, list); checkStars(list);
-  if (Q1.has(BD.mk)) loadQ1(games, n, main);
+  if (mkQ1()) loadQ1(games, n, main);
 }
 // first-quarter numbers come from play-by-play: each team's last 5 games
 async function loadQ1(games, n, main) {
@@ -298,13 +302,14 @@ async function loadQ1(games, n, main) {
     BD.q1.set(id, m); BD.q1done.add(id);
   });
   BD.q1busy = false;
-  if (n === drawN && Q1.has(BD.mk)) bdTable(main, true);
+  if (n === drawN && mkQ1()) bdTable(main, true);
 }
 async function poolRun(items, k, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) { const it = items[i++]; try { await fn(it); } catch (e) {} } })); }
 
 function bdTable(main, keepScroll, final) {
-  const ALL = BD.mk === 'all';
-  let list = (BD.all || []).filter(x => (ALL ? !Q1.has(x.k) : x.k === BD.mk) && (BD.game === 'all' || x.gid === BD.game) && (!BD.q || nameKey(x.p.name).includes(nameKey(BD.q))));
+  if (BD.mk !== 'all' && !mkSel().length) BD.mk = 'pts';
+  const SEL = mkSel(), ALL = !SEL || SEL.length > 1; // ALL: show the Market column
+  let list = (BD.all || []).filter(x => mkHas(x.k) && (BD.game === 'all' || x.gid === BD.game) && (!BD.q || nameKey(x.p.name).includes(nameKey(BD.q))));
   list.forEach(x => { x.st = x.log && (!Q1.has(x.k) || BD.q1.size) ? rowStats(x) : null; });
   list = list.filter(x => !x.est || !x.log || x.st || (Q1.has(x.k) && (BD.q1busy || !BD.q1.size))); // estimated rows with no games drop out
   if (BD.radar) list = list.filter(x => !x.log || radarOf(x) != null);
@@ -312,13 +317,13 @@ function bdTable(main, keepScroll, final) {
   const key = { dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
   list.sort((a, b) => { const sa = starred(a), sb = starred(b); if (sa !== sb) return sa ? -1 : 1; const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
   const games = [...new Map((BD.all || []).map(x => [x.gid, x.g])).values()];
-  const loading = list.some(x => !x.log) || (Q1.has(BD.mk) && BD.q1busy);
+  const loading = list.some(x => !x.log) || (mkQ1() && BD.q1busy);
   const total = list.length;
-  const mk = MARKETS.find(m => m[0] === BD.mk);
+  const mk = SEL?.length === 1 ? MARKETS.find(m => m[0] === SEL[0]) : [null, SEL ? SEL.map(k => MARKETS.find(m => m[0] === k)[1]).join(' / ') : 'stat'];
   const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"><button data-bdsort="${k}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
   const sc = $('.bd-wrap', main)?.scrollLeft || 0;
   main.innerHTML = `<div class="bd-ctrl">
-      <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag><button class="chip" data-bdmk="all" aria-pressed="${ALL}">All stats</button>${MARKETS.map(m => `<button class="chip${EST.has(m[0]) ? ' est' : ''}" data-bdmk="${m[0]}" aria-pressed="${m[0] === BD.mk}">${m[1]}</button>`).join('')}</div></div>
+      <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag><button class="chip" data-bdmk="all" aria-pressed="${!SEL}">All stats</button>${MARKETS.map(m => `<button class="chip${EST.has(m[0]) ? ' est' : ''}" data-bdmk="${m[0]}" aria-pressed="${!!SEL?.includes(m[0])}">${m[1]}</button>`).join('')}</div></div>
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
         <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All ${games.length} games</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
@@ -352,7 +357,7 @@ function bdTable(main, keepScroll, final) {
 
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
-    ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
+    ${(SEL || []).some(k => EST.has(k)) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(SEL.filter(k => EST.has(k)).map(k => MARKETS.find(q => q[0] === k)[1]).join(', '))} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${mkQ1() ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Sportsbook props aren't posted yet for ${esc(BD.missing.join(', '))}, so those games show Fullcourt lines marked <em class="est">est</em> (set at each player's recent average) until the book's lines arrive, usually the morning of the game.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
     <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, a key teammate out, B2B or 3 games in 4 nights, a fast or slow matchup (2+ possessions off the league pace, from PBPStats), and blowout risk for starters when the spread is 10 or more. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
@@ -555,7 +560,12 @@ function bdWire(body) {
       if (sl) tabChrome(sl);
       bdDraw(); return; }
     const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
-    const m = e.target.closest('[data-bdmk]'); if (m) { BD.mk = m.dataset.bdmk; saveView(); BD.cap = 150; if (BD.mk === 'all' && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (Q1.has(BD.mk)) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
+    const m = e.target.closest('[data-bdmk]'); if (m) {
+      // tap markets to combine them; tapping a selected one removes it; All stats resets
+      const k = m.dataset.bdmk, cur = mkSel();
+      if (k === 'all' || !cur) BD.mk = k;
+      else { const nx = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]; BD.mk = nx.length ? MARKETS.map(q => q[0]).filter(q => nx.includes(q)).join(',') : 'all'; }
+      saveView(); BD.cap = 150; if (mkSel()?.length !== 1 && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (mkQ1()) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
     const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; saveView(); bdTable($('#bdMain'), true); return; }
     const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } saveView(); bdTable($('#bdMain'), true); return; }
