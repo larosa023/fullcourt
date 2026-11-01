@@ -640,6 +640,7 @@ function openAsk(q) {
     askSheet.el.addEventListener('drop', e => { e.preventDefault(); askSheet.el.classList.remove('drop'); takeImage([...(e.dataTransfer?.files || [])][0]); });
     askSheet.body.addEventListener('click', e => {
       const b = e.target.closest('[data-askq]'); if (b) { ask(b.dataset.askq); return; }
+      const pd = e.target.closest('[data-propd]'); if (pd) { const [pid, k, m] = pd.dataset.propd.split('|'); openPropDetail(pid, k, +m); return; }
       const tk = e.target.closest('[data-bettrack]');
       if (tk) { tk.disabled = true; trackSlip(tk.dataset.bettrack).then(bet => { if (!bet) return; tk.closest('.bs-act').innerHTML = '<span class="bs-done">Tracking · find it under <b>My bets</b> on Scores</span>'; }); return; }
       const ed = e.target.closest('[data-betedit]');
@@ -1128,6 +1129,7 @@ async function aProps(opts = {}) {
     const g = gameOf(r.teamId), opp = g.home.id === r.teamId ? g.away : g.home, dr = defRank(opp.id);
     const mates = (out.get(String(r.teamId)) || []).filter(x => String(x.id) !== String(r.id));
     const seasonOf = { pts: r.pts, reb: r.reb, ast: r.ast, tpm: r.tpm, pra: (r.pts || 0) + (r.reb || 0) + (r.ast || 0) };
+    ASK.pctx[r.id] = { r, g, opp, dr, mates, log };
     const picks = PROP_STATS.map(([k, , , marks]) => bestMark(log, k, marks, seasonOf[k])).filter(Boolean);
     for (const p of picks) {
       let score = p.score;
@@ -1157,19 +1159,20 @@ async function aProps(opts = {}) {
 
   // one player: a hit-rate table for each stat at the marks around his recent average
   if (opts.pid && cands[0]) {
-    const r = cands[0], log = (logs[0] || []).filter(g => g.min > 0).slice(0, 10), g = gameOf(r.teamId);
+    const r = cands[0], full = (logs[0] || []).filter(g => g.min > 0), log = full.slice(0, 10), g = gameOf(r.teamId);
     if (!g || log.length < 3) return { text: `Not enough games from ${r.name} yet to show trends.`, miss: true };
     const opp = g.home.id === r.teamId ? g.away : g.home, dr = defRank(opp.id);
     const hurt = [...out.values()].flat().some(x => String(x.id) === String(r.id));
     const mates = (out.get(String(r.teamId)) || []).filter(x => String(x.id) !== String(r.id));
+    ASK.pctx[r.id] = { r, g, opp, dr, mates, log: full };
     const tbl = PROP_STATS.map(([k, short, word, marks]) => {
       const vals = log.map(x => propVal(x, k)), avg = vals.reduce((a, b) => a + b, 0) / vals.length;
       let i = marks.findIndex(m => m > avg); if (i < 0) i = marks.length; const pick = marks.slice(Math.max(0, i - 2), Math.max(0, i - 2) + 3);
-      return `<tr><td><b>${short}</b><small>avg ${avg.toFixed(1)}</small></td>${pick.map(m => { const h = vals.filter(v => v >= m).length; return `<td class="${h / vals.length >= 0.7 ? 'hot' : h / vals.length <= 0.3 ? 'cold' : ''}"><button class="pp-cell" data-askq="${esc(`Track: ${r.name} over ${m - 0.5} ${word}`)}" title="Track ${m}+ ${short}">${m}+<small>${h}/${vals.length}</small></button></td>`; }).join('')}<td>${sparks(vals, pick[1] ?? pick[0])}</td></tr>`;
+      return `<tr><td><b>${short}</b><small>avg ${avg.toFixed(1)}</small></td>${pick.map(m => { const h = vals.filter(v => v >= m).length; return `<td class="${h / vals.length >= 0.7 ? 'hot' : h / vals.length <= 0.3 ? 'cold' : ''}"><button class="pp-cell" data-propd="${r.id}|${k}|${m}" title="See ${m}+ ${short} up close">${m}+<small>${h}/${vals.length}</small></button></td>`; }).join('')}<td>${sparks(vals, pick[1] ?? pick[0])}</td></tr>`;
     }).join('');
     rememberPlayer({ id: r.id, displayName: r.name, shortName: r.short }, r.teamId);
     const notes = [`${g.away.id === r.teamId ? '@' : 'vs'} ${opp.abbr} ${when === 'tonight' ? 'tonight' : when}`, dr ? `${opp.abbr} allow ${dr.opp.toFixed(1)} a game (${ord(dr.rank)} of ${dr.of} on D)` : '', mates.length ? `${mates.slice(0, 2).map(m => m.name).join(' and ')} out` : ''].filter(Boolean);
-    return { text: `${esc(r.name)}: how often he's cleared each mark in his last ${log.length} games.${hurt ? ' <b>He is listed as out.</b>' : ''}`, html: `<p class="pp-sub">${esc(notes.join(' · '))}</p><div class="pp-tbl-wrap"><table class="pp-tbl"><tbody>${tbl}</tbody></table></div><p class="pp-note">Green: cleared it at least 70% of the time. Tap a mark to track it. Trends, not guarantees, and not betting advice.</p>`, ctx: { pid: r.id } };
+    return { text: `${esc(r.name)}: how often he's cleared each mark in his last ${log.length} games.${hurt ? ' <b>He is listed as out.</b>' : ''}`, html: `<p class="pp-sub">${esc(notes.join(' · '))}</p><div class="pp-tbl-wrap"><table class="pp-tbl"><tbody>${tbl}</tbody></table></div><p class="pp-note">Green: cleared it at least 70% of the time. Tap a mark for the full breakdown. Trends, not guarantees, and not betting advice.</p>`, ctx: { pid: r.id } };
   }
   top.forEach(x => rememberPlayer({ id: x.r.id, displayName: x.r.name, shortName: x.r.short }, x.r.teamId));
   const row = x => {
@@ -1177,8 +1180,8 @@ async function aProps(opts = {}) {
     const notes = [`${x.hits} of last ${x.n}`, `L${x.n} avg ${x.avg.toFixed(1)}`, `${x.g.away.id === x.r.teamId ? '@' : 'vs'} ${x.opp.abbr}${x.dr && ['pts', 'pra', 'tpm'].includes(x.k) ? ` (${ord(x.dr.rank)} of ${x.dr.of} on D)` : ''}`];
     if (x.mates.length && ['pts', 'pra', 'ast'].includes(x.k)) notes.push(`${x.mates.slice(0, 2).map(m => m.last || m.name).join(' & ')} out`);
     return `<div class="pp-row">
-      <button class="pp-who" data-player="${x.r.id}">${face(x.r.id, x.r.name, 'ask-face', 120)}<span class="nm"><b>${esc(x.r.name)} <em>${x.m}+ ${short}</em></b><small>${esc(notes.join(' · '))}</small></span></button>
-      ${sparks(x.vals, x.m)}
+      <button class="pp-who" data-propd="${x.r.id}|${x.k}|${x.m}" title="See this prop up close">${face(x.r.id, x.r.name, 'ask-face', 120)}<span class="nm"><b>${esc(x.r.name)} <em>${x.m}+ ${short}</em></b><small>${esc(notes.join(' · '))}</small></span></button>
+      <button class="pp-sp" data-propd="${x.r.id}|${x.k}|${x.m}" tabindex="-1" aria-hidden="true">${sparks(x.vals, x.m)}</button>
       <button class="pp-add" data-askq="${esc(`Track: ${x.r.name} over ${x.m - 0.5} ${word}`)}" title="Track this as a bet" aria-label="Track ${esc(x.r.name)} ${x.m}+ ${short}">+</button>
     </div>`;
   };
@@ -1189,7 +1192,86 @@ async function aProps(opts = {}) {
   const early = Math.min(...games.map(g => { const H = std.get(g.home.id); return H ? (+H.w || 0) + (+H.l || 0) : 0; })) < 10;
   const html = `${top.length ? `<div class="pp-h">Player trends ${when}</div><div class="pp-list">${top.map(row).join('')}</div>` : ''}
     ${leans.length ? `<div class="pp-h">Game lines</div><div class="pp-games">${leans.map(leanRow).join('')}</div>` : ''}
-    <p class="pp-note">Built from each player's last 10 games, how many points the opponent allows, who's ruled out, and each team's scoring this season${early ? ' (still a small sample this early)' : ''}. Trends, not guarantees, and not betting advice. Tap + to track one.</p>`;
+    <p class="pp-note">Built from each player's last 10 games, how many points the opponent allows, who's ruled out, and each team's scoring this season${early ? ' (still a small sample this early)' : ''}. Trends, not guarantees, and not betting advice. Tap a player for the full breakdown, or + to track it.</p>`;
   const lead = opts.pid ? `${top[0]?.r.name || 'He'}'s marks he's been clearing ${when}:` : top.length ? `Here's who's been clearing their numbers, for ${games.length === 1 ? `${games[0].away.abbr} @ ${games[0].home.abbr}` : `${when}'s ${games.length} games`}:` : 'Nobody on this slate has been clearing a mark often enough to stand out yet.';
   return { text: lead, html, ctx: opts.pid ? { pid: opts.pid } : {} };
+}
+
+/* ---------------- one prop up close ---------------- */
+ASK.pctx = ASK.pctx || {};
+const hitLine = (vals, m) => vals.length ? `${vals.filter(v => v >= m).length}/${vals.length}` : '–';
+const hitPct = (vals, m) => vals.length ? Math.round(vals.filter(v => v >= m).length / vals.length * 100) : null;
+function propChart(log, k, m) {
+  const L = log.slice(0, 15).reverse(), n = L.length;
+  if (!n) return '';
+  const vals = L.map(g => propVal(g, k)), top = Math.max(m * 1.5, ...vals) * 1.08;
+  const W = 640, H = 200, padB = 34, padT = 18, bw = Math.min(34, (W - 10) / n - 6), gap = (W - n * bw) / (n + 1);
+  const y = v => padT + (H - padT - padB) * (1 - v / top), lineY = y(m - 0.5);
+  return `<svg class="pd-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Last ${n} games against the ${m}+ mark">
+    ${L.map((g, i) => { const v = vals[i], x = gap + i * (bw + gap), hit = v >= m; return `<g><rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2, H - padB - y(v)).toFixed(1)}" rx="4" class="${hit ? 'y' : 'n'}"/>
+      <text x="${(x + bw / 2).toFixed(1)}" y="${(y(v) - 5).toFixed(1)}" class="v">${v}</text>
+      <text x="${(x + bw / 2).toFixed(1)}" y="${H - 18}" class="o">${esc(g.opp)}</text>
+      <text x="${(x + bw / 2).toFixed(1)}" y="${H - 5}" class="d">${esc(g.date ? fmtET(g.date, { month: 'numeric', day: 'numeric' }) : '')}</text></g>`; }).join('')}
+    <line x1="0" x2="${W}" y1="${lineY.toFixed(1)}" y2="${lineY.toFixed(1)}" class="ln"/><text x="${W - 4}" y="${(lineY - 5).toFixed(1)}" class="lt">${m}+</text>
+  </svg>`;
+}
+async function openPropDetail(pid, k, m0) {
+  const c = ASK.pctx[pid];
+  const sheet = openSheet('Prop detail');
+  sheet.el.classList.add('pd-sheet');
+  let log = c?.log, r = c?.r;
+  try {
+    if (!log) log = (await gameLog(pid)).filter(g => g.min > 0);
+    if (!r) r = (await leagueTable()).find(x => String(x.id) === String(pid));
+  } catch (e) { sheet.body.innerHTML = `<div class="empty"><b>Couldn't load his games</b>Try again in a moment.</div>`; return; }
+  if (!r || !log?.length) { sheet.body.innerHTML = `<div class="empty"><b>No games yet</b></div>`; return; }
+  const ctx = c || {};
+  let { g, opp, dr, mates } = ctx;
+  if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
+  const [, short, word] = PROP_STATS.find(s => s[0] === k);
+  let m = m0;
+  const draw = () => {
+    const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);
+    const home = log.filter(x => x.atVs !== '@').map(x => propVal(x, k)), away = log.filter(x => x.atVs === '@').map(x => propVal(x, k));
+    const vsOpp = opp ? log.filter(x => String(x.oppId) === String(opp.id) || x.opp === opp.abbr).map(x => propVal(x, k)) : [];
+    const avg = a => a.length ? (a.reduce((s, v) => s + v, 0) / a.length).toFixed(1) : '–';
+    const med = a => { if (!a.length) return '–'; const s = [...a].sort((x, y) => x - y), h = s.length >> 1; return (s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2).toFixed(1); };
+    const mins = log.slice(0, 5).map(x => x.min), minAvg = log.length ? log.reduce((s, x) => s + x.min, 0) / log.length : 0, min5 = mins.reduce((s, v) => s + v, 0) / (mins.length || 1);
+    const per36 = L10.length ? (L10.reduce((s, v) => s + v, 0) / log.slice(0, 10).reduce((s, x) => s + x.min, 0) * 36).toFixed(1) : '–';
+    const tile = (lab, vals, sub) => { const p = hitPct(vals, m); return `<div class="pd-tile${p == null ? ' na' : p >= 70 ? ' hot' : p <= 30 ? ' cold' : ''}"><span>${lab}</span><b>${p == null ? '–' : p + '%'}</b><small>${vals.length ? hitLine(vals, m) : 'no games'}${sub ? ' · ' + sub : ''}</small></div>`; };
+    const at = g ? (g.away.id === r.teamId ? '@' : 'vs') : '';
+    const notes = [];
+    if (dr) notes.push(`${opp.abbr} allow ${dr.opp.toFixed(1)} points a game, ${ord(dr.rank)} of ${dr.of} on defense.`);
+    if (mates?.length) notes.push(`${mates.map(x => x.name).join(', ')} ${mates.length > 1 ? 'are' : 'is'} out, which usually means more shots and touches.`);
+    if (min5 - minAvg >= 2) notes.push(`Minutes are up lately: ${min5.toFixed(1)} over his last 5 vs ${minAvg.toFixed(1)} for the season.`);
+    else if (minAvg - min5 >= 2) notes.push(`Minutes are down lately: ${min5.toFixed(1)} over his last 5 vs ${minAvg.toFixed(1)} for the season.`);
+    if (g?.odds?.ou != null) notes.push(`Game total ${g.odds.ou}${g.odds.details ? `, ${g.odds.details}` : ''}.`);
+    const close = (+avg(L10) - (m - 0.5));
+    notes.push(close >= 0 ? `He's averaging ${avg(L10)} over his last ${L10.length}, ${close.toFixed(1)} above the line.` : `He's averaging ${avg(L10)} over his last ${L10.length}, ${(-close).toFixed(1)} below the line.`);
+    sheet.body.innerHTML = `<div class="pd">
+      <div class="pd-head" style="--tc:${teamColor(r.teamId || r.abbr)}">
+        ${face(r.id, r.name, 'pd-face', 260)}
+        <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtET(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
+          <h3>${esc(r.name)}</h3>
+          <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
+          <small>Over ${m - 0.5} ${word}</small>
+        </div>
+      </div>
+      <div class="pd-tiles">${tile('Last 5', L5)}${tile('Last 10', L10)}${tile('Season', all, `avg ${avg(all)}`)}${tile('Home', home)}${tile('Away', away)}${opp ? tile(`vs ${opp.abbr}`, vsOpp) : ''}</div>
+      <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><span class="eyebrow">Last ${Math.min(15, log.length)} · line at ${m - 0.5}</span></div>${propChart(log, k, m)}</div>
+      <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
+      <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
+      <div class="btn-row"><button class="btn" data-pdtrack>Track over ${m - 0.5} ${short}</button><button class="btn ghost" data-player="${r.id}">Open ${esc(r.last || r.name)}'s profile</button>${g ? `<button class="btn ghost" data-game="${g.id}">Open the game</button>` : ''}</div>
+      <p class="pp-note">Trends from his games this season, not a guarantee and not betting advice. Your book's line may differ.</p>
+    </div>`;
+  };
+  draw();
+  sheet.body.addEventListener('click', e => {
+    const st = e.target.closest('[data-pdstep]');
+    if (st) {
+      m = Math.max(1, m + +st.dataset.pdstep);
+      draw(); return;
+    }
+    if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }
+  });
 }
