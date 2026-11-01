@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-01b', date: 'Nov 1', items: [
+    ['New prop charts', 'The prop breakdown has a new game-by-game chart: green and red bars against your line, a dotted bar for games he sat, and L5 / L10 / L15 / Season / vs-opponent hit rates you can tap to change the range. Filter by home/away or opponent.'],
+    ['Rebound and assist detail', 'Rebound bars now split offensive and defensive boards, with his share of available rebounds, and assist props show assist points, 3-point assists and at-rim assists, from PBPStats play-by-play.'],
+  ] },
   { id: '2026-11-01a', date: 'Nov 1', items: [
     ['Share your bets', 'A share button on every bet card and on the parlay slip makes a clean image of the bet. On a phone it opens the share sheet; on a computer it copies the image so you can paste it straight into a chat.'],
     ['Live props', 'Once a game tips, every prop in the Bet desk shows his number so far and where he\'s pacing, green when it\'s on track and a check once it hits.'],

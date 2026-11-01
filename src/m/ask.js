@@ -1223,6 +1223,78 @@ function propChart(log, k, m) {
     <line x1="0" x2="${W}" y1="${lineY.toFixed(1)}" y2="${lineY.toFixed(1)}" class="ln"/><text x="${W - 4}" y="${(lineY - 5).toFixed(1)}" class="lt">${m}+</text>
   </svg>`;
 }
+/* PBPStats (free, public): offensive/defensive rebound split, rebounds available while he's on the floor,
+   and assist detail, matched to ESPN's games by date. NBA only. */
+const PBP = 'https://api.pbpstats.com';
+const etYmd = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+let pbpIdx = null;
+async function pbpPlayerId(name) {
+  if (!pbpIdx) pbpIdx = (async () => {
+    let m = null; try { const c = JSON.parse(lsGet('fc-pbp-players') || 'null'); if (c && Date.now() - c.t < 7 * 864e5) m = c.p; } catch (e) {}
+    if (!m) { m = (await getJSON(`${PBP}/get-all-players-for-league/nba`, { retries: 0, timeout: 12000 })).players; try { lsSet('fc-pbp-players', JSON.stringify({ t: Date.now(), p: m })); } catch (e) {} }
+    const idx = new Map(); for (const [id, n] of Object.entries(m || {})) if (n) { const k = nameKey(n); if (!idx.has(k) || +id > +idx.get(k)) idx.set(k, id); }
+    return idx;
+  })().catch(e => { pbpIdx = null; throw e; });
+  const idx = await pbpIdx, k = nameKey(name);
+  return idx.get(k) || idx.get(k.replace(/ (jr|sr|ii|iii|iv)$/, '')) || [...idx].find(([n]) => n.replace(/ (jr|sr|ii|iii|iv)$/, '') === k.replace(/ (jr|sr|ii|iii|iv)$/, ''))?.[1] || null;
+}
+const pbpCache = new Map();
+function pbpLog(name) {
+  if (IS_W) return Promise.resolve(null);
+  if (pbpCache.has(name)) return pbpCache.get(name);
+  const p = (async () => {
+    const id = await pbpPlayerId(name); if (!id) return null;
+    const now = new Date(), y = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+    const j = await getJSON(`${PBP}/get-game-logs/nba?Season=${y}-${String(y + 1).slice(2)}&SeasonType=Regular%20Season&EntityId=${id}&EntityType=Player`, { retries: 0, timeout: 15000 });
+    const out = new Map();
+    for (const g of j.multi_row_table_data || []) {
+      const offFG = (g.OffTwoPtRebounds || 0) + (g.OffThreePtRebounds || 0), defFG = (g.DefTwoPtRebounds || 0) + (g.DefThreePtRebounds || 0);
+      const oAv = g.OffFGReboundPct ? offFG / g.OffFGReboundPct : null, dAv = g.DefFGReboundPct ? defFG / g.DefFGReboundPct : null;
+      out.set(g.Date, { oreb: g.OffRebounds || 0, dreb: g.DefRebounds || 0, avail: oAv != null || dAv != null ? Math.round((oAv || 0) + (dAv || 0)) : null, fgReb: offFG + defFG,
+        astPts: g.AssistPoints || 0, ast3: g.ThreePtAssists || 0, ast2: g.TwoPtAssists || 0, rim: g.AtRimAssists || 0 });
+    }
+    return out;
+  })().catch(() => null);
+  pbpCache.set(name, p);
+  return p;
+}
+// games his team played that he sat out (completed games missing from his log)
+async function dnpGames(teamId, log) {
+  try {
+    const d = await scheduleOf(teamId), have = new Set(log.map(g => String(g.id)));
+    return (d.events || []).filter(e => e.competitions?.[0]?.status?.type?.completed && !have.has(String(e.id)) && !/pre/i.test(e.seasonType?.name || '')).map(e => {
+      const c = e.competitions[0], me = c.competitors.find(x => x.team?.id === teamId), op = c.competitors.find(x => x.team?.id !== teamId);
+      return { id: e.id, date: e.date, opp: op?.team?.abbreviation || '', oppId: op?.team?.id, atVs: me?.homeAway === 'away' ? '@' : 'vs', dnp: true };
+    }).filter(g => !log.length || new Date(g.date) >= new Date(log.at(-1).date));
+  } catch (e) { return []; }
+}
+// PropDesk-style chart: oldest to newest, bar height = the stat, green when it cleared the mark, red when not,
+// rebounds split offensive (bottom) / defensive (top), dotted DNP bars, dashed line at the line
+function barChart(games, k, m, pbp) {
+  const n = games.length; if (!n) return '<p class="pp-note">No games match these filters.</p>';
+  const vals = games.map(g => g.dnp ? null : propVal(g, k)), top = Math.max(m * 1.35, ...vals.filter(v => v != null), 1) * 1.12;
+  const pct = v => (v / top * 100).toFixed(2), split = k === 'reb' && pbp;
+  return `<div class="pc${n > 12 ? ' tight' : ''}"><div class="pc-plot">
+    <div class="pc-line" style="bottom:${pct(m - 0.5)}%"><span>${m - 0.5}</span></div>
+    ${games.map((g, i) => {
+      if (g.dnp) return `<div class="pc-col"><div class="pc-bar dnp" style="height:${pct(Math.max(m, top * 0.55))}%"><span>DNP</span></div></div>`;
+      const v = vals[i], hit = v >= m, P = split ? pbp.get(etYmd(g.date)) : null;
+      let segs = '';
+      if (P && P.oreb + P.dreb === v && v > 0) {
+        const seg = (c, x, lab) => x ? `<i class="pcs ${c}" style="flex:${x}"><b>${x}</b>${x / top > 0.09 ? `<small>${lab}</small>` : ''}</i>` : '';
+        segs = seg('d', P.dreb, 'DREB') + seg('o', P.oreb, 'OREB');
+      }
+      const share = split && P?.avail ? Math.round(P.fgReb / P.avail * 100) : null;
+      return `<div class="pc-col" title="${esc(fmtET(g.date, { month: 'short', day: 'numeric' }))} ${g.atVs === '@' ? '@' : 'vs'} ${esc(g.opp)}: ${v}${P?.avail ? ` · ${P.fgReb} of ${P.avail} available rebounds (${share}%)` : ''}">
+        <em class="pc-v ${hit ? 'y' : 'n'}" style="bottom:${pct(v)}%">${v}</em>
+        <div class="pc-bar ${hit ? 'y' : 'n'}${segs ? ' st' : ''}" style="height:${v ? pct(v) : 1.2}%">${segs}</div>
+        ${share != null ? `<small class="pc-sh">${share}%</small>` : ''}
+      </div>`;
+    }).join('')}
+  </div>
+  <div class="pc-x">${games.map(g => `<span><b>${g.atVs === '@' ? '@' : ''}${esc(g.opp)}</b><small>${esc(fmtET(g.date, { month: 'numeric', day: 'numeric' }))}</small></span>`).join('')}</div></div>`;
+}
+
 async function openPropDetail(pid, k, m0, extra) {
   if (extra) ASK.pctx[pid] = { ...(ASK.pctx[pid] || {}), ...extra };
   const c = ASK.pctx[pid];
@@ -1238,7 +1310,9 @@ async function openPropDetail(pid, k, m0, extra) {
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
-  let m = m0, cmp = null;
+  let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null;
+  if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
+  if (['reb', 'ast', 'pr', 'ra', 'pa', 'pra'].includes(k)) pbpLog(r.name).then(d => { pbp = d; if (d) draw(); });
   const alts = (ctx.alts || []).filter(a => Number.isFinite(a.o)), peers = (ctx.peers || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
   const altCard = all => {
@@ -1291,8 +1365,33 @@ async function openPropDetail(pid, k, m0, extra) {
           <small>Over ${m - 0.5} ${word}</small>
         </div>
       </div>
-      <div class="pd-tiles">${tile('Last 5', L5)}${tile('Last 10', L10)}${tile('Season', all, `avg ${avg(all)}`)}${tile('Home', home)}${tile('Away', away)}${opp ? tile(`vs ${opp.abbr}`, vsOpp) : ''}</div>
-      <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><span class="eyebrow">Last ${Math.min(15, log.length)} · line at ${m - 0.5}</span></div>${propChart(log, k, m)}</div>
+      ${(() => {
+        // filters first, then the range strip and the chart both read from the filtered games
+        const pool = [...log, ...dnps].sort((a, b) => new Date(b.date) - new Date(a.date)).filter(g => (ha === 'all' || (ha === 'home' ? g.atVs !== '@' : g.atVs === '@')) && (oppF === 'all' || g.opp === oppF));
+        const played = pool.filter(g => !g.dnp), vv = a => a.map(g => propVal(g, k));
+        const H2H = opp ? played.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : [];
+        const R = { L5: played.slice(0, 5), L10: played.slice(0, 10), L15: played.slice(0, 15), Season: played, ...(opp ? { H2H } : {}) };
+        if (!R[rng]) rng = 'L10';
+        const cell = (key, games) => { const v = vv(games), p = hitPct(v, m); return `<button class="pr-c${key === rng ? ' on' : ''}" data-pdrng="${key}"><span>${key === 'H2H' ? `vs ${esc(opp.abbr)}` : key === 'Season' ? 'Season' : key}</span><b class="${p == null ? '' : p >= 70 ? 'hot' : p >= 50 ? 'warm' : 'cold'}">${p == null ? '–' : `HR ${p}%`}</b><small>${v.length ? `Avg ${avg(v)}${key === 'H2H' ? ` · ${v.length}G` : ''}` : 'no games'}</small></button>`; };
+        const shown = rng === 'Season' ? pool : rng === 'H2H' ? pool.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : (() => { const lim = R[rng].length, last = R[rng].at(-1); return last ? pool.filter(g => new Date(g.date) >= new Date(last.date)) : []; })();
+        const opps = [...new Set(log.map(g => g.opp))].sort();
+        // PBPStats extras for the shown games
+        let extra = '';
+        if (pbp) {
+          const P = played.filter(g => shown.includes(g)).map(g => pbp.get(etYmd(g.date))).filter(Boolean);
+          const sum = f => P.reduce((a, x) => a + (x[f] || 0), 0), av = f => P.length ? (sum(f) / P.length).toFixed(1) : '–';
+          if (P.length && ['reb', 'pr', 'ra', 'pra'].includes(k)) { const A = P.filter(x => x.avail); const sh = A.length ? Math.round(A.reduce((a, x) => a + x.fgReb, 0) / A.reduce((a, x) => a + x.avail, 0) * 100) : null; extra += `<div><span>OREB / DREB</span><b>${av('oreb')} / ${av('dreb')}</b></div><div><span>Available boards</span><b>${A.length ? (A.reduce((a, x) => a + x.avail, 0) / A.length).toFixed(1) : '–'}</b></div><div><span>Reb share</span><b>${sh != null ? sh + '%' : '–'}</b></div>`; }
+          if (P.length && ['ast', 'pa', 'ra', 'pra'].includes(k)) extra += `<div><span>Assist points</span><b>${av('astPts')}</b></div><div><span>3PT assists</span><b>${av('ast3')}</b></div><div><span>At-rim assists</span><b>${av('rim')}</b></div>`;
+        }
+        return `<div class="pd-rng">${Object.entries(R).map(([key, g]) => cell(key, g)).join('')}</div>
+      <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><div class="pd-flt">
+          <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
+          <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+        </div></div>
+        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null)}
+        ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.</p>` : ''}
+      </div>`;
+      })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
       ${altCard(all)}${cmpCard()}
@@ -1307,9 +1406,14 @@ async function openPropDetail(pid, k, m0, extra) {
       m = Math.max(1, m + +st.dataset.pdstep);
       draw(); return;
     }
+    const rg = e.target.closest('[data-pdrng]'); if (rg) { rng = rg.dataset.pdrng; draw(); return; }
     const am = e.target.closest('[data-pdmark]');
     if (am) { m = +am.dataset.pdmark; draw(); return; }
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }
+  });
+  sheet.body.addEventListener('change', e => {
+    const h = e.target.closest('[data-pdha]'), o = e.target.closest('[data-pdopp]');
+    if (h || o) { if (h) ha = h.value; if (o) oppF = o.value; const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; return; }
   });
   sheet.body.addEventListener('change', e => { const c2 = e.target.closest('[data-pdcmp]'); if (c2) { cmp = c2.value || null; const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; } });
 }
