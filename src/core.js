@@ -1971,7 +1971,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31h'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-01a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3003,6 +3003,7 @@ document.addEventListener('click', e => {
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
   if (el.closest('[data-adv]')) { toggleAdv(); return; }
+  const bsh = el.closest('[data-betshare]'); if (bsh) { lazy('bets').then(m => m.shareBet(bsh.dataset.betshare)); return; }
   const bm = el.closest('[data-betmin]'); if (bm) { toggleBetMin(bm.dataset.betmin); return; }
   const bd = el.closest('[data-betdel]'); if (bd) { const c = bd.closest('.bt-card'); if (c && c.closest('.bt-ask')) c.remove(); removeBet(bd.dataset.betdel); return; }
   if (el.closest('[data-news]')) { openNews(); return; }

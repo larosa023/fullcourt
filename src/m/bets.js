@@ -163,6 +163,7 @@ function betCard(b, res) {
   return `<div class="bt-card ${st}${mini ? ' mini' : ''}" data-bid="${esc(b.id)}">
     <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small>${done}/${b.legs.length} hit</small>` : ''}</span>
       <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
+      <button class="bt-sh" data-betshare="${esc(b.id)}" title="Share as an image" aria-label="Share this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
       <button class="bt-x" data-betdel="${esc(b.id)}" title="Remove this bet" aria-label="Remove this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
     ${st === 'live' && b.legs.length > 1 ? needLine(b, res) : ''}
@@ -277,6 +278,78 @@ async function historyHTML() {
     ${best || close ? `<div class="rc-pair">${best ? `<div class="card rc-card"><div class="card-h"><h4>Best win</h4></div>${betCard(best, hist(best))}</div>` : ''}${close ? `<div class="card rc-card"><div class="card-h"><h4>Closest call</h4></div>${betCard(close, hist(close))}</div>` : ''}</div>` : ''}
     ${open.length ? `<div class="card rc-card"><div class="card-h"><h4>Open</h4></div><div class="bt-ask">${open.slice(-6).reverse().map(b => betCard(b, S.betRes?.[b.id] || b.legs.map(() => ({ st: 'pending', text: '' })))).join('')}</div></div>` : ''}
     <p class="bd-note">Saved in this browser. Profit counts bets with a stake; pushes return the stake. Leg hit rates start with bets settled from now on.</p>`;
+}
+
+/* ---------------- share a bet as an image ---------------- */
+// card = { title, sub, status, legs: [{ name, what, st, val }], foot: [[label, value, green?]] }
+async function shareCard(card, file = 'fullcourt-bet.png') {
+  try { await document.fonts.ready; } catch (e) {}
+  const W = 1080, pad = 64, rowH = 118, legs = card.legs.slice(0, 12);
+  const H = pad + 186 + legs.length * rowH + 40 + (card.foot?.length ? 150 : 0) + 64;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const disp = "Archivo, 'Arial Narrow', Arial, sans-serif", body = "'Instrument Sans', system-ui, sans-serif", mono = "'IBM Plex Mono', Menlo, monospace";
+  const C = { bg: '#0d0f13', card: '#161a21', line: '#262c36', ink: '#f2f4f7', mute: '#8b93a1', win: '#2fd47a', loss: '#ff5a5f', acc: '#ff7a2f' };
+  const font = (w, sz, f, cond) => { x.font = `${w} ${sz}px ${f}`; try { x.fontStretch = cond ? 'condensed' : 'normal'; } catch (e) {} };
+  const fit = (t, max) => { if (x.measureText(t).width <= max) return t; while (t.length > 1 && x.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+  const rr = (X, Y, w, h, r) => { x.beginPath(); x.roundRect ? x.roundRect(X, Y, w, h, r) : x.rect(X, Y, w, h); };
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  // header
+  font(800, 30, disp, true); x.fillStyle = C.acc; x.textBaseline = 'alphabetic'; x.fillText('FULLCOURT', pad, pad + 26);
+  const stCol = { won: C.win, lost: C.loss, live: C.acc }[String(card.status).toLowerCase()] || C.mute;
+  if (card.status) { font(700, 24, mono); const t = card.status.toUpperCase(), tw = x.measureText(t).width + 36; rr(W - pad - tw, pad, tw, 44, 22); x.fillStyle = stCol + '26'; x.fill(); x.fillStyle = stCol; x.fillText(t, W - pad - tw + 18, pad + 31); }
+  font(800, 72, disp, true); x.fillStyle = C.ink; x.fillText(fit(card.title.toUpperCase(), W - pad * 2), pad, pad + 112);
+  if (card.sub) { font(500, 28, body); x.fillStyle = C.mute; x.fillText(fit(card.sub, W - pad * 2), pad, pad + 150); }
+  // legs
+  let y = pad + 186;
+  rr(pad - 20, y - 14, W - pad * 2 + 40, legs.length * rowH + 14, 28); x.fillStyle = C.card; x.fill();
+  legs.forEach((l, i) => {
+    const cy = y + i * rowH + rowH / 2 - 8, col = { won: C.win, lost: C.loss, push: C.mute, void: C.mute }[l.st];
+    x.beginPath(); x.arc(pad + 22, cy, 20, 0, Math.PI * 2); x.fillStyle = col ? col + '30' : C.line; x.fill();
+    x.strokeStyle = col || C.mute; x.lineWidth = 5; x.lineCap = 'round'; x.beginPath();
+    if (l.st === 'won') { x.moveTo(pad + 12, cy); x.lineTo(pad + 19, cy + 8); x.lineTo(pad + 33, cy - 8); }
+    else if (l.st === 'lost') { x.moveTo(pad + 14, cy - 8); x.lineTo(pad + 30, cy + 8); x.moveTo(pad + 30, cy - 8); x.lineTo(pad + 14, cy + 8); }
+    else if (l.st === 'push' || l.st === 'void') { x.moveTo(pad + 13, cy); x.lineTo(pad + 31, cy); }
+    else { x.arc(pad + 22, cy, 6, 0, Math.PI * 2); x.fillStyle = l.st === 'live' ? C.acc : C.mute; x.fill(); }
+    x.stroke();
+    const vw = l.val ? (font(800, 44, disp, true), x.measureText(l.val).width) : 0;
+    font(700, 36, body); x.fillStyle = C.ink; x.fillText(fit(l.name, W - pad * 2 - 90 - vw - 30), pad + 66, cy - 4);
+    font(500, 26, body); x.fillStyle = C.mute; x.fillText(fit(l.what, W - pad * 2 - 90 - vw - 30), pad + 66, cy + 34);
+    if (l.val) { font(800, 44, disp, true); x.fillStyle = col || C.ink; x.textAlign = 'right'; x.fillText(l.val, W - pad, cy + 14); x.textAlign = 'left'; }
+    if (i < legs.length - 1) { x.fillStyle = C.line; x.fillRect(pad + 66, y + (i + 1) * rowH - 8, W - pad * 2 - 66, 2); }
+  });
+  y += legs.length * rowH + 40;
+  // footer numbers
+  if (card.foot?.length) {
+    const n = card.foot.length, gap = 16, w = (W - pad * 2 - gap * (n - 1)) / n;
+    card.foot.forEach(([lab, v, g], i) => {
+      const X = pad + i * (w + gap); rr(X, y, w, 130, 22); x.fillStyle = C.card; x.fill();
+      font(500, 20, mono); x.fillStyle = C.mute; x.fillText(lab.toUpperCase(), X + 22, y + 42);
+      font(800, 52, disp, true); x.fillStyle = g ? C.win : C.ink; x.fillText(fit(v, w - 40), X + 22, y + 104);
+    });
+    y += 150;
+  }
+  font(500, 22, mono); x.fillStyle = C.mute; x.fillText('nbafullcourty.netlify.app', pad, H - 44);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  if (!blob) { toast("Couldn't make the image"); return; }
+  const f = new File([blob], file, { type: 'image/png' });
+  // phone: share sheet. desktop: copy the image (paste it into a chat), and save a copy if copying isn't allowed
+  if (navigator.canShare?.({ files: [f] }) && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ files: [f], title: card.title }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
+  try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Image copied: paste it anywhere'); return; } catch (e) {}
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Image saved');
+}
+async function shareBet(id) {
+  const b = readBets().find(x => x.id === id); if (!b) return;
+  const res = S.betRes?.[b.id] || (b.legRes ? hist(b) : await gradeBet(b));
+  const st = b.result || betStatus(res), win = payout(b, res);
+  const title = b.dfs ? `${b.legs.length}-pick entry` : b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
+  const legs = b.legs.map((l, i) => { const r = res[i] || {}; return { name: l.k === 'prop' || l.k === 'dd' || l.k === 'td' ? l.name : legName(l), what: l.k === 'prop' ? `${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${l.stats.map(k => BSTAT[k]).join('+')}` + (l.game ? ` · ${l.game}` : '') : l.k === 'dd' || l.k === 'td' ? legName(l).split(' ').slice(1).join(' ') + (l.game ? ` · ${l.game}` : '') : (r.text || ''), st: r.st, val: r.now != null && (l.k === 'prop' || l.k === 'total' || l.k === 'ttotal') ? `${r.now}/${l.line}` : '' }; });
+  const foot = [];
+  if (b.stake != null) foot.push(['Stake', money(b.stake)]);
+  if (b.odds) foot.push(['Odds', b.odds > 0 ? '+' + b.odds : String(b.odds)]);
+  if (win != null) foot.push([st === 'won' ? 'Won' : 'To win', money(win), st === 'won']);
+  await shareCard({ title, sub: new Date(b.at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), status: { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st], legs, foot });
 }
 
 // for Ask: "my bets"

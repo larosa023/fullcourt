@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-01a', date: 'Nov 1', items: [
+    ['Share your bets', 'A share button on every bet card and on the parlay slip makes a clean image of the bet. On a phone it opens the share sheet; on a computer it copies the image so you can paste it straight into a chat.'],
+    ['Live props', 'Once a game tips, every prop in the Bet desk shows his number so far and where he\'s pacing, green when it\'s on track and a check once it hits.'],
+    ['Under the radar', 'A new Bet desk filter that shows only role players (under 15 a game) whose minutes have climbed lately, where lines tend to lag.'],
+  ] },
   { id: '2026-10-31h', date: 'Oct 31', items: [
     ['Bet desk upgrades', 'Star a prop to pin it to the top and get an alert if its line moves a point or the book posts it. New DvP column (how players at his position do against tonight\'s defense), minutes-up/down and teammate-out flags, and your market and sort are remembered.'],
     ['Alt lines and compare', 'The prop breakdown now shows the DraftKings alt-line ladder with each rung\'s implied odds against his real hit rate, and a Compare picker to put two players\' last 10 games side by side.'],

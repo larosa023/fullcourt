@@ -22,8 +22,8 @@ const MARKETS = [
 const EST = new Set(['fga', 'tpa', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
 const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map() };
 // your last market, side and sort come back next time
-try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir }); } catch (e) {}
-const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir }));
+try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar }); } catch (e) {}
+const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir, radar: BD.radar }));
 const readStars = () => { try { return JSON.parse(lsGet('fc-bd-stars') || '{}') || {}; } catch (e) { return {}; } };
 const writeStars = o => lsSet('fc-bd-stars', Object.keys(o).length ? JSON.stringify(o) : null);
 const MILES = { 'Points Milestones': 'pts', 'Rebounds Milestones': 'reb', 'Assists Milestones': 'ast', '3-Point Field Goals Milestones': 'tpm', 'Points + Assists + Rebounds Milestones': 'pra', 'Points + Rebounds Milestones': 'pr', 'Points + Assists Milestones': 'pa', 'Rebounds + Assists Milestones': 'ra' };
@@ -121,6 +121,42 @@ function flagsOf(x) {
   if (out.length) f.push(['out', `${out[0].last} out${out.length > 1 ? ` +${out.length - 1}` : ''}`]);
   return f;
 }
+// under the radar: role players (under 15 a game) whose minutes are climbing
+function radarOf(x) {
+  const L = x.log || []; if (L.length < 4 || !(x.p.pts < 15)) return null;
+  const m3 = (L[0].min + L[1].min + L[2].min) / 3, ms = L.reduce((a, g) => a + g.min, 0) / L.length;
+  return m3 - ms >= 2 ? m3 - ms : null;
+}
+// live props: his stat right now and where he's pacing, from the game's box score
+BD.live = new Map(); BD.liveFin = new Set();
+const liveVal = (b, k) => ({ pts: b.pts, reb: b.reb, ast: b.ast, tpm: b.tpm, tpa: b.tpa, fga: b.fga, pra: b.pts + b.reb + b.ast, pr: b.pts + b.reb, pa: b.pts + b.ast, ra: b.reb + b.ast })[k];
+async function refreshLive() {
+  const ids = [...new Set((BD.all || []).filter(x => Date.parse(x.g.date) <= Date.now() + 60e3 && !BD.liveFin.has(x.g.id)).map(x => x.g.id))];
+  if (!ids.length) return false;
+  const m = await lazy('bets');
+  let changed = false;
+  await Promise.all(ids.map(async id => {
+    try {
+      const d = await summaryCached(id, 20000), g = m.gameState(d); if (!g || g.state === 'pre') return;
+      BD.live.set(id, { d, g, frac: m.gameFrac(g), box: pid => m.boxStats(d, pid) }); changed = true;
+      if (g.state === 'post') BD.liveFin.add(id);
+    } catch (e) {}
+  }));
+  return changed;
+}
+function liveOf(x) {
+  const L = BD.live.get(x.g.id); if (!L || Q1.has(x.k)) return null;
+  const b = L.box(x.pid); if (!b || b.dnp) return { label: L.g.label, none: true, fin: L.g.state === 'post' };
+  const v = liveVal(b, x.k); if (v == null) return null;
+  const fin = L.g.state === 'post', pace = !fin && L.frac > 0.12 ? Math.round(v / L.frac) : null, over = BD.side !== 'u';
+  const hit = over ? v > x.line : fin && v < x.line, dead = over ? fin && v <= x.line : v >= x.line;
+  const good = hit || (!dead && pace != null && (over ? pace > x.line : pace < x.line));
+  return { v, pace, fin, hit, dead, good, label: L.g.label, min: b.min };
+}
+setInterval(async () => {
+  if (document.hidden || S.view !== 'bets' || BD.tab !== 'props' || !BD.all) return;
+  if (await refreshLive()) bdTable($('#bdMain'), true);
+}, 30e3);
 const pill = (p, n) => p == null ? '<span class="bd-pill na">–</span>' : `<span class="bd-pill ${p >= 0.7 ? 'hot' : p >= 0.55 ? 'warm' : p <= 0.3 ? 'cold' : ''}" title="${Math.round(p * (n || 0))}/${n || 0}">${Math.round(p * 100)}%</span>`;
 
 async function renderBetDesk() {
@@ -220,6 +256,7 @@ async function bdDraw() {
   await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
   if (BD.all === list) BD.allDone = true;
+  refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
   snapProps(slate.date, list); checkStars(list);
   if (Q1.has(BD.mk)) loadQ1(games, n, main);
 }
@@ -259,6 +296,7 @@ function bdTable(main, keepScroll, final) {
   let list = (BD.all || []).filter(x => (ALL ? !Q1.has(x.k) : x.k === BD.mk) && (BD.game === 'all' || x.gid === BD.game) && (!BD.q || nameKey(x.p.name).includes(nameKey(BD.q))));
   list.forEach(x => { x.st = x.log && (!Q1.has(x.k) || BD.q1.size) ? rowStats(x) : null; });
   list = list.filter(x => !x.est || !x.log || x.st || (Q1.has(x.k) && (BD.q1busy || !BD.q1.size))); // estimated rows with no games drop out
+  if (BD.radar) list = list.filter(x => !x.log || radarOf(x) != null);
   const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
   const key = { dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
   list.sort((a, b) => { const sa = starred(a), sb = starred(b); if (sa !== sb) return sa ? -1 : 1; const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
@@ -273,6 +311,7 @@ function bdTable(main, keepScroll, final) {
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
         <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All ${games.length} games</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
+        <button class="chip sm bd-radar" data-bdradar aria-pressed="${!!BD.radar}" title="Only role players (under 15 a game) whose minutes are up 2+ over their last 3 games"><span class="lgx">Under the radar</span><span class="shx">Radar</span></button>
         <input class="bd-q" type="search" placeholder="Find a player" value="${esc(BD.q)}" data-bdq aria-label="Find a player">
       </div>
     </div>
@@ -280,9 +319,12 @@ function bdTable(main, keepScroll, final) {
       <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
         const s = x.st, mv = Number.isFinite(x.open) && x.open !== x.line ? `<em class="${x.line > x.open ? 'up' : 'dn'}" title="Opened ${x.open}">${x.line > x.open ? '▲' : '▼'}</em>` : '';
-        const dr = defRankOf(x.opp.id), dv = s ? dvpOf(x) : null, fl = x.log ? flagsOf(x) : [], st = starred(x);
+        const dr = defRankOf(x.opp.id), dv = s ? dvpOf(x) : null, fl = x.log ? flagsOf(x) : [], st = starred(x), lv = liveOf(x);
+        if (lv && !lv.none) fl.unshift([`live ${lv.hit ? 'hit' : lv.dead ? 'dead' : lv.good ? 'good' : 'bad'}`, lv.hit ? `✓ ${lv.v}${lv.fin ? ' final' : ' · hit'}` : lv.dead ? `✗ ${lv.v}${lv.fin ? ' final' : ''}` : `${lv.v}${lv.pace != null ? ` · pace ${lv.pace}` : ' now'}`]);
+        else if (lv?.none && !lv.fin) fl.unshift(['live', 'Live · not in yet']);
+        const rd = BD.radar && x.log ? radarOf(x) : null; if (rd) { const i = fl.findIndex(f => f[0] === 'up'); if (i >= 0) fl.splice(i, 1); fl.push(['up', `MIN +${rd.toFixed(1)}`]); }
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
-          <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
+          <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
           <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
@@ -298,7 +340,7 @@ function bdTable(main, keepScroll, final) {
           <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
 
         </tr>`;
-      }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>Try another market or game.</div>`}
+      }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Sportsbook props aren't posted yet for ${esc(BD.missing.join(', '))}, so those games show Fullcourt lines marked <em class="est">est</em> (set at each player's recent average) until the book's lines arrive, usually the morning of the game.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
@@ -468,6 +510,7 @@ function bdWire(body) {
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
     const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; saveView(); bdTable($('#bdMain'), true); return; }
     const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } saveView(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-bdradar]')) { BD.radar = !BD.radar; saveView(); bdTable($('#bdMain'), true); return; }
     const sr = e.target.closest('[data-bdstar]');
     if (sr) { const [pid, k] = sr.dataset.bdstar.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const st = readStars(), key = pid + '|' + k;
       if (st[key]) delete st[key]; else if (x) { st[key] = { name: x.p.name, k, gid: x.g.id, line: x.line, odds: +(x.over) || null, est: !!x.est, game: `${x.g.away.abbr} @ ${x.g.home.abbr}` }; }
@@ -537,13 +580,15 @@ function drawSlip() {
         <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
       </div>
       ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
-      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost" data-slipclear>Clear</button></div>
+      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
     </div>`;
 }
 function wireSlip(dock) {
   dock.addEventListener('click', e => {
     if (e.target.closest('[data-slipopen]')) { SLIP.open = !SLIP.open; saveSlip(); drawSlip(); return; }
     const d = e.target.closest('[data-slipdel]'); if (d) { SLIP.legs.splice(+d.dataset.slipdel, 1); saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-slipshare]')) { const m = slipMath(), mk = k => MARKETS.find(q => q[0] === k)[2];
+      lazy('bets').then(b => b.shareCard({ title: SLIP.legs.length > 1 ? `${SLIP.legs.length}-leg parlay` : 'Single', sub: 'Built on Fullcourt', legs: SLIP.legs.map(l => ({ name: l.name, what: `${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${mk(l.k)} · ${l.game}`, val: l.odds > 0 ? '+' + l.odds : String(l.odds) })), foot: [['Stake', usd(m.stake)], ['Odds', m.amer], ['Pays', usd(m.pays), true]] }, 'fullcourt-parlay.png')); return; }
     if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-sliptrack]')) {
       const m = slipMath();
