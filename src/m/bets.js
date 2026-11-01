@@ -227,10 +227,9 @@ async function renderBets(force) {
   const show = list.filter(b => b.days?.includes(day));
   // bets still open on other days keep getting graded in the background so they settle
   const grade = list.filter(b => show.includes(b) || (!b.result && b.days?.some(d => d <= S.today)));
-  if (!show.length) { blk.hidden = true; $('#betRec') && ($('#betRec').textContent = ''); }
+  if (!show.length) blk.hidden = true;
   else blk.hidden = false;
   const draw = res => {
-    $('#betRec').textContent = recordLine(list) ? `Record ${recordLine(list)}` : 'Updates live';
     $('#betStrip').innerHTML = show.map(b => betCard(b, res[b.id] || b.legs.map(() => ({ st: 'pending', text: 'Loading…' })))).join('');
     dragScroll($('#betStrip'));
   };
