@@ -225,3 +225,12 @@
 .rc-t td { padding: 9px 8px; }
 .rc-card .bt-x, .rc-card .bt-min { display: none; }
 .rc-pair .rc-card { margin-bottom: 14px; }
+
+/* screen-share privacy */
+.bd-priv { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.bd-priv[hidden] { display: none; }
+.bd-priv svg { width: 16px; height: 16px; }
+.bd-priv[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); }
+#bdMain.bd-blur { position: relative; }
+#bdMain.bd-blur > * { filter: blur(10px); pointer-events: none; user-select: none; -webkit-user-select: none; transition: filter .2s; }
+#bdMain.bd-blur::after { content: 'Hidden for screen sharing'; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); pointer-events: none; }

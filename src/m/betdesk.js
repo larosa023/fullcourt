@@ -135,8 +135,16 @@ async function renderBetDesk() {
 function bdShell() {
   return `<div class="bd-top">
     <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button><button data-bdt="mine" aria-pressed="${BD.tab === 'mine'}">My bets</button><button data-bdt="record" aria-pressed="${BD.tab === 'record'}">Record</button></div>
+    <button class="chip sm bd-priv" data-bdpriv ${BD.tab === 'mine' || BD.tab === 'record' ? '' : 'hidden'}></button>
     <div class="bd-days"><button class="chip sm" data-bdday="0" aria-pressed="${BD.day === 0}">Next up</button><button class="chip sm" data-bdday="1" aria-pressed="${BD.day === 1}">Tomorrow</button></div>
   </div>`;
+}
+// hide your numbers for screen sharing: blurs My bets and Record until you show them again
+const privOn = () => lsGet('fc-bd-priv') === '1';
+function privApply() {
+  const on = privOn(), b = $('[data-bdpriv]'), tab = BD.tab === 'mine' || BD.tab === 'record';
+  if (b) { b.hidden = !tab; b.setAttribute('aria-pressed', on); b.innerHTML = `${on ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.9M6.4 6.4C3.9 8.1 2.5 12 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.6-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'}<span>${on ? 'Show' : 'Hide'}</span>`; b.title = on ? 'Show your numbers' : 'Blur your numbers (for screen sharing)'; }
+  $('#bdMain')?.classList.toggle('bd-blur', on && tab);
 }
 let drawN = 0;
 async function bdDraw() {
@@ -147,6 +155,7 @@ async function bdDraw() {
   const games = slate.games.filter(g => g.state !== 'post');
   $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${BD.tab === 'mine' || BD.tab === 'record' ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
   $('.bd-days')?.toggleAttribute('hidden', BD.tab === 'mine' || BD.tab === 'record');
+  privApply();
   if (BD.tab === 'mine') { main.innerHTML = '<div class="sk" style="height:300px"></div>'; const m = await lazy('bets'); const html = await m.historyHTML(); if (n === drawN) main.innerHTML = html; return; }
   if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
@@ -440,6 +449,7 @@ function drawGames(main, games) {
 function bdWire(body) {
   body.dataset.wired = '1';
   body.addEventListener('click', e => {
+    if (e.target.closest('[data-bdpriv]')) { lsSet('fc-bd-priv', privOn() ? null : '1'); privApply(); return; }
     const t = e.target.closest('[data-bdt]'); if (t) { BD.tab = t.dataset.bdt; $$('[data-bdt]').forEach(b => b.setAttribute('aria-pressed', b === t)); bdDraw(); return; }
     const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
     const m = e.target.closest('[data-bdmk]'); if (m) { BD.mk = m.dataset.bdmk; saveView(); BD.cap = 150; if (BD.mk === 'all' && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (Q1.has(BD.mk)) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
