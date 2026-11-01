@@ -1297,7 +1297,7 @@ async function dnpGames(teamId, log) {
 }
 // PropDesk-style chart: oldest to newest, bar height = the stat, green when it cleared the mark, red when not,
 // rebounds split offensive (bottom) / defensive (top), dotted DNP bars, dashed line at the line
-function barChart(games, k, m, pbp, showMin) {
+function barChart(games, k, m, pbp, showMin, side = 'o') {
   const n = games.length; if (!n) return '<p class="pp-note">No games match these filters.</p>';
   const vals = games.map(g => g.dnp ? null : propVal(g, k)), top = Math.max(m * 1.35, ...vals.filter(v => v != null), 1) * 1.12;
   const pct = v => (v / top * 100).toFixed(2), split = k === 'reb' && pbp;
@@ -1305,7 +1305,7 @@ function barChart(games, k, m, pbp, showMin) {
     <div class="pc-line" style="bottom:${pct(m - 0.5)}%"><span>${m - 0.5}</span></div>
     ${games.map((g, i) => {
       if (g.dnp) return `<div class="pc-col"><div class="pc-bar dnp" style="height:${pct(Math.max(m, top * 0.55))}%"><span>DNP</span></div></div>`;
-      const v = vals[i], hit = v >= m, P = split ? pbp.get(etYmd(g.date)) : null;
+      const v = vals[i], hit = side === 'u' ? v < m - 0.5 : v >= m, P = split ? pbp.get(etYmd(g.date)) : null;
       let segs = '';
       if (P && P.oreb + P.dreb === v && v > 0) {
         const seg = (c, x, lab) => x ? `<i class="pcs ${c}" style="flex:${x}"><b>${x}</b>${x / top > 0.09 ? `<small>${lab}</small>` : ''}</i>` : '';
@@ -1340,6 +1340,7 @@ async function openPropDetail(pid, k, m0, extra) {
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
+  let side = ctx.side === 'u' ? 'u' : 'o';
   let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null, showMin = lsGet('fc-pd-min') === '1', pT = null, rest = null, wo = [];
   // matchup extras: pace, rest, blowout risk, shot zones vs this defense, and with/without teammates who are out
   if (!IS_W) {
@@ -1429,8 +1430,8 @@ async function openPropDetail(pid, k, m0, extra) {
         <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtET(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
-          <small>Over ${m - 0.5} ${word}</small>
-          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip" role="group" aria-label="Add ${m - 0.5} ${short} to your parlay"><button data-pdslip="o" title="Add over ${m - 0.5} to your parlay">+ Over ${od(o.o)}</button><button data-pdslip="u" title="Add under ${m - 0.5} to your parlay">+ Under ${od(o.u)}</button></div>`; })() : ''}
+          <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}</small>
+          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
         </div>
       </div>
       ${(() => {
@@ -1441,7 +1442,7 @@ async function openPropDetail(pid, k, m0, extra) {
         const cur = played.filter(g => !g.prev);
         const R = { L5: played.slice(0, 5), L10: played.slice(0, 10), L15: played.slice(0, 15), Season: cur, ...(opp ? { H2H } : {}) };
         if (!R[rng]) rng = 'L10';
-        const cell = (key, games) => { const v = vv(games), p = hitPct(v, m); return `<button class="pr-c${key === rng ? ' on' : ''}" data-pdrng="${key}"><span>${key === 'H2H' ? `vs ${esc(opp.abbr)}` : key === 'Season' ? 'Season' : key}</span><b class="${p == null ? '' : p >= 70 ? 'hot' : p >= 50 ? 'warm' : 'cold'}">${p == null ? '–' : `HR ${p}%`}</b><small>${v.length ? `Avg ${avg(v)}${key === 'H2H' ? ` · ${v.length}G` : ''}` : 'no games'}</small></button>`; };
+        const cell = (key, games) => { const v = vv(games), p = v.length ? Math.round(v.filter(x => side === 'u' ? x < m - 0.5 : x >= m).length / v.length * 100) : null; return `<button class="pr-c${key === rng ? ' on' : ''}" data-pdrng="${key}"><span>${key === 'H2H' ? `vs ${esc(opp.abbr)}` : key === 'Season' ? 'Season' : key}</span><b class="${p == null ? '' : p >= 70 ? 'hot' : p >= 50 ? 'warm' : 'cold'}">${p == null ? '–' : `HR ${p}%`}</b><small>${v.length ? `Avg ${avg(v)}${key === 'H2H' ? ` · ${v.length}G` : ''}` : 'no games'}</small></button>`; };
         const shown = rng === 'Season' ? pool.filter(g => !g.prev) : rng === 'H2H' ? pool.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : (() => { const lim = R[rng].length, last = R[rng].at(-1); return last ? pool.filter(g => new Date(g.date) >= new Date(last.date)) : []; })();
         const opps = [...new Set(log.map(g => g.opp))].sort();
         // PBPStats extras for the shown games
@@ -1458,7 +1459,7 @@ async function openPropDetail(pid, k, m0, extra) {
           <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </div></div>
-        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin)}
+        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin, side)}
         ${showMin ? '<p class="pp-note pd-mnote"><i></i> Minutes played (0–48 scale)</p>' : ''}
         ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.${prev.length ? ' Faded bars are from last season.' : ''}</p>` : ''}
       </div>${matchupCard()}`;
@@ -1479,6 +1480,7 @@ async function openPropDetail(pid, k, m0, extra) {
     }
     const rg = e.target.closest('[data-pdrng]'); if (rg) { rng = rg.dataset.pdrng; draw(); return; }
     if (e.target.closest('[data-pdmin]')) { showMin = !showMin; lsSet('fc-pd-min', showMin ? '1' : null); draw(); return; }
+    const sd = e.target.closest('[data-pdside]'); if (sd) { side = sd.dataset.pdside; draw(); return; }
     const ps = e.target.closest('[data-pdslip]');
     if (ps) { const side = ps.dataset.pdslip, o = slipOdds(), odds = (side === 'u' ? o.u : o.o) ?? -110;
       lazy('betdesk').then(b => b.addSlipLeg({ pid: String(r.id), k, side, line: m - 0.5, odds, est: (side === 'u' ? o.u : o.o) == null, name: r.name, teamId: r.teamId, abbr: r.abbr, gid: g.id, game: ctx.gameLabel || `${g.away.abbr} @ ${g.home.abbr}`, date: (g.date || '').slice(0, 10).replace(/-/g, ''), time: g.state === 'pre' ? fmtTime(g.date) : statusText(g) })); return; }
