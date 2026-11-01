@@ -318,3 +318,4 @@ em.est.alt { color: var(--accent); border-color: color-mix(in oklab, var(--accen
 .bd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: 2px; }
 @media (max-width: 760px) { .bd-ctrl .bd-oddsbtn { padding: 8px 10px; } .bd-oddsbtn .lgx { display: none; } .bd-oddsbtn .shx { display: inline-block; } }
 .bs-books .bs-book { display: grid; place-items: center; text-decoration: none; }
+@media (max-width: 760px) { .bd-ctrl { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; } }

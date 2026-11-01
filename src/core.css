@@ -1335,3 +1335,7 @@ table.box.adv { min-width: 560px; }
 .g-wp-bar { position: relative; height: 4px; border-radius: 3px; background: var(--h); overflow: hidden; }
 .g-wp-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--a); border-right: 2px solid var(--surface); transition: width .6s var(--ease); }
 .g-wp-t { font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+/* phones: solid header, no frosted see-through band at the top */
+@media (max-width: 760px) {
+  .mast { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
