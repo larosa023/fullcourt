@@ -1273,19 +1273,18 @@ async function dnpGames(teamId, log) {
 function barChart(games, k, m, pbp) {
   const n = games.length; if (!n) return '<p class="pp-note">No games match these filters.</p>';
   const vals = games.map(g => g.dnp ? null : propVal(g, k)), top = Math.max(m * 1.35, ...vals.filter(v => v != null), 1) * 1.12;
-  const pct = v => (v / top * 100).toFixed(2), split = k === 'reb' && pbp;
+  const pct = v => (v / top * 100).toFixed(2), split = (k === 'reb' || k === 'ast') && pbp;
   return `<div class="pc${n > 12 ? ' tight' : ''}"><div class="pc-plot">
     <div class="pc-line" style="bottom:${pct(m - 0.5)}%"><span>${m - 0.5}</span></div>
     ${games.map((g, i) => {
       if (g.dnp) return `<div class="pc-col"><div class="pc-bar dnp" style="height:${pct(Math.max(m, top * 0.55))}%"><span>DNP</span></div></div>`;
       const v = vals[i], hit = v >= m, P = split ? pbp.get(etYmd(g.date)) : null;
       let segs = '';
-      if (P && P.oreb + P.dreb === v && v > 0) {
-        const seg = (c, x, lab) => x ? `<i class="pcs ${c}" style="flex:${x}"><b>${x}</b>${x / top > 0.09 ? `<small>${lab}</small>` : ''}</i>` : '';
-        segs = seg('d', P.dreb, 'DREB') + seg('o', P.oreb, 'OREB');
-      }
-      const share = split && P?.avail ? Math.round(P.fgReb / P.avail * 100) : null;
-      return `<div class="pc-col" title="${esc(fmtET(g.date, { month: 'short', day: 'numeric' }))} ${g.atVs === '@' ? '@' : 'vs'} ${esc(g.opp)}: ${v}${P?.avail ? ` · ${P.fgReb} of ${P.avail} available rebounds (${share}%)` : ''}">
+      const seg = (c, x, lab) => x ? `<i class="pcs ${c}" style="flex:${x}"><b>${x}</b>${x / top > 0.09 ? `<small>${lab}</small>` : ''}</i>` : '';
+      if (k === 'reb' && P && P.oreb + P.dreb === v && v > 0) segs = seg('d', P.dreb, 'DREB') + seg('o', P.oreb, 'OREB');
+      if (k === 'ast' && P && P.ast2 + P.ast3 === v && v > 0) segs = seg('d', P.ast2, '2PT') + seg('o', P.ast3, '3PT');
+      const share = k === 'reb' && P?.avail ? Math.round(P.fgReb / P.avail * 100) : null;
+      return `<div class="pc-col" title="${esc(fmtET(g.date, { month: 'short', day: 'numeric' }))} ${g.atVs === '@' ? '@' : 'vs'} ${esc(g.opp)}: ${v}${k === 'reb' && P?.avail ? ` · ${P.fgReb} of ${P.avail} available rebounds (${share}%)` : ''}${k === 'ast' && P ? ` · ${P.astPts} assist points · ${P.ast3} to 3s, ${P.rim} at the rim` : ''}">
         <em class="pc-v ${hit ? 'y' : 'n'}" style="bottom:${pct(v)}%">${v}</em>
         <div class="pc-bar ${hit ? 'y' : 'n'}${segs ? ' st' : ''}" style="height:${v ? pct(v) : 1.2}%">${segs}</div>
         ${share != null ? `<small class="pc-sh">${share}%</small>` : ''}
@@ -1388,8 +1387,8 @@ async function openPropDetail(pid, k, m0, extra) {
           <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </div></div>
-        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null)}
-        ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.</p>` : ''}
+        ${barChart([...shown].reverse(), k, m, k === 'reb' || k === 'ast' ? pbp : null)}
+        ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'ast' ? 'Bars split assists on 3s (bottom) and assists on 2s; hover a bar for assist points. ' : ''}${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.</p>` : ''}
       </div>`;
       })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
