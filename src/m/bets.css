@@ -14,6 +14,15 @@
 .bt-pill.live { color: var(--live); background: color-mix(in oklab, var(--live) 12%, transparent); }
 .bt-pill.won { color: var(--win); background: color-mix(in oklab, var(--win) 14%, transparent); }
 .bt-pill.lost { color: var(--loss); background: color-mix(in oklab, var(--loss) 12%, transparent); }
+.bt-min { width: 24px; height: 24px; margin: -2px -4px -2px 0; display: grid; place-items: center; border-radius: 7px; color: var(--muted); transition: background .2s, color .2s; }
+.bt-min:hover { background: var(--hl-bg); color: var(--ink); }
+.bt-min svg { width: 15px; height: 15px; transition: transform .3s var(--ease); }
+.bt-card.mini .bt-min svg { transform: rotate(180deg); }
+/* minimized: one tight line per leg, no bars or footnotes */
+.bt-card.mini .bt-t small, .bt-card.mini .bt-bar, .bt-card.mini .bt-f { display: none; }
+.bt-card.mini .bt-leg { padding: 3px 4px; border-top: 0; }
+.bt-card.mini .bt-v b { font-size: 15px; }
+.bt-card.mini .bt-h { margin-bottom: 0; }
 .bt-x { width: 24px; height: 24px; margin: -2px -6px -2px 0; display: grid; place-items: center; border-radius: 7px; color: var(--muted); opacity: .6; transition: opacity .2s, background .2s; }
 .bt-x:hover { opacity: 1; background: var(--hl-bg); color: var(--ink); }
 .bt-x svg { width: 14px; height: 14px; }

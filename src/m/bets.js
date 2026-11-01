@@ -5,8 +5,11 @@
 const BET_KEY = () => lsKey('fc-bets');
 const readBets = () => { try { return JSON.parse(lsGet(BET_KEY()) || '[]') || []; } catch (e) { return []; } };
 const writeBets = list => lsSet(BET_KEY(), list.length ? JSON.stringify(list.slice(-200)) : null);
-const BSTAT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO' };
-const KEEP_SETTLED = 20 * 3600e3; // settled bets stay on Scores for most of a day
+const BSTAT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM' };
+const KEEP_SETTLED = 20 * 3600e3;
+const MIN_KEY = () => lsKey('fc-bets-min');
+const readMin = () => { try { return new Set(JSON.parse(lsGet(MIN_KEY()) || '[]')); } catch (e) { return new Set(); } };
+function toggleBetMin(id) { const m = readMin(); m.has(id) ? m.delete(id) : m.add(id); lsSet(MIN_KEY(), m.size ? JSON.stringify([...m]) : null); $$(`.bt-card[data-bid="${CSS.escape(id)}"]`).forEach(c => { c.classList.toggle('mini', m.has(id)); const b = c.querySelector('.bt-min'); if (b) { b.setAttribute('aria-expanded', !m.has(id)); b.title = m.has(id) ? 'Show details' : 'Minimize'; } }); } // settled bets stay on Scores for most of a day
 
 function addBet(bet) {
   const list = readBets();
@@ -28,7 +31,8 @@ function boxStats(d, pid) {
     if (!a.stats?.length) return { dnp: true };
     const lab = st.labels || st.names || [], v = k => a.stats[lab.indexOf(k)];
     const n = k => +(v(k) ?? 0) || 0;
-    return { pts: n('PTS'), reb: n('REB'), ast: n('AST'), stl: n('STL'), blk: n('BLK'), tov: n('TO'), tpm: +(String(v('3PT') || '0').split('-')[0]) || 0, min: n('MIN') };
+    const ma = (k, i) => +(String(v(k) || '0-0').split('-')[i]) || 0;
+    return { pts: n('PTS'), reb: n('REB'), ast: n('AST'), stl: n('STL'), blk: n('BLK'), tov: n('TO'), tpm: ma('3PT', 0), tpa: ma('3PT', 1), fgm: ma('FG', 0), fga: ma('FG', 1), ftm: ma('FT', 0), fta: ma('FT', 1), min: n('MIN') };
   }
   return null;
 }
@@ -79,8 +83,10 @@ function gradeLeg(l, d) {
     }
     const val = l.stats.reduce((s, k) => s + (b[k] || 0), 0);
     const st = fromLine(val, l.line);
-    const pace = live && gameFrac(g) > 0.08 ? val / gameFrac(g) : null;
-    return { st, g, now: val, need: l.line, pct: Math.min(1, val / Math.max(0.5, l.line)), text: `${val} ${l.stats.map(k => BSTAT[k]).join('+')}${b.min ? ` · ${b.min} min` : ''}${pace != null && st === 'live' ? ` · on pace for ${Math.round(pace)}` : ''}` };
+    const left = Math.floor(l.line) + 1 - val; // whole numbers still needed to clear the line
+    const pace = live && val > 0 && gameFrac(g) > 0.15 ? Math.round(val / gameFrac(g)) : null;
+    const how = st !== 'live' ? '' : over ? ` · ${left} more to hit${pace != null ? ` · pace ${pace}` : ''}` : ` · ${Math.floor(l.line) - val} to spare`;
+    return { st, g, now: val, need: l.line, pct: Math.min(1, val / Math.max(0.5, l.line)), text: `${val} ${l.stats.map(k => BSTAT[k]).join('+')}${b.min ? ` · ${b.min} min` : ''}${how}` };
   }
   if (!mine) return { st: 'pending', g, text: `${g.away.abbr} @ ${g.home.abbr}` };
   if (l.k === 'ml') {
@@ -96,8 +102,8 @@ function gradeLeg(l, d) {
   if (l.k === 'total' || l.k === 'ttotal') {
     const val = l.k === 'total' ? g.home.score + g.away.score : mine.score;
     const st = fromLine(val, l.line);
-    const pace = live && gameFrac(g) > 0.08 ? Math.round(val / gameFrac(g)) : null;
-    return { st, g, now: val, need: l.line, pct: Math.min(1, val / l.line), text: `${val} points${pace != null && st === 'live' ? ` · on pace for ${pace}` : ''}` };
+    const pace = live && gameFrac(g) > 0.15 ? Math.round(val / gameFrac(g)) : null;
+    return { st, g, now: val, need: l.line, pct: Math.min(1, val / l.line), text: `${val} points${pace != null && st === 'live' ? ` · pace ${pace}` : ''}` };
   }
   return { st: 'pending', g, text: '' };
 }
@@ -153,9 +159,11 @@ function betCard(b, res) {
   const head = b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
   const pill = { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st];
   const done = res.filter(r => r.st === 'won').length;
-  return `<div class="bt-card ${st}">
+  const mini = readMin().has(b.id);
+  return `<div class="bt-card ${st}${mini ? ' mini' : ''}" data-bid="${esc(b.id)}">
     <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small>${done}/${b.legs.length} hit</small>` : ''}</span>
       <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
+      <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
       <button class="bt-x" data-betdel="${esc(b.id)}" title="Remove this bet" aria-label="Remove this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
     <div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
@@ -193,7 +201,7 @@ async function renderBets(force) {
   betBusy = true;
   let changed = false;
   for (const b of show) {
-    if (b.result && S.betRes[b.id]) continue;
+    if (b.result && S.betRes[b.id] && b.legs.every(l => sums[l.gid]?.fin)) continue;
     const res = await gradeBet(b);
     S.betRes[b.id] = res;
     const st = betStatus(res);

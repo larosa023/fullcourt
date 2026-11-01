@@ -660,6 +660,12 @@ const BET_STATS = [
   [['pts', 'ast'], /\b(p ?\+ ?a|pts ?\+ ?asts?|points ?(\+|and|plus) ?assists|pa)\b/],
   [['reb', 'ast'], /\b(r ?\+ ?a|rebs? ?\+ ?asts?|rebounds ?(\+|and|plus) ?assists|ra)\b/],
   [['stl', 'blk'], /\b(stocks|steals ?(\+|and|plus) ?blocks|stl ?\+ ?blk|s ?\+ ?b)\b/],
+  // attempts and makes before the plain stats, so "three pointers attempted" isn't read as made threes
+  [['tpa'], /\b((threes|three[ -]?point(ers?)?|3[ -]?point(ers?)?|3[ -]?pt|3p) (field goals? )?attempt(ed|s)?|3pa|three point attempts)\b/],
+  [['fta'], /\b(free[ -]throws? attempt(ed|s)?|fta)\b/],
+  [['fga'], /\b(field[ -]goals? attempt(ed|s)?|fga|shot attempts|shots attempted)\b/],
+  [['fgm'], /\b(field[ -]goals? made|fgm|made field goals)\b/],
+  [['ftm'], /\b(free[ -]throws? made|ftm|made free throws)\b/],
   [['tpm'], /\b(threes|three[ -]?pointers?( made)?|3[ -]?pointers?( made)?|3[ -]?pt( made|m)?|3pm|made threes|3s)\b/],
   [['pts'], /\b(points?|pts)\b/],
   [['reb'], /\b(rebounds?|rebs?|boards)\b/],
@@ -668,7 +674,7 @@ const BET_STATS = [
   [['blk'], /\b(blocks?|blks?|blocked shots)\b/],
   [['tov'], /\b(turnovers?|tovs?)\b/],
 ];
-const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO' };
+const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM' };
 const statsShort = st => st.map(k => STAT_SHORT[k]).join('+');
 const BET_STOP = new Set('wager wagered stake risk payout pay paid potential returns return win wins winning to cash out cashout sgp sgpx parlay parlays leg legs alt alternate spread moneyline ml total totals game line lines odds bet bets placed place boost boosted profit fanduel draftkings dk fd betmgm mgm caesars espnbet espn bet365 fanatics hard rock fliff prizepicks underdog same id receipt share pending open settled live player props prop over under o u yes no any time anytime first half quarter q1 1h 1q reg regulation incl ot overtime str more or less at least'.split(' '));
 
@@ -692,14 +698,30 @@ function looksLikeBet(q) {
 function slipMeta(text) {
   const t = cleanSlip(text).replace(/,(?=\d{3})/g, '');
   const num = re => { const m = t.match(re); return m ? +m[1] : null; };
-  const stake = num(/(?:wager(?:ed)?|stake|risk|bet amount|total wager|bet)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i) ?? num(/\$\s?(\d+(?:\.\d{1,2})?)\s*(?:to win|bet|wager|stake|risk|on)/i) ?? num(/(?:^|\s)(\d+(?:\.\d{1,2})?)\s*(?:u|units?)\b/i);
+  let stake = num(/(?:wager(?:ed)?|stake|risk|bet amount|total wager|bet)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i) ?? num(/\$\s?(\d+(?:\.\d{1,2})?)\s*(?:to win|bet|wager|stake|risk|on)/i) ?? num(/(?:^|\s)(\d+(?:\.\d{1,2})?)\s*(?:u|units?)\b/i);
   let toWin = num(/(?:to win|potential win(?:nings)?|profit)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
   // "payout"/"returns" include the stake
   const back = num(/(?:payout|potential payout|to pay|total payout|returns?|potential return)\s*:?\s*\$\s?(\d+(?:\.\d{1,2})?)/i);
   if (toWin == null && back != null && stake != null && back > stake) toWin = Math.round((back - stake) * 100) / 100;
   let odds = null;
-  const pm = t.match(/(?:parlay|sgp\+?|same game parlay|\d+\s*(?:-\s*)?legs?|\d+-pick|odds)[^+\-\d]{0,20}([+-]\d{3,5})\b/i);
-  if (pm) odds = +pm[1];
+  const tl = String(text || '').split('\n').map(cleanSlip).filter(Boolean);
+  const head = tl.find(l => /\b(parlay|sgp|same game|\d+\s*-?\s*legs?|\d+-pick)\b/i.test(l) && /(^|\s)[+-]\d{3,5}\b/.test(l));
+  if (head) odds = +head.match(/(?:^|\s)([+-]\d{3,5})\b/)[1];
+  // "Wager  Payout" on one line, the amounts on the next (struck-out pre-boost amounts are smaller, so take the biggest)
+  const lab = tl.findIndex(l => /\bwager\b/i.test(l) && /\bpayout\b/i.test(l) && !/\$/.test(l));
+  if (lab >= 0 && tl[lab + 1]) {
+    let amts = [...tl[lab + 1].replace(/,(?=\d{3})/g, '').matchAll(/\$\s?(\d+(\.\d{1,2})?)/g)].map(m => ({ v: +m[1], c: !!m[2] }));
+    if (amts.some(a => a.c)) amts = amts.filter(a => a.c); // "$7747" is a misread "$77.47"
+    amts = amts.map(a => a.v);
+    if (amts.length >= 2) {
+      stake = amts[0];
+      const rest = amts.slice(1).filter(v => v > stake);
+      // with the slip's odds we know roughly what the payout should be; otherwise take the biggest (boosted) amount
+      const expect = odds ? stake * (odds > 0 ? 1 + odds / 100 : 1 + 100 / -odds) : null;
+      const pay = rest.length ? (expect ? rest.reduce((a, b) => Math.abs(b - expect) < Math.abs(a - expect) ? b : a) : Math.max(...rest)) : null;
+      if (pay) toWin = Math.round((pay - stake) * 100) / 100;
+    }
+  }
   return { stake, toWin, odds };
 }
 
@@ -718,11 +740,20 @@ function splitLegs(text, fromImage) {
     || /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(l) && /[a-z]{3}/i.test(l) || /^[+-]\d{1,2}(\.5)?(\s+[+-]\d{3,4})?$/.test(l) || /\b(moneyline|money line|to win)\b/i.test(l) && !/to win\s*\$/i.test(l) || /\bdouble[ -]double\b|\btriple[ -]double\b/i.test(l);
   const idx = lines.map((l, i) => isAnchor(l) ? i : -1).filter(i => i >= 0);
   const skip = l => /\b(wager|payout|to win \$|cash ?out|bet id|placed|share|receipt)\b/i.test(l);
+  // Books differ: some print the player above the line (FanDuel, DraftKings), some below (Fanatics,
+  // and FanDuel's "Name - Points" footnote). Vote on which side the "Name - Stat" text sits.
+  const isAnc = new Set(idx);
+  const desc = l => l && (STAT_TEST(' ' + l.toLowerCase() + ' ') || / - [a-z]/i.test(l)) && !skip(l);
+  let up = 0, down = 0;
+  for (const i of idx) { if (!isAnc.has(i - 1) && desc(lines[i - 1])) up++; if (!isAnc.has(i + 1) && desc(lines[i + 1])) down++; }
+  const dir = down > up ? 1 : -1;
   const out = [];
-  idx.forEach((i, k) => {
-    const lo = k ? idx[k - 1] + 1 : Math.max(0, i - 3), hi = k < idx.length - 1 ? idx[k + 1] - 1 : Math.min(lines.length - 1, i + 3);
+  idx.forEach(i => {
     const near = [];
-    for (let d = 1; d <= 3; d++) for (const j of [i - d, i + d]) if (j >= lo && j <= hi && !skip(lines[j])) near.push(lines[j]);
+    // the anchor's own side first (up to 3 lines, stopping at the next bet line)...
+    for (let d = 1; d <= 3; d++) { const j = i + dir * d; if (j < 0 || j >= lines.length || isAnc.has(j)) break; if (!skip(lines[j])) near.push(lines[j]); }
+    // ...then one or two lines on the other side, unless they clearly belong to the neighbouring bet
+    for (let d = 1; d <= 2; d++) { const j = i - dir * d; if (j < 0 || j >= lines.length || isAnc.has(j)) break; if (skip(lines[j])) continue; if (desc(lines[j]) && isAnc.has(j - dir)) break; near.push(lines[j]); }
     out.push({ text: lines[i], near, ctx: [lines[i], ...near].join(' \n ') });
   });
   return out;
@@ -748,7 +779,9 @@ function parseLeg(piece, rows) {
     if (w.join(' ').length >= 4 && (player = matchPlayer(w.join(' '), rows))) break;
   }
   let teams = [];
-  for (const l of order) { const f = findTeams(l, ' ' + nameKey(l) + ' ').teams; if (f.length) { teams = f; break; } }
+  const tl = order.map(l => findTeams(l, ' ' + nameKey(l) + ' ').teams);
+  teams = tl.find(f => f.length === 1) || tl.find(f => f.length) || [];
+  if (teams.length === 1) { const both = tl.find(f => f.length > 1 && f.includes(teams[0])); if (both) teams = [teams[0], ...both.filter(x => x !== teams[0])]; }
   if (!teams.length) teams = findTeams(all.replace(/\n/g, ' '), ' ' + nk + ' ').teams;
   // a "player" match that's really just a team name isn't a player
   if (player && teams.length && !STAT_TEST(noOdds) && !/\b(over|under|o|u) \d/.test(noOdds) && !/\d\+/.test(noOdds)) player = null;
@@ -824,7 +857,7 @@ const legLabel = l => {
 const legTyped = l => {
   const side = l.side === 'u' ? 'under' : 'over';
   const o = l.odds ? ` ${l.odds > 0 ? '+' : ''}${l.odds}` : '';
-  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers' })[k]).join(' + ')}${o}`;
+  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers', tpa: 'three pointers attempted', fga: 'field goals attempted', fgm: 'field goals made', fta: 'free throws attempted', ftm: 'free throws made' })[k]).join(' + ')}${o}`;
   if (l.k === 'dd' || l.k === 'td') return `${l.name} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double${o}`;
   if (l.k === 'spread') return `${l.abbr} ${l.line > 0 ? '+' + l.line : l.line}${o}`;
   if (l.k === 'ml') return `${l.abbr} moneyline${o}`;
@@ -845,6 +878,11 @@ async function readSlip(text, fromImage) {
     if (!l.k) { const src = typeof p === 'string' ? p : p.text; if (/^\W*(\$|wager|stake|risk|to win|payout|bet amount|odds|parlay|sgp|\d+\s*(u|units?)\b|[+-]\d{3,5}\W*$)/i.test(src.trim()) || /^\s*\$?\d+(\.\d+)?\s*(stake|to win|wager|bet)/i.test(src)) continue; if (!fromImage || /[a-z]{3}/i.test(src)) missed.push(src); continue; }
     const key = [l.k, l.pid || l.teamId, (l.stats || []).join(), l.side, l.line].join('|');
     if (seen.has(key)) continue; seen.add(key);
+    if (l.k === 'prop') {
+      const r = rows.find(x => String(x.id) === String(l.pid));
+      const avg = r && l.stats.reduce((s, k) => s + (({ pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl, blk: r.blk, tpm: r.tpm, tov: r.tov, tpa: r.tpa, fga: r.fga, fta: r.fta, ftm: r.ftm, fgm: r.fga * r.fgp / 100 })[k] || 0), 0);
+      if (avg && Number.isFinite(avg) && avg >= 3 && (l.line < avg * 0.3 || l.line > avg * 3)) l.odd = `averages ${avg.toFixed(1)}, so double-check this line`;
+    }
     const found = l.teamId ? await gameFor(l.teamId) : null;
     if (found) {
       const { g, date } = found;
@@ -860,7 +898,7 @@ function slipCard(r, token) {
   const ok = r.legs.filter(l => !l.noGame);
   const rows = r.legs.map(l => `<div class="bs-leg${l.noGame ? ' warn' : ''}">
       ${l.pid ? face(l.pid, l.name, 'bs-face', 120) : logo(l.abbr, 48, 'lg bs-face')}
-      <span class="bs-t"><b>${esc(legLabel(l))}</b><small>${l.noGame ? 'No game found in the next few days' : `${esc(l.game)} · ${esc(l.when)}`}${l.guessed ? ' · stat guessed as points' : ''}${l.odds ? ` · ${l.odds > 0 ? '+' : ''}${l.odds}` : ''}</small></span>
+      <span class="bs-t"><b>${esc(legLabel(l))}</b><small>${l.noGame ? 'No game found in the next few days' : `${esc(l.game)} · ${esc(l.when)}`}${l.guessed ? ' · stat guessed as points' : ''}${l.odd ? ` · <em class="bs-odd">${esc(l.odd)}</em>` : ''}${l.odds ? ` · ${l.odds > 0 ? '+' : ''}${l.odds}` : ''}</small></span>
     </div>`).join('');
   const m = r.meta, money = [m.stake != null ? `$${m.stake} stake` : '', m.toWin != null ? `to win $${m.toWin}` : '', m.odds ? `${m.odds > 0 ? '+' : ''}${m.odds}` : ''].filter(Boolean).join(' · ');
   return `<div class="bs-card">
@@ -883,7 +921,7 @@ async function answerSlip(text, fromImage) {
 
 async function trackSlip(token) {
   const r = ASK.slips?.[token]; if (!r) return null;
-  const legs = r.legs.filter(l => !l.noGame).map(({ src, guessed, noGame, when, ...l }) => l);
+  const legs = r.legs.filter(l => !l.noGame).map(({ src, guessed, noGame, when, odd, ...l }) => l);
   if (!legs.length) return null;
   const bet = { id: token, at: Date.now(), legs, stake: r.meta.stake, toWin: r.meta.toWin, odds: r.meta.odds };
   const m = await lazy('bets');
@@ -905,7 +943,7 @@ function loadOCR() {
 // sharpen a screenshot for reading: scale up small text, greyscale, and flip dark-mode slips to dark-on-light
 async function prepImage(file) {
   const bmp = await createImageBitmap(file);
-  const scale = Math.min(2.2, Math.max(1, 1400 / bmp.width));
+  const scale = Math.min(3, Math.max(1.5, 2000 / bmp.width));
   const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const x = c.getContext('2d', { willReadFrequently: true });

@@ -105,3 +105,4 @@ img.lg.bs-face { background: transparent; border-radius: 0; object-fit: contain;
 .bs-raw pre { white-space: pre-wrap; font-family: var(--mono); font-size: 11px; max-height: 200px; overflow: auto; background: var(--surface-2); padding: 8px; border-radius: 8px; margin: 6px 0 0; }
 /* keep the bar clear of the floating "Powered by Netlify" badge */
 .ask-bar { padding-bottom: max(calc(12px + env(safe-area-inset-bottom, 0px)), var(--nfb, 0px)); }
+.bs-odd { font-style: normal; color: var(--warn, var(--loss)); }

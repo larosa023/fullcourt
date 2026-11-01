@@ -1957,6 +1957,7 @@ const stub = (name, fn) => (...a) => lazy(name).then(m => m[fn](...a)).catch(err
 const openAsk = stub('ask', 'openAsk');
 const renderBets = stub('bets', 'renderBets');
 const removeBet = stub('bets', 'removeBet');
+const toggleBetMin = stub('bets', 'toggleBetMin');
 const renderCompare = stub('compare', 'renderCompare');
 const openMulti = stub('multi', 'openMulti');
 const renderAward = stub('awards', 'renderAward');
@@ -2964,6 +2965,7 @@ document.addEventListener('click', e => {
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
   if (el.closest('[data-adv]')) { toggleAdv(); return; }
+  const bm = el.closest('[data-betmin]'); if (bm) { toggleBetMin(bm.dataset.betmin); return; }
   const bd = el.closest('[data-betdel]'); if (bd) { const c = bd.closest('.bt-card'); if (c && c.closest('.bt-ask')) c.remove(); removeBet(bd.dataset.betdel); return; }
   if (el.closest('[data-news]')) { openNews(); return; }
   if (el.closest('[data-settings]')) { openSettings(); return; }
