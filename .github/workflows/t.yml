@@ -1,0 +1,9 @@
+name: probe
+on: { push: { branches: [trk-test] } }
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          H=(-H 'Referer: https://www.nba.com/' -H 'Origin: https://www.nba.com' -H 'Accept: application/json' -H 'x-nba-stats-origin: stats' -H 'x-nba-stats-token: true' -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36')
+          curl -s -m 40 "${H[@]}" "https://stats.nba.com/stats/leaguedashptstats?College=&Conference=&Country=&DateFrom=10/30/2026&DateTo=10/30/2026&Division=&DraftPick=&DraftYear=&GameScope=&Height=&LastNGames=0&LeagueID=00&Location=&Month=0&OpponentTeamID=0&Outcome=&PORound=0&PerMode=Totals&PlayerExperience=&PlayerOrTeam=Player&PlayerPosition=&PtMeasureType=Passing&Season=2026-27&SeasonSegment=&SeasonType=Regular%20Season&StarterBench=&TeamID=0&VsConference=&VsDivision=&Weight=" | head -c 1500; echo; echo EXIT $?
