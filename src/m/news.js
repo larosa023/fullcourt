@@ -1,6 +1,13 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-01c', date: 'Nov 1', items: [
+    ['Matchup card', 'Every prop breakdown now has a Matchup card: with/without numbers when a key teammate is out (his per-36 with that player on vs off the floor), game pace, rest, blowout risk, and for scoring props his shot zones against what tonight\'s defense allows there. Free data from PBPStats and ESPN.'],
+    ['Minutes overlay', 'Tap MIN on the game-by-game chart to lay his minutes over every bar.'],
+    ['New Bet desk flags', 'Rows now flag back-to-backs, 3 games in 4 nights, fast or slow matchups, and blowout risk for starters.'],
+    ['First basket', 'Each game on the Game lines tab has a First basket section: how often each team gets the first possession and scores first, and who usually makes their first basket.'],
+    ['Export to your book', 'The parlay slip has an Export button for DraftKings, FanDuel, Fanatics, Hard Rock, theScore Bet, PrizePicks and Sleeper. It copies your picks in that app\'s wording and opens it.'],
+  ] },
   { id: '2026-11-01b', date: 'Nov 1', items: [
     ['New prop charts', 'The prop breakdown has a new game-by-game chart: green and red bars against your line, a dotted bar for games he sat, and L5 / L10 / L15 / Season / vs-opponent hit rates you can tap to change the range. Filter by home/away or opponent.'],
     ['Rebound and assist detail', 'Rebound bars now split offensive and defensive boards, with his share of available rebounds, and assist props show assist points, 3-point assists and at-rim assists, from PBPStats play-by-play.'],

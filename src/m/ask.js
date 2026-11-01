@@ -1251,12 +1251,39 @@ function pbpLog(name) {
       const offFG = (g.OffTwoPtRebounds || 0) + (g.OffThreePtRebounds || 0), defFG = (g.DefTwoPtRebounds || 0) + (g.DefThreePtRebounds || 0);
       const oAv = g.OffFGReboundPct ? offFG / g.OffFGReboundPct : null, dAv = g.DefFGReboundPct ? defFG / g.DefFGReboundPct : null;
       out.set(g.Date, { oreb: g.OffRebounds || 0, dreb: g.DefRebounds || 0, avail: oAv != null || dAv != null ? Math.round((oAv || 0) + (dAv || 0)) : null, fgReb: offFG + defFG,
-        astPts: g.AssistPoints || 0, ast3: g.ThreePtAssists || 0, ast2: g.TwoPtAssists || 0, rim: g.AtRimAssists || 0 });
+        astPts: g.AssistPoints || 0, ast3: g.ThreePtAssists || 0, ast2: g.TwoPtAssists || 0, rim: g.AtRimAssists || 0,
+        z: { AtRim: g.AtRimFGA || 0, ShortMidRange: g.ShortMidRangeFGA || 0, LongMidRange: g.LongMidRangeFGA || 0, Corner3: g.Corner3FGA || 0, Arc3: g.Arc3FGA || 0 } });
     }
     return out;
   })().catch(() => null);
   pbpCache.set(name, p);
   return p;
+}
+// key teammates ruled out tonight (12+ a game)
+async function matesOut(r) {
+  try {
+    const [inj, rows] = await Promise.all([leagueInjuries(), leagueTable()]);
+    const out = [];
+    for (const e of inj?.injuries || inj?.teams || []) for (const x of (e.injuries || []).map(normInjury)) {
+      if (!/^out/i.test(x.status)) continue; const t = rows.find(y => String(y.id) === String(x.id));
+      if (t && String(t.teamId) === String(r.teamId) && String(t.id) !== String(r.id) && t.pts >= 12 && t.gp >= 1) out.push(t);
+    }
+    return out.sort((a, b) => b.pts - a.pts).slice(0, 3);
+  } catch (e) { return []; }
+}
+// with/without: his numbers per 36 with that teammate on the floor vs off it (PBPStats, this season, or last if thin)
+const WOWY_STAT = { pts: r => r.Points, reb: r => r.Rebounds, ast: r => r.Assists, tpm: r => r.FG3M, pra: r => r.Points + r.Rebounds + r.Assists, pr: r => r.Points + r.Rebounds, pa: r => r.Points + r.Assists, ra: r => r.Rebounds + r.Assists, fga: r => (r.FG2A || 0) + (r.FG3A || 0), tpa: r => r.FG3A };
+async function wowy(r, mate, k) {
+  const P = await pbpTeams(); const tid = P?.tid?.[pbpAbbr(r.abbr)]; if (!tid) return null;
+  const [me, them] = await Promise.all([pbpPlayerId(r.name), pbpPlayerId(mate.name)]); if (!me || !them) return null;
+  for (const back of [0, 1]) {
+    const q = on => getJSON(`${PBP}/get-wowy-stats/nba?Season=${pbpSeason(back)}&SeasonType=Regular%20Season&TeamId=${tid}&Type=Player&0Exactly${on}OnFloor=${them}`, { retries: 0, timeout: 15000 });
+    const [w, wo] = await Promise.all([q(1), q(0)]).catch(() => [null, null]);
+    const row = d => (d?.multi_row_table_data || []).find(x => String(x.EntityId) === String(me));
+    const a = row(w), b = row(wo), f = WOWY_STAT[k]; if (!f) return null;
+    if (b && b.Minutes >= 60 && a && a.Minutes >= 60) return { mate, back, with: f(a) / a.Minutes * 36, without: f(b) / b.Minutes * 36, minWith: Math.round(a.Minutes), minWithout: Math.round(b.Minutes) };
+  }
+  return null;
 }
 // games his team played that he sat out (completed games missing from his log)
 async function dnpGames(teamId, log) {
@@ -1270,11 +1297,11 @@ async function dnpGames(teamId, log) {
 }
 // PropDesk-style chart: oldest to newest, bar height = the stat, green when it cleared the mark, red when not,
 // rebounds split offensive (bottom) / defensive (top), dotted DNP bars, dashed line at the line
-function barChart(games, k, m, pbp) {
+function barChart(games, k, m, pbp, showMin) {
   const n = games.length; if (!n) return '<p class="pp-note">No games match these filters.</p>';
   const vals = games.map(g => g.dnp ? null : propVal(g, k)), top = Math.max(m * 1.35, ...vals.filter(v => v != null), 1) * 1.12;
   const pct = v => (v / top * 100).toFixed(2), split = k === 'reb' && pbp;
-  return `<div class="pc${n > 12 ? ' tight' : ''}"><div class="pc-plot">
+  return `<div class="pc${n > 12 ? ' tight' : ''}${showMin ? ' min' : ''}"><div class="pc-plot">
     <div class="pc-line" style="bottom:${pct(m - 0.5)}%"><span>${m - 0.5}</span></div>
     ${games.map((g, i) => {
       if (g.dnp) return `<div class="pc-col"><div class="pc-bar dnp" style="height:${pct(Math.max(m, top * 0.55))}%"><span>DNP</span></div></div>`;
@@ -1291,6 +1318,9 @@ function barChart(games, k, m, pbp) {
         ${share != null ? `<small class="pc-sh">${share}%</small>` : ''}
       </div>`;
     }).join('')}
+  ${showMin ? (() => { const pts = games.map((g, i) => { if (g.dnp) return null; const up = Math.min(48, g.min) / 48 * 100, lab = +pct(vals[i]) + 5; // keep the badge off his number
+      const by = Math.abs(up - lab) < 13 ? (up > lab ? lab + 11 : lab - 12) : up; return [((i + 0.5) / n * 100).toFixed(2), (100 - up).toFixed(2), g.min, (100 - Math.max(4, Math.min(98, by))).toFixed(2)]; }).filter(Boolean);
+    return `<svg class="pc-mline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}"/></svg>${pts.map(p => `<i class="pc-mn" style="left:${p[0]}%;top:${p[3]}%"><b>${Math.round(p[2])}</b></i>`).join('')}`; })() : ''}
   </div>
   <div class="pc-x">${games.map(g => `<span class="${g.prev ? 'prev' : ''}"><b>${g.atVs === '@' ? '@' : ''}${esc(g.opp)}</b><small>${esc(fmtET(g.date, { month: 'numeric', day: 'numeric' }))}</small></span>`).join('')}</div></div>`;
 }
@@ -1310,12 +1340,18 @@ async function openPropDetail(pid, k, m0, extra) {
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
-  let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null;
+  let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null, showMin = lsGet('fc-pd-min') === '1', pT = null, rest = null, wo = [];
+  // matchup extras: pace, rest, blowout risk, shot zones vs this defense, and with/without teammates who are out
+  if (!IS_W) {
+    pbpTeams().then(d => { pT = d; if (d) draw(); });
+    if (g) restOf(r.teamId, etYmd(g.date).replace(/-/g, '')).then(x => { rest = x; draw(); });
+    matesOut(r).then(async ms => { if (!ms.length) return; wo = ms.map(x => ({ mate: x, loading: true })); draw(); wo = (await Promise.all(ms.map(x => wowy(r, x, k).catch(() => null)))).map((w, i) => w || { mate: ms[i], none: true }); draw(); });
+  }
   if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
   // last season's games, so L10 / L15 still mean ten and fifteen games early in a new season
   let prev = [];
   if (log.length < 15) { const now = new Date(), cur = IS_W ? now.getFullYear() : now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0); gameLog(pid, cur - 1).then(l => { const have = new Set(log.map(g => String(g.id))); prev = l.filter(g => g.min > 0 && !have.has(String(g.id))).map(g => ({ ...g, prev: true })); if (prev.length) draw(); }).catch(() => {}); }
-  if (['reb', 'ast', 'pr', 'ra', 'pa', 'pra'].includes(k)) pbpLog(r.name).then(d => { pbp = d; if (d) draw(); });
+  if (['reb', 'ast', 'pr', 'ra', 'pa', 'pra', 'pts', 'tpm', 'fga', 'tpa'].includes(k)) pbpLog(r.name).then(d => { pbp = d; if (d) draw(); });
   const alts = (ctx.alts || []).filter(a => Number.isFinite(a.o)), peers = (ctx.peers || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
   const altCard = all => {
@@ -1340,6 +1376,29 @@ async function openPropDetail(pid, k, m0, extra) {
         <tr class="tot"><td>Avg</td><td>${av(a)}</td><td>Avg</td><td>${av(b)}</td></tr><tr class="tot"><td>Hit</td><td>${hr(a, m - 0.5)}</td><td>Hit</td><td>${hr(b, pl)}</td></tr></tbody></table>`;
     }
     return `<div class="card pd-card"><div class="card-h"><h4>Compare</h4><select class="bd-sel pd-csel" data-pdcmp aria-label="Compare with"><option value="">Pick a player…</option>${peers.map(x => `<option value="${x.pid}" ${x.pid === cmp ? 'selected' : ''}>${esc(x.name)} (${esc(x.abbr)}) ${x.line ?? ''}</option>`).join('')}</select></div>${body || '<p class="pp-note">Last 10 games side by side against each player\'s own line, same market.</p>'}</div>`;
+  };
+  const matchupCard = () => {
+    if (IS_W || !g) return '';
+    const rows = [];
+    const pc = pT && paceOf(pT, g.home.abbr, g.away.abbr);
+    if (pc) rows.push(`<li><b class="${pc.diff >= 2 ? 'up' : pc.diff <= -2 ? 'dn' : ''}">${pc.diff >= 2 ? 'Fast' : pc.diff <= -2 ? 'Slow' : 'Average'} pace</b> ${esc(g.away.abbr)} and ${esc(g.home.abbr)} project about ${pc.pace.toFixed(1)} possessions, ${pc.diff >= 0 ? '+' : ''}${pc.diff.toFixed(1)} vs the league${pT.back ? ' (last season\'s pace, this early)' : ''}. More possessions, more counting stats.</li>`);
+    if (rest?.b2b) rows.push(`<li><b class="dn">Back-to-back</b> ${esc(r.abbr)} played last night. Minutes and efficiency often dip.</li>`);
+    else if (rest?.three4) rows.push(`<li><b class="dn">3 games in 4 nights</b> A heavy stretch for ${esc(r.abbr)}.</li>`);
+    else if (rest) rows.push(`<li><b>Rested</b> ${esc(r.abbr)} didn't play last night.</li>`);
+    const sp = parseFloat(g.odds?.home?.spread);
+    if (Math.abs(sp) >= 10) rows.push(`<li><b class="dn">Blowout risk</b> ${esc(sp < 0 ? g.home.abbr : g.away.abbr)} favored by ${Math.abs(sp)}. Starters can sit the 4th quarter in lopsided games${(r.min || 0) >= 26 ? ', which caps his minutes' : ''}.</li>`);
+    else if (Number.isFinite(sp)) rows.push(`<li><b>Spread ${esc(g.home.abbr)} ${sp > 0 ? '+' : ''}${sp}</b> Close enough that starters should play their normal minutes.</li>`);
+    // shot zones: his shot mix vs what this defense allows there
+    let zones = '';
+    if (pT && pbp && ['pts', 'tpm', 'pra', 'pr', 'pa', 'fga', 'tpa'].includes(k)) {
+      const tot = {}; for (const x of pbp.values()) for (const [z, v] of Object.entries(x.z || {})) tot[z] = (tot[z] || 0) + v;
+      const all = Object.values(tot).reduce((a, b) => a + b, 0), D = pT.opp[pbpAbbr(opp.abbr)];
+      if (all >= 20 && D) zones = `<div class="pd-zones"><div class="pz hd"><span>Zone</span><span>His shots</span><span>${esc(opp.abbr)} allow</span><span>League</span></div>${pT.zones.filter(([z]) => tot[z]).map(([z, lab]) => { const a = D[z], l = pT.lgZone[z], d = a != null && l != null ? a - l : null; return `<div class="pz"><span>${lab}</span><span><b>${Math.round(tot[z] / all * 100)}%</b><i style="width:${Math.round(tot[z] / all * 100)}%"></i></span><span class="${d == null ? '' : d >= 0.02 ? 'pos' : d <= -0.02 ? 'neg' : ''}">${a != null ? (a * 100).toFixed(1) + '%' : '–'}</span><span>${l != null ? (l * 100).toFixed(1) + '%' : '–'}</span></div>`; }).join('')}<p class="pp-note">His share of shots from each zone this season, and the FG% ${esc(opp.abbr)} allow there${pT.back ? ' (last season)' : ''}. Green: softer than the league in a zone he uses.</p></div>`;
+    }
+    const wrows = wo.map(w => w.loading ? `<li><b>Without ${esc(w.mate.name)}</b> <span class="bd-ld"></span></li>` : w.none ? `<li><b>Without ${esc(w.mate.name)}</b> Not enough minutes apart to compare yet.</li>` : (() => { const d = w.without - w.with; return `<li><b class="${d >= 0.5 ? 'up' : d <= -0.5 ? 'dn' : ''}">Without ${esc(w.mate.name)}</b> ${w.without.toFixed(1)} ${short} per 36 with him off the floor vs ${w.with.toFixed(1)} with him on (${w.minWithout} vs ${w.minWith} minutes${w.back ? ', last season' : ''}).</li>`; })());
+    if (!rows.length && !zones && !wrows.length) return '';
+    return `<div class="card pd-card"><div class="card-h"><h4>Matchup</h4><span class="eyebrow">PBPStats · ESPN</span></div>
+      ${wrows.length ? `<ul class="pd-mu">${wrows.join('')}</ul>` : ''}${rows.length ? `<ul class="pd-mu">${rows.join('')}</ul>` : ''}${zones}</div>`;
   };
   const draw = () => {
     const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);
@@ -1389,12 +1448,14 @@ async function openPropDetail(pid, k, m0, extra) {
         }
         return `<div class="pd-rng">${Object.entries(R).map(([key, g]) => cell(key, g)).join('')}</div>
       <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><div class="pd-flt">
+          <button class="pd-mtg${showMin ? ' on' : ''}" data-pdmin aria-pressed="${showMin}" title="Overlay his minutes in each game">MIN</button>
           <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </div></div>
-        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null)}
+        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin)}
+        ${showMin ? '<p class="pp-note pd-mnote"><i></i> Minutes played (0–48 scale)</p>' : ''}
         ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.${prev.length ? ' Faded bars are from last season.' : ''}</p>` : ''}
-      </div>`;
+      </div>${matchupCard()}`;
       })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
@@ -1411,6 +1472,7 @@ async function openPropDetail(pid, k, m0, extra) {
       draw(); return;
     }
     const rg = e.target.closest('[data-pdrng]'); if (rg) { rng = rg.dataset.pdrng; draw(); return; }
+    if (e.target.closest('[data-pdmin]')) { showMin = !showMin; lsSet('fc-pd-min', showMin ? '1' : null); draw(); return; }
     const am = e.target.closest('[data-pdmark]');
     if (am) { m = +am.dataset.pdmark; draw(); return; }
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }

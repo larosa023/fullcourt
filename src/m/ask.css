@@ -289,3 +289,28 @@ button.pd-alt:hover { background: var(--surface-2); }
 }
 .pc-col.prev .pc-bar { opacity: .62; }
 .pc-x span.prev b, .pc-x span.prev small { opacity: .7; }
+/* minutes overlay */
+.pd-mtg { height: 32px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; }
+.pd-mtg:hover { color: var(--ink); }
+.pd-mtg.on { color: #f5b301; border-color: color-mix(in oklab, #f5b301 50%, var(--line)); background: color-mix(in oklab, #f5b301 10%, var(--surface)); }
+.pc-mline { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; overflow: visible; }
+.pc-mline polyline { fill: none; stroke: #f5b301; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; opacity: .9; }
+.pc-mn { position: absolute; z-index: 4; transform: translate(-50%, -50%); font-style: normal; pointer-events: none; }
+.pc-mn b { display: block; min-width: 22px; padding: 1px 4px; border-radius: 6px; background: #f5b301; color: #1a1300; font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: center; box-shadow: 0 1px 4px rgb(0 0 0 / .35); }
+.pd-mnote { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.pd-mnote i { width: 14px; height: 3px; border-radius: 2px; background: #f5b301; }
+/* matchup card */
+.pd-mu { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.pd-mu li { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); }
+.pd-mu b { color: var(--ink); margin-right: 4px; }
+.pd-mu b.up { color: var(--win); } .pd-mu b.dn { color: var(--loss); }
+.pd-zones { margin-top: 6px; display: grid; gap: 2px; }
+.pz { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr 1fr; gap: 8px; align-items: center; padding: 6px 2px; border-top: 1px solid var(--line); font-size: 13px; }
+.pz.hd { border-top: 0; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pz span:nth-child(n+3) { text-align: right; font-weight: 600; }
+.pz span:nth-child(2) { position: relative; display: flex; align-items: center; gap: 6px; }
+.pz span:nth-child(2) i { height: 6px; border-radius: 3px; background: var(--accent); opacity: .7; max-width: 60%; }
+.pz .pos { color: var(--win); } .pz .neg { color: var(--loss); }
+.pc.min .pc-v { z-index: 5; }
+.pc.min .pc-v { text-shadow: 0 0 3px var(--surface), 0 0 6px var(--surface); }
+.pc.min .pc-mn b { opacity: .92; }

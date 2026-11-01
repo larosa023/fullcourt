@@ -1971,7 +1971,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-01b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-01c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2036,6 +2036,45 @@ async function leagueTable() {
 const scoreboardOn = date => getJSON(`${API}/scoreboard?dates=${date}`).then(d => (d.events || []).map(parseGame));
 const summaryOf = id => getJSON(`${API}/summary?event=${id}`);
 const scheduleOf = id => getJSON(`${API}/teams/${id}/schedule`);
+// team schedules, kept for 30 minutes (rest flags read many of them at once)
+const schedMemo = new Map();
+const scheduleCached = id => { const m = schedMemo.get(id); if (m && Date.now() - m.t < 30 * 60e3) return m.p; const p = scheduleOf(id).catch(e => { schedMemo.delete(id); throw e; }); schedMemo.set(id, { t: Date.now(), p }); return p; };
+// rest: back-to-back (played the day before) and 3 games in 4 nights, counting the game on `day`
+async function restOf(teamId, day) {
+  try {
+    const d = await scheduleCached(teamId);
+    const days = new Set((d.events || []).map(e => ymd(new Date(new Date(e.date).getTime() - 5 * 3600e3))));
+    const b2b = days.has(addDays(day, -1)), n4 = [0, -1, -2, -3].filter(k => days.has(addDays(day, k))).length;
+    return { b2b, three4: n4 >= 3 };
+  } catch (e) { return {}; }
+}
+/* PBPStats team numbers (free, public): pace and the shooting each defense allows by zone. NBA only, cached 6h. */
+const PBP_API = 'https://api.pbpstats.com';
+const PBP_ABBR = { GS: 'GSW', NY: 'NYK', SA: 'SAS', NO: 'NOP', UTAH: 'UTA', WSH: 'WAS' };
+const pbpAbbr = a => PBP_ABBR[a] || a;
+const pbpSeason = (back = 0) => { const n = new Date(), y = (n.getMonth() >= 7 ? n.getFullYear() : n.getFullYear() - 1) - back; return `${y}-${String(y + 1).slice(2)}`; };
+let pbpTeamsP = null;
+function pbpTeams() {
+  if (IS_W) return Promise.resolve(null);
+  if (pbpTeamsP) return pbpTeamsP;
+  pbpTeamsP = (async () => {
+    try { const c = JSON.parse(lsGet('fc-pbp-teams') || 'null'); if (c && Date.now() - c.t < 6 * 3600e3) return c.d; } catch (e) {}
+    const get = (type, back) => getJSON(`${PBP_API}/get-totals/nba?Season=${pbpSeason(back)}&SeasonType=Regular%20Season&Type=${type}`, { retries: 0, timeout: 15000 });
+    let [T, O] = await Promise.all([get('Team', 0), get('Opponent', 0)]), back = 0;
+    // too early in a season to say much: use last season's numbers
+    if ((T.multi_row_table_data || []).reduce((a, r) => a + (r.GamesPlayed || 0), 0) / 30 < 6) { back = 1; [T, O] = await Promise.all([get('Team', 1), get('Opponent', 1)]); }
+    const Z = [['AtRim', 'At the rim'], ['ShortMidRange', 'Short mid-range'], ['LongMidRange', 'Long mid-range'], ['Corner3', 'Corner 3'], ['Arc3', 'Above-the-break 3']];
+    const zone = r => Object.fromEntries(Z.map(([z]) => [z, r[z + 'FGA'] ? r[z + 'FGM'] / r[z + 'FGA'] : null]));
+    const d = { pace: {}, lgPace: T.single_row_table_data?.Pace, opp: {}, lgZone: zone(O.single_row_table_data || {}), zones: Z, gp: {}, tid: {}, season: pbpSeason(back), back };
+    for (const r of T.multi_row_table_data || []) { d.pace[r.TeamAbbreviation || r.Name] = r.Pace; d.gp[r.TeamAbbreviation || r.Name] = r.GamesPlayed; d.tid[r.TeamAbbreviation || r.Name] = r.TeamId; }
+    for (const r of O.multi_row_table_data || []) d.opp[r.TeamAbbreviation || r.Name] = zone(r);
+    lsSet('fc-pbp-teams', JSON.stringify({ t: Date.now(), d }));
+    return d;
+  })().catch(() => { pbpTeamsP = null; return null; });
+  return pbpTeamsP;
+}
+// projected pace for a matchup vs the league: + is faster
+function paceOf(P, a, b) { const x = P?.pace?.[pbpAbbr(a)], y = P?.pace?.[pbpAbbr(b)]; return x && y && P.lgPace ? { pace: (x + y) / 2, diff: (x + y) / 2 - P.lgPace } : null; }
 async function gameLog(pid, season) {
   const d = await getJSON(`${WEB}/athletes/${pid}/gamelog${season ? `?season=${season}` : ''}`);
   const lab = d.labels || [];

@@ -119,6 +119,12 @@ function flagsOf(x) {
   if (L.length >= 5) { const m3 = (L[0].min + L[1].min + L[2].min) / 3, ms = L.reduce((a, g) => a + g.min, 0) / L.length; if (m3 - ms >= 4) f.push(['up', `MIN ↑ ${Math.round(m3)}`]); else if (ms - m3 >= 4) f.push(['dn', `MIN ↓ ${Math.round(m3)}`]); }
   const out = (BD.outByTeam?.get(String(x.p.teamId)) || []).filter(n => n.id !== String(x.p.id));
   if (out.length) f.push(['out', `${out[0].last} out${out.length > 1 ? ` +${out.length - 1}` : ''}`]);
+  const rs = BD.rest?.get(String(x.p.teamId));
+  if (rs?.b2b) f.push(['dn', 'B2B']); else if (rs?.three4) f.push(['dn', '3 in 4']);
+  const pc = paceOf(BD.pbpT, x.g.home.abbr, x.g.away.abbr);
+  if (pc && Math.abs(pc.diff) >= 2) f.push([pc.diff > 0 ? 'up' : 'dn', pc.diff > 0 ? 'Fast pace' : 'Slow pace']);
+  const sp = Math.abs(parseFloat(x.g.odds?.home?.spread));
+  if (sp >= 10 && (x.p.min || 0) >= 26) f.push(['dn', 'Blowout risk']);
   return f;
 }
 // under the radar: role players (under 15 a game) whose minutes are climbing
@@ -213,6 +219,11 @@ async function bdDraw() {
       if (!/^out/i.test(x.status)) continue; const r = rows.find(y => String(y.id) === String(x.id)); if (!r || r.pts < 15) continue;
       const t = String(r.teamId); if (!BD.outByTeam.has(t)) BD.outByTeam.set(t, []); BD.outByTeam.get(t).push({ id: String(r.id), last: r.last || r.name.split(' ').slice(-1)[0] });
     }
+  } catch (e) {}
+  // rest, pace and blowout flags
+  try {
+    const [rest, pt] = await Promise.all([Promise.all(games.flatMap(g => [g.home.id, g.away.id]).map(async t => [String(t), await restOf(t, slate.date)])), pbpTeams()]);
+    BD.rest = new Map(rest); BD.pbpT = pt;
   } catch (e) {}
   BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
   BD.missingIds = new Set(games.filter((g, i) => !per[i].length).map(g => g.id));
@@ -344,7 +355,7 @@ function bdTable(main, keepScroll, final) {
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Sportsbook props aren't posted yet for ${esc(BD.missing.join(', '))}, so those games show Fullcourt lines marked <em class="est">est</em> (set at each player's recent average) until the book's lines arrive, usually the morning of the game.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
-    <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, and a key teammate out. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
+    <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, a key teammate out, B2B or 3 games in 4 nights, a fast or slow matchup (2+ possessions off the league pace, from PBPStats), and blowout risk for starters when the spread is 10 or more. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
   placeKnob($('[data-bdsideseg]', main));
@@ -477,6 +488,41 @@ async function checkStars(list) {
   if (!list && BD.tab === 'props' && S.view === 'bets') bdDraw();
 }
 
+/* first basket: from each team's recent play-by-play — who got the first possession, who scored first, and who
+   made the team's first basket */
+const fbMemo = new Map();
+async function firstBasket(teamId) {
+  if (fbMemo.has(teamId)) return fbMemo.get(teamId);
+  const p = (async () => {
+    const d = await scheduleCached(teamId);
+    const ids = (d.events || []).filter(e => e.competitions?.[0]?.status?.type?.completed).slice(-8).map(e => String(e.id));
+    const out = { n: 0, tip: 0, first: 0, scorers: new Map(), names: new Map() };
+    await poolRun(ids, 4, async id => {
+      const s = await summaryCached(id, 6 * 3600e3), plays = s.plays || []; if (!plays.length) return;
+      for (const T of s.boxscore?.players || []) for (const a of T.statistics?.[0]?.athletes || []) out.names.set(String(a.athlete.id), a.athlete.shortName || a.athlete.displayName);
+      const poss = plays.find(x => x.team?.id && !/jump ball/i.test(x.type?.text || '') && x.period?.number === 1);
+      const firstScore = plays.find(x => x.scoringPlay), mineFirst = plays.find(x => x.scoringPlay && String(x.team?.id) === String(teamId));
+      out.n++;
+      if (poss && String(poss.team.id) === String(teamId)) out.tip++;
+      if (firstScore && String(firstScore.team?.id) === String(teamId)) out.first++;
+      const who = mineFirst?.participants?.[0]?.athlete?.id; if (who) out.scorers.set(String(who), (out.scorers.get(String(who)) || 0) + 1);
+    });
+    return out;
+  })();
+  fbMemo.set(teamId, p); p.catch(() => fbMemo.delete(teamId));
+  return p;
+}
+async function fillFirstBasket(el, g) {
+  const box = el.querySelector('.bg-fbb'); if (el._done) return; el._done = true;
+  try {
+    const [A, H] = await Promise.all([firstBasket(g.away.id), firstBasket(g.home.id)]);
+    const team = (t, x) => { const top = [...x.scorers].sort((a, b) => b[1] - a[1]).slice(0, 4); return `<div class="fb-t"><div class="fb-h">${logo(t.abbr, 32)}<b>${esc(t.abbr)}</b></div>
+      <div class="fb-s"><span>First possession <b>${x.tip}/${x.n}</b></span><span>Scored first <b>${x.first}/${x.n}</b></span></div>
+      <ol class="fb-l">${top.map(([id, c]) => `<li><span>${esc(x.names.get(id) || '—')}</span><b>${c}/${x.n}</b></li>`).join('') || '<li><span>No games yet</span></li>'}</ol></div>`; };
+    box.innerHTML = `<div class="fb-g">${team(g.away, A)}${team(g.home, H)}</div><p class="bd-note">From each team's last ${Math.max(A.n, H.n)} games of play-by-play. "First possession" is who had the ball first, usually the tip winner. The list is who made that team's first basket of the game.</p>`;
+  } catch (e) { box.innerHTML = '<p class="bd-note">Couldn\'t load the play-by-play. Try again in a bit.</p>'; el._done = false; }
+}
+
 function drawGames(main, games) {
   const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
   const card = g => {
@@ -488,14 +534,17 @@ function drawGames(main, games) {
     return `<div class="bg-card">
       <button class="bg-h" data-game="${g.id}"><span>${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</span><span>${esc(g.tv || '')}</span></button>
       ${team(g.away, 'away')}${team(g.home, 'home')}
+      <details class="bg-fb" data-fbgame="${g.id}"><summary>First basket <small>first possession, first score, first scorers</small></summary><div class="bg-fbb"><div class="sk" style="height:120px"></div></div></details>
       <div class="bg-lean">${proj != null ? `<span>Teams project <b>${Math.round(proj)}</b> total${tl != null ? ` · ${Math.abs(tl) >= 3 ? `<b class="on">lean ${tl > 0 ? 'Over' : 'Under'}</b>` : 'no lean'}` : ''}</span><span>Project <b>${margin >= 0 ? esc(g.home.abbr) : esc(g.away.abbr)} by ${Math.abs(margin).toFixed(1)}</b>${sl != null ? ` · ${Math.abs(sl) >= 2.5 ? `<b class="on">lean ${sl > 0 ? `${esc(g.home.abbr)} ${hs > 0 ? '+' : ''}${hs}` : `${esc(g.away.abbr)} ${-hs > 0 ? '+' : ''}${-hs}`}</b>` : 'no lean'}` : ''}</span>` : '<span>Not enough games for a projection yet.</span>'}</div>
     </div>`;
   };
+  BD.gmap = new Map(games.map(g => [g.id, g]));
   main.innerHTML = `<div class="bg-grid">${games.map(card).join('')}</div><p class="bd-note">Lines from ${esc(games.find(g => g.odds?.provider)?.odds.provider || 'the sportsbook')} via ESPN. Projections use each team's points scored and allowed this season with about 1.5 points for home court. A lean shows when the line is 3+ points off on a total or 2.5+ on a spread. Not betting advice.</p>`;
 }
 
 function bdWire(body) {
   body.dataset.wired = '1';
+  body.addEventListener('toggle', e => { const d = e.target; if (d.matches?.('[data-fbgame]') && d.open) { const g = BD.gmap?.get(d.dataset.fbgame); if (g) fillFirstBasket(d, g); } }, true);
   body.addEventListener('click', e => {
     if (e.target.closest('[data-bdpriv]')) { lsSet('fc-bd-priv', privOn() ? null : '1'); privApply(); return; }
     const t = e.target.closest('[data-bdt]'); if (t) {
@@ -554,6 +603,18 @@ function slipMath() {
   const d = SLIP.legs.reduce((a, l) => a * decOf(l.odds), 1), stake = Math.max(0, +SLIP.stake || 0);
   return { d, stake, pays: stake * d, win: stake * (d - 1), amer: SLIP.legs.length ? amerOf(d) : '–' };
 }
+// sportsbooks and pick'em apps: copy the slip in their wording, then open them
+const BOOKS = [['dk', 'DraftKings', 'https://sportsbook.draftkings.com/leagues/basketball/nba'], ['fd', 'FanDuel', 'https://sportsbook.fanduel.com/navigation/nba'], ['fan', 'Fanatics', 'https://sportsbook.fanatics.com/'], ['hr', 'Hard Rock', 'https://app.hardrock.bet/'], ['score', 'theScore Bet', 'https://thescore.bet/'], ['pp', 'PrizePicks', 'https://app.prizepicks.com/', 1], ['sl', 'Sleeper', 'https://sleeper.com/', 1]];
+async function exportSlip(id) {
+  const b = BOOKS.find(x => x[0] === id); if (!b) return;
+  const dfs = !!b[3], mk = k => MARKETS.find(q => q[0] === k)[1];
+  const lines = SLIP.legs.map(l => `${l.name} ${dfs ? (l.side === 'u' ? 'Less' : 'More') : l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${mk(l.k)}${dfs ? '' : ` (${l.odds > 0 ? '+' + l.odds : l.odds})`}`);
+  const m = slipMath(), txt = `${dfs ? `${SLIP.legs.length}-pick entry` : SLIP.legs.length > 1 ? `${SLIP.legs.length}-leg parlay` : 'Single'} for ${b[1]}\n${lines.join('\n')}${!dfs && m.stake ? `\n${usd(m.stake)} at ${m.amer} pays ${usd(m.pays)}` : ''}`;
+  let ok = false; try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  toast(ok ? `Picks copied: paste them in ${b[1]}` : `Opening ${b[1]}`);
+  const w = window.open(b[2], '_blank', 'noopener');
+  if (!w && !document.hidden) setTimeout(() => { location.href = b[2]; }, 400);
+}
 function drawSlip() {
   const view = $('#v-bets'); if (!view) return;
   let dock = $('#bdSlip');
@@ -579,14 +640,17 @@ function drawSlip() {
         <div><span>To win</span><b>${usd(m.win)}</b></div>
         <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
       </div>
+      <div class="bs-books" hidden>${BOOKS.map(([id, name]) => `<button data-slipbook="${id}">${name}</button>`).join('')}<p class="bs-note">No sportsbook lets other sites fill your bet slip, so this copies your picks and opens the book. Paste or rebuild them there; lines can differ by book.</p></div>
       ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
-      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
+      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-exp" data-slipexp aria-expanded="false">Export</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
     </div>`;
 }
 function wireSlip(dock) {
   dock.addEventListener('click', e => {
     if (e.target.closest('[data-slipopen]')) { SLIP.open = !SLIP.open; saveSlip(); drawSlip(); return; }
     const d = e.target.closest('[data-slipdel]'); if (d) { SLIP.legs.splice(+d.dataset.slipdel, 1); saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    const ex = e.target.closest('[data-slipexp]'); if (ex) { const bx = dock.querySelector('.bs-books'); bx.hidden = !bx.hidden; ex.setAttribute('aria-expanded', !bx.hidden); return; }
+    const bk = e.target.closest('[data-slipbook]'); if (bk) { exportSlip(bk.dataset.slipbook); return; }
     if (e.target.closest('[data-slipshare]')) { const m = slipMath(), mk = k => MARKETS.find(q => q[0] === k)[2];
       lazy('bets').then(b => b.shareCard({ title: SLIP.legs.length > 1 ? `${SLIP.legs.length}-leg parlay` : 'Single', sub: 'Built on Fullcourt', legs: SLIP.legs.map(l => ({ name: l.name, what: `${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${mk(l.k)} · ${l.game}`, val: l.odds > 0 ? '+' + l.odds : String(l.odds) })), foot: [['Stake', usd(m.stake)], ['Odds', m.amer], ['Pays', usd(m.pays), true]] }, 'fullcourt-parlay.png')); return; }
     if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
