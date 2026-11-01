@@ -53,3 +53,6 @@
 .bt-ask { display: grid; gap: 10px; margin-top: 10px; }
 .bt-ask .bt-card { width: auto; }
 @media (max-width: 760px) { .bt-card { width: min(300px, 82vw); } }
+.bt-need { margin: -2px 12px 6px; padding: 6px 10px; border-radius: 10px; font-size: 12px; line-height: 1.35; color: var(--ink-2); background: color-mix(in oklab, var(--accent) 9%, transparent); }
+.bt-need b { color: var(--accent); margin-right: 4px; }
+.bt-card.mini .bt-need { display: none; }

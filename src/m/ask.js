@@ -1238,7 +1238,32 @@ async function openPropDetail(pid, k, m0, extra) {
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
-  let m = m0;
+  let m = m0, cmp = null;
+  const alts = (ctx.alts || []).filter(a => Number.isFinite(a.o)), peers = (ctx.peers || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
+  const altCard = all => {
+    if (!alts.length) return '';
+    const L10 = all.slice(0, 10);
+    return `<div class="card pd-card"><div class="card-h"><h4>Alt lines</h4><span class="eyebrow">DraftKings ladder · tap one to use it</span></div>
+      <div class="pd-alts"><div class="pd-alt hd"><span>Mark</span><span>Odds</span><span>Book %</span><span>L10</span><span>Edge</span></div>${alts.map(a => { const ip = imp(a.o), h = L10.length ? L10.filter(v => v >= a.t).length / L10.length : null, ed = h == null ? null : h - ip;
+        return `<button class="pd-alt${a.t === m ? ' on' : ''}${ed != null && ed >= 0.1 ? ' good' : ''}" data-pdmark="${a.t}"><span><b>${a.t}+</b></span><span>${a.o > 0 ? '+' + a.o : a.o}</span><span>${Math.round(ip * 100)}%</span><span>${h == null ? '–' : Math.round(h * 100) + '%'}</span><span class="${ed == null ? '' : ed >= 0.1 ? 'pos' : ed <= -0.1 ? 'neg' : ''}">${ed == null ? '–' : (ed >= 0 ? '+' : '−') + Math.abs(Math.round(ed * 100))}</span></button>`; }).join('')}</div>
+      <p class="pp-note">Book % is the chance the odds imply. Edge is his last-10 hit rate minus that, so green rungs have been cashing more often than the price says.</p></div>`;
+  };
+  const cmpCard = () => {
+    if (!peers.length) return '';
+    const P = cmp && peers.find(x => x.pid === cmp);
+    let body = '';
+    if (P) {
+      const a = log.slice(0, 10), b = P.log.slice(0, 10), n = Math.max(a.length, b.length), pl = Number.isFinite(+P.line) ? +P.line : null;
+      const cell = (g, line) => { if (!g) return '<td></td><td></td>'; const v = propVal(g, k); return `<td class="o">${esc(g.opp)}</td><td class="${line == null ? '' : v > line ? 'y' : 'n'}">${v}</td>`; };
+      const av = (L) => L.length ? (L.reduce((s, g) => s + propVal(g, k), 0) / L.length).toFixed(1) : '–';
+      const hr = (L, line) => line == null || !L.length ? '–' : `${L.filter(g => propVal(g, k) > line).length}/${L.length}`;
+      body = `<table class="pd-cmp"><thead><tr><th colspan="2">${esc(r.last || r.name)} · ${m - 0.5}</th><th colspan="2">${esc(P.name.split(' ').slice(-1)[0])} · ${pl ?? '–'}</th></tr></thead><tbody>
+        ${Array.from({ length: n }, (_, i) => `<tr>${cell(a[i], m - 0.5)}${cell(b[i], pl)}</tr>`).join('')}
+        <tr class="tot"><td>Avg</td><td>${av(a)}</td><td>Avg</td><td>${av(b)}</td></tr><tr class="tot"><td>Hit</td><td>${hr(a, m - 0.5)}</td><td>Hit</td><td>${hr(b, pl)}</td></tr></tbody></table>`;
+    }
+    return `<div class="card pd-card"><div class="card-h"><h4>Compare</h4><select class="bd-sel pd-csel" data-pdcmp aria-label="Compare with"><option value="">Pick a player…</option>${peers.map(x => `<option value="${x.pid}" ${x.pid === cmp ? 'selected' : ''}>${esc(x.name)} (${esc(x.abbr)}) ${x.line ?? ''}</option>`).join('')}</select></div>${body || '<p class="pp-note">Last 10 games side by side against each player\'s own line, same market.</p>'}</div>`;
+  };
   const draw = () => {
     const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);
     const home = log.filter(x => x.atVs !== '@').map(x => propVal(x, k)), away = log.filter(x => x.atVs === '@').map(x => propVal(x, k));
@@ -1270,6 +1295,7 @@ async function openPropDetail(pid, k, m0, extra) {
       <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><span class="eyebrow">Last ${Math.min(15, log.length)} · line at ${m - 0.5}</span></div>${propChart(log, k, m)}</div>
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
+      ${altCard(all)}${cmpCard()}
       <div class="btn-row"><button class="btn" data-pdtrack>Track over ${m - 0.5} ${short}</button><button class="btn ghost" data-player="${r.id}">Open ${esc(r.last || r.name)}'s profile</button>${g ? `<button class="btn ghost" data-game="${g.id}">Open the game</button>` : ''}</div>
       <p class="pp-note">Trends from his games this season, not a guarantee and not betting advice. Your book's line may differ.</p>
     </div>`;
@@ -1281,6 +1307,9 @@ async function openPropDetail(pid, k, m0, extra) {
       m = Math.max(1, m + +st.dataset.pdstep);
       draw(); return;
     }
+    const am = e.target.closest('[data-pdmark]');
+    if (am) { m = +am.dataset.pdmark; draw(); return; }
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }
   });
+  sheet.body.addEventListener('change', e => { const c2 = e.target.closest('[data-pdcmp]'); if (c2) { cmp = c2.value || null; const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; } });
 }

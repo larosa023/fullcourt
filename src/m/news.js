@@ -1,6 +1,13 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-31h', date: 'Oct 31', items: [
+    ['Bet desk upgrades', 'Star a prop to pin it to the top and get an alert if its line moves a point or the book posts it. New DvP column (how players at his position do against tonight\'s defense), minutes-up/down and teammate-out flags, and your market and sort are remembered.'],
+    ['Alt lines and compare', 'The prop breakdown now shows the DraftKings alt-line ladder with each rung\'s implied odds against his real hit rate, and a Compare picker to put two players\' last 10 games side by side.'],
+    ['My bets and Record', 'Two new Bet desk tabs: My bets (record, profit, ROI, by week, leg hit rate by market, best win, closest call) and Record, which grades Fullcourt\'s top-Score props and game-line leans after the games.'],
+    ['Live parlays', 'Live parlay cards now say what they still need, and you get a heads-up the moment a leg hits or misses.'],
+    ['Win probability', 'Live score cards show a win-probability bar.'],
+  ] },
   { id: '2026-10-31g', date: 'Oct 31', items: [
     ['Bet desk', 'A new Bets tab: today\'s DraftKings player props for every market with each player\'s hit rate on that exact line (last 5, last 10, season, vs tonight\'s opponent), averages, opponent defense and line moves, plus a Game lines view with projections. Tap a row for the full breakdown or + to track it.'],
     ['Themes', 'The palette button at the top now opens a theme menu: Midnight, Pure black, Hardwood, Forest, Paper, Clean white, Ice and more.'],

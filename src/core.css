@@ -1329,3 +1329,9 @@ table.box.adv { min-width: 560px; }
 .lead-bar { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .lead-bar .hs-wrap { flex: 1; min-width: 0; }
 #leadAdv { flex: none; margin-bottom: 18px; }
+
+/* live win probability on score cards */
+.g-wp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 6px 0 2px; }
+.g-wp-bar { position: relative; height: 4px; border-radius: 3px; background: var(--h); overflow: hidden; }
+.g-wp-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--a); border-right: 2px solid var(--surface); transition: width .6s var(--ease); }
+.g-wp-t { font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }

@@ -616,6 +616,7 @@ function gameCard(g, i, animate) {
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
     ${pre ? oddsLine(g.odds) : live ? liveLine(g) : ''}
+    ${live && Number.isFinite(S.wpLive?.[g.id]) ? (() => { const h = S.wpLive[g.id], fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100); return `<div class="g-wp" title="Win probability (ESPN)"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% to win</span></div>`; })() : ''}
     ${foot}
     ${live ? `<span class="prog" style="width:${(progress(g) * 100).toFixed(1)}%"></span>` : ''}
   </button>`;
@@ -926,9 +927,10 @@ async function refreshSit() {
   if (S.view !== 'scores' || document.hidden) return;
   const live = S.games.filter(g => g.state === 'in' && Date.now() - (S.sitAt[g.id] || 0) > 25000);
   if (!live.length) return;
-  const res = await Promise.all(live.map(g => summaryCached(g.id, 15000).then(d => [g.id, situation(d)]).catch(() => null)));
+  const res = await Promise.all(live.map(g => summaryCached(g.id, 15000).then(d => [g.id, situation(d), d.winprobability?.at(-1)?.homeWinPercentage]).catch(() => null)));
   let changed = false;
-  res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); changed = true; });
+  S.wpLive = S.wpLive || {};
+  res.forEach(r => { if (!r) return; S.sit[r[0]] = r[1]; S.sitAt[r[0]] = Date.now(); if (Number.isFinite(r[2])) S.wpLive[r[0]] = r[2]; changed = true; });
   if (changed && S.view === 'scores') { const back = holdScroll(); renderGames(false); back(); }
 }
 
@@ -1969,7 +1971,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31g'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31h'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2989,6 +2991,9 @@ function notableCard(d) {
   };
   if (!hook()) { const mo = new MutationObserver(() => { if (hook()) mo.disconnect(); }); mo.observe(document.body, { childList: true }); setTimeout(() => mo.disconnect(), 20000); }
 })();
+
+/* starred props on the Bet desk: check for line moves every few minutes, only when there are stars */
+setInterval(() => { if (!document.hidden && !IS_W && lsGet('fc-bd-stars') && lsGet('fc-bd-stars') !== '{}') lazy('betdesk').then(m => m.checkStars()).catch(() => {}); }, 5 * 60e3);
 
 /* ================= global events ================= */
 document.addEventListener('click', e => {

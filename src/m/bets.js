@@ -165,6 +165,7 @@ function betCard(b, res) {
       <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
       <button class="bt-x" data-betdel="${esc(b.id)}" title="Remove this bet" aria-label="Remove this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
+    ${st === 'live' && b.legs.length > 1 ? needLine(b, res) : ''}
     <div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
       <span class="bt-t"><b>${esc(legName(l))}</b><small>${esc(r.text || '')}${r.g && r.st !== 'pending' ? ` · ${esc(r.g.label)}` : ''}</small>
@@ -174,6 +175,22 @@ function betCard(b, res) {
     </button>`; }).join('')}</div>
     ${b.stake != null ? `<div class="bt-f"><span>${money(b.stake)} stake</span>${win != null ? `<span>${st === 'won' ? 'Won' : st === 'lost' ? 'Would have won' : 'To win'} <b>${money(win)}</b></span>` : ''}</div>` : ''}
   </div>`;
+}
+// what a live parlay still needs, in one line
+function needLine(b, res) {
+  const last = l => (l.name || '').split(' ').slice(-1)[0];
+  const parts = b.legs.map((l, i) => {
+    const r = res[i] || {};
+    if (r.st === 'pending') return `${legName(l)} (not started)`;
+    if (r.st !== 'live') return null;
+    if (l.k === 'prop') return l.side === 'u' ? `${last(l)} stays under ${l.line}` : `${last(l)} ${Math.max(1, Math.floor(l.line) + 1 - (r.now || 0))} more ${l.stats.map(k => BSTAT[k]).join('+')}`;
+    if (l.k === 'dd' || l.k === 'td') return `${last(l)} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double`;
+    if (l.k === 'spread') return r.now > 0 ? `${l.abbr} keeps covering` : `${l.abbr} ${-r.now + 1} more to cover`;
+    if (l.k === 'ml') return r.now > 0 ? `${l.abbr} holds on` : `${l.abbr} ${-r.now + 1} to lead`;
+    if (l.k === 'total' || l.k === 'ttotal') return l.side === 'u' ? `${l.k === 'total' ? 'game' : l.abbr} stays under ${l.line}` : `${Math.max(1, Math.floor(l.line) + 1 - (r.now || 0))} more points${l.k === 'ttotal' ? ` from ${l.abbr}` : ''}`;
+    return legName(l);
+  }).filter(Boolean);
+  return parts.length ? `<div class="bt-need"><b>Needs ${parts.length}</b> ${esc(parts.join(' · '))}</div>` : '';
 }
 function recordLine(list) {
   const w = list.filter(b => b.result === 'won').length, l = list.filter(b => b.result === 'lost').length;
@@ -203,14 +220,63 @@ async function renderBets(force) {
   for (const b of show) {
     if (b.result && S.betRes[b.id] && b.legs.every(l => sums[l.gid]?.fin)) continue;
     const res = await gradeBet(b);
+    const prev = S.betRes[b.id];
+    if (prev && !b.result) res.forEach((r, i) => { const p = prev[i]?.st; if ((r.st === 'won' || r.st === 'lost') && (p === 'live' || p === 'pending')) legAlert(b, b.legs[i], r); });
     S.betRes[b.id] = res;
     const st = betStatus(res);
     const gamesOver = b.legs.every(l => sums[l.gid]?.fin);
+    if (gamesOver && !b.legRes) { b.legRes = res.map(r => r.st); b.legNow = res.map(r => r.now ?? null); changed = true; }
     if (!b.result && (st === 'lost' || (gamesOver && ['won', 'push'].includes(st)))) { b.result = st; b.settledAt = Date.now(); changed = true; }
   }
-  if (changed) { const ids = new Set(show.map(b => b.id)); list = list.map(b => ids.has(b.id) ? show.find(x => x.id === b.id) : b); writeBets(list); }
+  if (changed) { list = readBets().map(b => show.find(x => x.id === b.id) || b); writeBets(list); }
   betBusy = false;
   draw(S.betRes);
+}
+
+// a leg just hit or just died: toast here, a notification if the tab is in the background
+function legAlert(b, l, r) {
+  const won = r.st === 'won', left = (S.betRes[b.id] || []).filter((x, i) => x.st !== 'won' && x.st !== 'push' && x.st !== 'void' && i !== b.legs.indexOf(l)).length;
+  const msg = `${won ? '✓' : '✗'} ${legName(l)} ${won ? 'hit' : 'missed'}${b.legs.length > 1 ? won ? left ? ` · ${left} to go` : ' · parlay cashed' : ' · parlay down' : ''}`;
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify(won ? 'Leg hit' : 'Leg missed', msg, l.gid || 'bets');
+  else toast(msg);
+}
+
+/* ---------------- history (Bet desk → My bets) ---------------- */
+const hist = b => (b.legRes || []).map((st, i) => { const now = b.legNow?.[i] ?? null, l = b.legs[i]; return { st, now, need: l.line, pct: now != null && l.line ? Math.min(1, now / Math.max(0.5, l.line)) : st === 'won' ? 1 : 0 }; });
+const weekOf = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; };
+async function historyHTML() {
+  const list = readBets();
+  if (!list.length) return `<div class="empty"><b>No bets tracked yet</b>Add props to a parlay here and press Track, or paste a slip into Ask. Every bet you track lands here with your record and profit.</div>`;
+  const done = list.filter(b => b.result), open = list.filter(b => !b.result);
+  const w = done.filter(b => b.result === 'won'), l = done.filter(b => b.result === 'lost'), p = done.filter(b => b.result === 'push');
+  const net = b => b.result === 'won' ? payout(b) : b.result === 'lost' ? (b.stake == null ? null : -b.stake) : 0;
+  const staked = done.filter(b => b.stake != null && b.result !== 'push').reduce((s, b) => s + b.stake, 0);
+  const profit = done.reduce((s, b) => s + (net(b) ?? 0), 0), roi = staked ? profit / staked : null;
+  const sign = v => (v >= 0 ? '+' : '−') + money(Math.abs(v));
+  // weeks, newest first
+  const weeks = new Map();
+  for (const b of done) { const k = weekOf(b.settledAt || b.at).getTime(); const o = weeks.get(k) || { w: 0, l: 0, p: 0, net: 0, st: 0 }; o[{ won: 'w', lost: 'l', push: 'p' }[b.result]]++; o.net += net(b) ?? 0; if (b.stake != null && b.result !== 'push') o.st += b.stake; weeks.set(k, o); }
+  // legs by market
+  const MK = { pts: 'Points', reb: 'Rebounds', ast: 'Assists', tpm: 'Threes', pra: 'Pts+Reb+Ast', pr: 'Pts+Reb', pa: 'Pts+Ast', ra: 'Reb+Ast', ml: 'Moneyline', spread: 'Spread', total: 'Game total', ttotal: 'Team total', dd: 'Double-double', td: 'Triple-double' };
+  const mkOf = l => l.k !== 'prop' ? l.k : ({ 'pts,reb,ast': 'pra', 'pts,reb': 'pr', 'pts,ast': 'pa', 'reb,ast': 'ra', 'ast,reb': 'ra' })[l.stats.join(',')] || (l.stats.length === 1 ? l.stats[0] : 'other');
+  const legs = new Map();
+  for (const b of done) (b.legRes || []).forEach((r, i) => { if (r !== 'won' && r !== 'lost') return; const k = mkOf(b.legs[i]); const o = legs.get(k) || { w: 0, l: 0 }; o[r === 'won' ? 'w' : 'l']++; legs.set(k, o); });
+  const best = w.filter(b => payout(b) != null).sort((a, b) => payout(b) - payout(a))[0];
+  // closest call: a lost parlay that missed by one leg, or the leg that came closest to the line
+  const close = l.filter(b => b.legRes && b.legs.length > 1 && b.legRes.filter(r => r === 'lost').length === 1).sort((a, b) => (payout(b) ?? 0) - (payout(a) ?? 0))[0];
+  const tile = (lab, v, sub, cls = '') => `<div class="rc-big ${cls}"><small>${lab}</small><b>${v}</b><span>${sub}</span></div>`;
+  const pctPill = (a, b) => { const r = a + b ? a / (a + b) : null; return r == null ? '–' : `<span class="bd-pill ${r >= 0.58 ? 'hot' : r >= 0.5 ? 'warm' : 'cold'}">${Math.round(r * 100)}%</span>`; };
+  const fmtW = t => new Date(+t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `<div class="rc-top">
+      ${tile('Record', `${w.length}–${l.length}${p.length ? `–${p.length}` : ''}`, `${done.length ? Math.round(w.length / Math.max(1, w.length + l.length) * 100) + '% won' : 'nothing settled yet'}${open.length ? ` · ${open.length} open` : ''}`)}
+      ${tile('Profit', staked ? sign(profit) : '–', staked ? `on ${money(staked)} staked` : 'add stakes to see profit', staked ? profit >= 0 ? 'pos' : 'neg' : '')}
+      ${tile('ROI', roi != null ? `${roi >= 0 ? '+' : '−'}${Math.abs(Math.round(roi * 1000) / 10)}%` : '–', 'profit ÷ staked', roi != null ? roi >= 0 ? 'pos' : 'neg' : '')}
+    </div>
+    ${weeks.size ? `<div class="card rc-card"><div class="card-h"><h4>By week</h4></div><table class="bd-t rc-t"><thead><tr><th class="pl">Week of</th><th>Record</th><th>Profit</th></tr></thead><tbody>${[...weeks].sort((a, b) => b[0] - a[0]).map(([k, o]) => `<tr><td class="pl">${fmtW(k)}</td><td class="nm">${o.w}–${o.l}${o.p ? `–${o.p}` : ''}</td><td class="nm ${o.st ? o.net >= 0 ? 'pos' : 'neg' : ''}">${o.st ? sign(o.net) : '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${legs.size ? `<div class="card rc-card"><div class="card-h"><h4>Legs by market</h4></div><table class="bd-t rc-t"><thead><tr><th class="pl">Market</th><th>Legs</th><th>Hit</th></tr></thead><tbody>${[...legs].sort((a, b) => (b[1].w + b[1].l) - (a[1].w + a[1].l)).map(([k, o]) => `<tr><td class="pl">${esc(MK[k] || BSTAT[k] || k)}</td><td class="nm">${o.w}–${o.l}</td><td>${pctPill(o.w, o.l)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${best || close ? `<div class="rc-pair">${best ? `<div class="card rc-card"><div class="card-h"><h4>Best win</h4></div>${betCard(best, hist(best))}</div>` : ''}${close ? `<div class="card rc-card"><div class="card-h"><h4>Closest call</h4></div>${betCard(close, hist(close))}</div>` : ''}</div>` : ''}
+    ${open.length ? `<div class="card rc-card"><div class="card-h"><h4>Open</h4></div><div class="bt-ask">${open.slice(-6).reverse().map(b => betCard(b, S.betRes?.[b.id] || b.legs.map(() => ({ st: 'pending', text: '' })))).join('')}</div></div>` : ''}
+    <p class="bd-note">Saved in this browser. Profit counts bets with a stake; pushes return the stake. Leg hit rates start with bets settled from now on.</p>`;
 }
 
 // for Ask: "my bets"

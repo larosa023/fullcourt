@@ -20,7 +20,13 @@ const MARKETS = [
   ['q1a', '1Q Ast', '1Q AST', null, '1st quarter assists'],
 ];
 const EST = new Set(['fga', 'tpa', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
-const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map() };
+const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map() };
+// your last market, side and sort come back next time
+try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir }); } catch (e) {}
+const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir }));
+const readStars = () => { try { return JSON.parse(lsGet('fc-bd-stars') || '{}') || {}; } catch (e) { return {}; } };
+const writeStars = o => lsSet('fc-bd-stars', Object.keys(o).length ? JSON.stringify(o) : null);
+const MILES = { 'Points Milestones': 'pts', 'Rebounds Milestones': 'reb', 'Assists Milestones': 'ast', '3-Point Field Goals Milestones': 'tpm', 'Points + Assists + Rebounds Milestones': 'pra', 'Points + Rebounds Milestones': 'pr', 'Points + Assists Milestones': 'pa', 'Rebounds + Assists Milestones': 'ra' };
 const bdVal = (g, k) => Q1.has(k) ? BD.q1.get(String(g.id))?.get(String(g._pid))?.[k] : k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
 const amer = v => { const n = +v; return Number.isFinite(n) ? (n > 0 ? '+' + n : String(n)) : '–'; };
 
@@ -46,8 +52,10 @@ async function gameProps(g) {
   }
   const by = new Map();
   for (const it of d?.items || []) {
-    const mk = MARKETS.find(m => m[3] === it.type?.name); if (!mk) continue;
     const pid = (it.athlete?.$ref || '').match(/athletes\/(\d+)/)?.[1]; if (!pid) continue;
+    const mi = MILES[it.type?.name];
+    if (mi) { const t = +(it.current?.target?.value ?? parseFloat(it.odds?.total?.value)); if (Number.isFinite(t)) { const k = pid + '|' + mi; const a = BD.alts.get(k) || []; if (!a.some(x => x.t === t)) a.push({ t, o: +it.odds?.american?.value }); a.sort((x, y) => x.t - y.t); BD.alts.set(k, a); } continue; }
+    const mk = MARKETS.find(m => m[3] === it.type?.name); if (!mk) continue;
     const key = pid + '|' + mk[0];
     const e = by.get(key) || { pid, k: mk[0], gid: g.id, odds: [], line: null, open: null };
     e.odds.push(it.odds?.american?.value);
@@ -72,19 +80,46 @@ function defRankOf(teamId) {
   return i < 0 ? null : i + 1;
 }
 const bdPct = (vals, line, side) => vals.length ? vals.filter(v => side === 'u' ? v < line : v > line).length / vals.length : null;
-function rowStats(r) {
+function rowStats(r, side = BD.side) {
   const lg = (r.log || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
   const vals = lg.map(g => bdVal(g, r.k));
   const vsOpp = lg.filter(g => g.opp === r.opp.abbr || String(g.oppId) === String(r.opp.id)).map(g => bdVal(g, r.k));
   if (r.est) { if (!vals.length) return null; const L = vals.slice(0, 10), mean = L.reduce((a, b) => a + b, 0) / L.length; r.line = Math.floor(mean) + 0.5; }
   const L5 = vals.slice(0, 5), L10 = vals.slice(0, 10), avg = L10.length ? L10.reduce((a, b) => a + b, 0) / L10.length : null;
-  const s = BD.side;
+  const s = side;
   const h5 = bdPct(L5, r.line, s), h10 = bdPct(L10, r.line, s), hs = bdPct(vals, r.line, s), hv = bdPct(vsOpp, r.line, s);
   const diff = avg == null ? null : (s === 'u' ? r.line - avg : avg - r.line);
   // edge: mostly how often it's cashed lately, nudged by how far the average sits from the line
   const edge = h10 == null ? null : h10 * 0.55 + (h5 ?? h10) * 0.25 + (hs ?? h10) * 0.2 + Math.max(-0.15, Math.min(0.15, (diff || 0) / Math.max(2, r.line) * 0.6));
   let streak = 0; for (const v of vals) { if (s === 'u' ? v < r.line : v > r.line) streak++; else break; }
   return { vals, L5, L10, h5, h10, hs, hv, nv: vsOpp.length, avg, diff, edge, streak };
+}
+// defense vs position, from the game logs already loaded: how far players at this position run above or below
+// their own average when they face this team, for this stat
+const posGroup = p => /C/.test(p || '') && !/G/.test(p || '') ? 'C' : /G/.test(p || '') ? 'G' : 'F';
+function dvpTable(k) {
+  const key = k + '|' + BD.logN;
+  if ((BD.dvpC ||= new Map()).has(key)) return BD.dvpC.get(key);
+  const agg = new Map(), seen = new Set();
+  for (const x of BD.all || []) {
+    if (!x.log?.length || seen.has(x.pid) || Q1.has(k)) continue;
+    seen.add(x.pid);
+    const vals = x.log.map(g => bdVal(g, k)).filter(v => v != null); if (vals.length < 3) continue;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length, grp = posGroup(x.p.pos);
+    for (const g of x.log) { const v = bdVal(g, k); if (v == null) continue; const kk = g.opp + '|' + grp; const a = agg.get(kk) || { s: 0, n: 0 }; a.s += v - mean; a.n++; agg.set(kk, a); }
+  }
+  if (BD.dvpC.size > 40) BD.dvpC.clear();
+  BD.dvpC.set(key, agg);
+  return agg;
+}
+const dvpOf = x => { const a = dvpTable(x.k).get(x.opp.abbr + '|' + posGroup(x.p.pos)); return a && a.n >= 3 ? { v: a.s / a.n, n: a.n } : null; };
+function flagsOf(x) {
+  const f = [];
+  const L = x.log || [];
+  if (L.length >= 5) { const m3 = (L[0].min + L[1].min + L[2].min) / 3, ms = L.reduce((a, g) => a + g.min, 0) / L.length; if (m3 - ms >= 4) f.push(['up', `MIN ↑ ${Math.round(m3)}`]); else if (ms - m3 >= 4) f.push(['dn', `MIN ↓ ${Math.round(m3)}`]); }
+  const out = (BD.outByTeam?.get(String(x.p.teamId)) || []).filter(n => n.id !== String(x.p.id));
+  if (out.length) f.push(['out', `${out[0].last} out${out.length > 1 ? ` +${out.length - 1}` : ''}`]);
+  return f;
 }
 const pill = (p, n) => p == null ? '<span class="bd-pill na">–</span>' : `<span class="bd-pill ${p >= 0.7 ? 'hot' : p >= 0.55 ? 'warm' : p <= 0.3 ? 'cold' : ''}" title="${Math.round(p * (n || 0))}/${n || 0}">${Math.round(p * 100)}%</span>`;
 
@@ -99,7 +134,7 @@ async function renderBetDesk() {
 }
 function bdShell() {
   return `<div class="bd-top">
-    <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Player props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button></div>
+    <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button><button data-bdt="mine" aria-pressed="${BD.tab === 'mine'}">My bets</button><button data-bdt="record" aria-pressed="${BD.tab === 'record'}">Record</button></div>
     <div class="bd-days"><button class="chip sm" data-bdday="0" aria-pressed="${BD.day === 0}">Next up</button><button class="chip sm" data-bdday="1" aria-pressed="${BD.day === 1}">Tomorrow</button></div>
   </div>`;
 }
@@ -110,14 +145,25 @@ async function bdDraw() {
   const slate = await bdSlate(BD.day);
   if (n !== drawN) return;
   const games = slate.games.filter(g => g.state !== 'post');
-  $('#bdEyebrow').textContent = `${BD.tab === 'props' ? 'Player props' : 'Game lines'} · ${slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${BD.tab === 'mine' || BD.tab === 'record' ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
+  $('.bd-days')?.toggleAttribute('hidden', BD.tab === 'mine' || BD.tab === 'record');
+  if (BD.tab === 'mine') { main.innerHTML = '<div class="sk" style="height:300px"></div>'; const m = await lazy('bets'); const html = await m.historyHTML(); if (n === drawN) main.innerHTML = html; return; }
+  if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
+  snapLeans(slate.date, games);
   if (BD.tab === 'games') return drawGames(main, games);
   // props
   const rows = await leagueTable();
   const byId = new Map(rows.map(r => [String(r.id), r]));
   main.innerHTML = `<div class="sk" style="height:520px"></div>`;
   const per = await Promise.all(games.map(g => gameProps(g).catch(() => [])));
+  try {
+    const inj = await leagueInjuries(); BD.outByTeam = new Map();
+    for (const e of inj?.injuries || inj?.teams || []) for (const x of (e.injuries || []).map(normInjury)) {
+      if (!/^out/i.test(x.status)) continue; const r = rows.find(y => String(y.id) === String(x.id)); if (!r || r.pts < 15) continue;
+      const t = String(r.teamId); if (!BD.outByTeam.has(t)) BD.outByTeam.set(t, []); BD.outByTeam.get(t).push({ id: String(r.id), last: r.last || r.name.split(' ').slice(-1)[0] });
+    }
+  } catch (e) {}
   BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
   BD.missingIds = new Set(games.filter((g, i) => !per[i].length).map(g => g.id));
   const all = per.flat();
@@ -157,8 +203,9 @@ async function bdDraw() {
   const order = [...new Set([...list.filter(x => x.k === BD.mk), ...list].map(x => String(x.pid)))];
   let done = 0, pending = null;
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
-  await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; if (done % 6 === 0) refresh(); });
+  await poolRun(order, 6, async pid => { const log = await logOf(pid); list.forEach(x => { if (String(x.pid) === pid) x.log = log; }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
+  snapProps(slate.date, list); checkStars(list);
   if (Q1.has(BD.mk)) loadQ1(games, n, main);
 }
 // first-quarter numbers come from play-by-play: each team's last 5 games
@@ -197,8 +244,9 @@ function bdTable(main, keepScroll, final) {
   let list = (BD.all || []).filter(x => (ALL ? !Q1.has(x.k) : x.k === BD.mk) && (BD.game === 'all' || x.gid === BD.game) && (!BD.q || nameKey(x.p.name).includes(nameKey(BD.q))));
   list.forEach(x => { x.st = x.log && (!Q1.has(x.k) || BD.q1.size) ? rowStats(x) : null; });
   list = list.filter(x => !x.est || !x.log || x.st || (Q1.has(x.k) && (BD.q1busy || !BD.q1.size))); // estimated rows with no games drop out
-  const key = { mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
-  list.sort((a, b) => { const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
+  const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
+  const key = { dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
+  list.sort((a, b) => { const sa = starred(a), sb = starred(b); if (sa !== sb) return sa ? -1 : 1; const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
   const games = [...new Map((BD.all || []).map(x => [x.gid, x.g])).values()];
   const loading = list.some(x => !x.log) || (Q1.has(BD.mk) && BD.q1busy);
   const total = list.length;
@@ -214,12 +262,12 @@ function bdTable(main, keepScroll, final) {
       </div>
     </div>
     ${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
-      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
+      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
         const s = x.st, mv = Number.isFinite(x.open) && x.open !== x.line ? `<em class="${x.line > x.open ? 'up' : 'dn'}" title="Opened ${x.open}">${x.line > x.open ? '▲' : '▼'}</em>` : '';
-        const dr = defRankOf(x.opp.id);
-        return `<tr data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
-          <td class="pl"><span class="bd-pl">${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b><small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
+        const dr = defRankOf(x.opp.id), dv = s ? dvpOf(x) : null, fl = x.log ? flagsOf(x) : [], st = starred(x);
+        return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
+          <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
           <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
@@ -230,6 +278,7 @@ function bdTable(main, keepScroll, final) {
           <td class="nm dk">${s?.avg != null ? s.avg.toFixed(1) : '–'}</td>
           <td class="nm dk ${s?.diff > 0 ? 'pos' : s?.diff < 0 ? 'neg' : ''}">${s?.diff != null ? (s.diff > 0 ? '+' : '') + s.diff.toFixed(1) : '–'}</td>
           <td class="nm dk">${dr ? `<span class="bd-def ${dr >= 21 ? 'soft' : dr <= 10 ? 'tough' : ''}">${ordN(dr)}</span>` : '–'}</td>
+          <td class="nm dk ${dv ? (dv.v * (BD.side === 'u' ? -1 : 1) > 0.5 ? 'pos' : dv.v * (BD.side === 'u' ? -1 : 1) < -0.5 ? 'neg' : '') : ''}" title="${dv ? `${posGroup(x.p.pos) === 'G' ? 'Guards' : posGroup(x.p.pos) === 'C' ? 'Centers' : 'Forwards'} vs ${esc(x.opp.abbr)}: ${dv.v >= 0 ? '+' : ''}${dv.v.toFixed(1)} vs their own average (${dv.n} games)` : 'Not enough games vs this team yet'}">${dv ? (dv.v >= 0 ? '+' : '') + dv.v.toFixed(1) : '–'}</td>
           <td class="sc dk">${s?.edge != null ? `<span class="bd-score"><i style="width:${Math.round(Math.max(0, Math.min(1, s.edge)) * 100)}%"></i></span>` : ''}</td>
           <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
 
@@ -238,21 +287,143 @@ function bdTable(main, keepScroll, final) {
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Sportsbook props aren't posted yet for ${esc(BD.missing.join(', '))}, so those games show Fullcourt lines marked <em class="est">est</em> (set at each player's recent average) until the book's lines arrive, usually the morning of the game.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
-    <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
+    <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, and a key teammate out. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
   placeKnob($('[data-bdsideseg]', main));
 }
 const ordN = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
 
+function leanOf(g, std) {
+  const o = g.odds, H = std.get(g.home.id), A = std.get(g.away.id);
+  let proj = null, margin = null;
+  if (H && A) { const hp = parseFloat(H.ppg), ho = parseFloat(H.opp), ap = parseFloat(A.ppg), ao = parseFloat(A.opp); if ([hp, ho, ap, ao].every(Number.isFinite)) { proj = (hp + ao) / 2 + (ap + ho) / 2; margin = ((hp - ho) - (ap - ao)) / 2 + 1.5; } }
+  const hs = parseFloat(o?.home?.spread);
+  const tl = o?.ou != null && proj != null ? proj - o.ou : null, sl = Number.isFinite(hs) && margin != null ? margin + hs : null;
+  return { proj, margin, hs, tl, sl, tot: tl != null && Math.abs(tl) >= 3 ? { side: tl > 0 ? 'o' : 'u', line: +o.ou } : null, spr: sl != null && Math.abs(sl) >= 2.5 ? { home: sl > 0, line: sl > 0 ? hs : -hs } : null };
+}
+
+/* ---------- Fullcourt's record: the strongest props and leans, saved before tip and graded after ---------- */
+const SIG = 'fc-bd-signals';
+const readSig = () => { try { return JSON.parse(lsGet(SIG) || '{}') || {}; } catch (e) { return {}; } };
+function writeSig(o) { const days = Object.keys(o).sort(); while (days.length > 45) delete o[days.shift()]; lsSet(SIG, JSON.stringify(o)); }
+function snapProps(date, list) {
+  if (IS_W) return;
+  const o = readSig(), d = o[date] || (o[date] = {}), P = d.props || (d.props = {});
+  let changed = false;
+  for (const x of list) {
+    if (x.est || Q1.has(x.k) || x.g.state !== 'pre' || !x.log?.length) continue;
+    for (const side of ['o', 'u']) {
+      const st = rowStats(x, side); if (!st || st.edge == null || st.edge < 0.8 || st.vals.length < 5) continue;
+      const key = x.pid + '|' + x.k; if (P[key]?.side && P[key].side !== side) continue;
+      P[key] = { pid: String(x.pid), k: x.k, side, line: x.line, gid: x.g.id, name: x.p.name, abbr: x.p.abbr, edge: +st.edge.toFixed(2) }; changed = true;
+    }
+  }
+  const keep = Object.entries(P).sort((a, b) => b[1].edge - a[1].edge);
+  if (keep.length > 12) { for (const [k] of keep.slice(12)) delete P[k]; changed = true; }
+  if (changed) writeSig(o);
+}
+function snapLeans(date, games) {
+  if (IS_W) return;
+  const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
+  const o = readSig(), d = o[date] || (o[date] = {}), L = d.leans || (d.leans = {});
+  let changed = false;
+  for (const g of games) {
+    if (g.state !== 'pre') continue;
+    const l = leanOf(g, std);
+    if (l.tot) { L[g.id + '|t'] = { gid: g.id, t: 't', side: l.tot.side, line: l.tot.line, game: `${g.away.abbr} @ ${g.home.abbr}` }; changed = true; }
+    if (l.spr) { L[g.id + '|s'] = { gid: g.id, t: 's', home: l.spr.home, line: l.spr.line, team: l.spr.home ? g.home.abbr : g.away.abbr, game: `${g.away.abbr} @ ${g.home.abbr}` }; changed = true; }
+  }
+  if (changed) writeSig(o);
+}
+// grade everything that's final: props against his game log, leans against the final score
+async function gradeSignals() {
+  const o = readSig(); let changed = false;
+  for (const date of Object.keys(o).sort()) {
+    if (date > S.today) continue;
+    const d = o[date];
+    const open = [...Object.values(d.props || {}), ...Object.values(d.leans || {})].filter(x => !x.res);
+    if (!open.length) continue;
+    const games = await scoreboardOn(date).catch(() => []);
+    const byG = new Map(games.map(g => [g.id, g]));
+    for (const x of Object.values(d.leans || {})) {
+      if (x.res) continue; const g = byG.get(x.gid); if (!g || g.state !== 'post') continue;
+      const h = +g.home.score, a = +g.away.score; if (!Number.isFinite(h + a)) continue;
+      if (x.t === 't') { const t = h + a; x.res = t === x.line ? 'p' : (t > x.line) === (x.side === 'o') ? 'w' : 'l'; x.act = t; }
+      else { const m = (x.home ? h - a : a - h) + x.line; x.res = m === 0 ? 'p' : m > 0 ? 'w' : 'l'; x.act = x.home ? h - a : a - h; }
+      changed = true;
+    }
+    await poolRun(Object.values(d.props || {}).filter(x => !x.res && byG.get(x.gid)?.state === 'post'), 4, async x => {
+      const lg = (await logOf(x.pid)).find(g => String(g.id) === String(x.gid));
+      if (!lg) { if (date < addDays(S.today, -2)) { x.res = 'v'; changed = true; } return; } // didn't play: void
+      const v = bdVal(lg, x.k); if (v == null) return;
+      x.act = v; x.res = v === x.line ? 'p' : (v > x.line) === (x.side === 'o') ? 'w' : 'l'; changed = true;
+    });
+  }
+  if (changed) writeSig(o);
+  return o;
+}
+async function drawRecord(main, n) {
+  main.innerHTML = '<div class="sk" style="height:300px"></div>';
+  const o = await gradeSignals(); if (n !== drawN) return;
+  const props = Object.entries(o).flatMap(([date, d]) => Object.values(d.props || {}).map(x => ({ ...x, date })));
+  const leans = Object.entries(o).flatMap(([date, d]) => Object.values(d.leans || {}).map(x => ({ ...x, date })));
+  const rec = a => { const w = a.filter(x => x.res === 'w').length, l = a.filter(x => x.res === 'l').length, p = a.filter(x => x.res === 'p').length; return { w, l, p, pct: w + l ? w / (w + l) : null }; };
+  const recTxt = r => `${r.w}–${r.l}${r.p ? `–${r.p}` : ''}`;
+  const pctCell = r => r.pct == null ? '<span class="bd-pill na">–</span>' : `<span class="bd-pill ${r.pct >= 0.58 ? 'hot' : r.pct >= 0.5 ? 'warm' : 'cold'}">${Math.round(r.pct * 100)}%</span>`;
+  const graded = props.filter(x => x.res && x.res !== 'v'), all = rec(graded), pend = props.filter(x => !x.res).length;
+  if (!props.length && !leans.length) { main.innerHTML = `<div class="empty"><b>Nothing graded yet</b>Fullcourt saves each day's top sportsbook props by Score and its game-line leans before tip-off whenever you open the Bet desk, then grades them here once the games are final. Check back tomorrow.</div>`; return; }
+  const byMk = MARKETS.filter(m => !EST.has(m[0])).map(m => [m, rec(graded.filter(x => x.k === m[0]))]).filter(([, r]) => r.w + r.l + r.p);
+  const lt = rec(leans.filter(x => x.t === 't' && x.res)), ls = rec(leans.filter(x => x.t === 's' && x.res));
+  const recent = [...props.filter(x => x.res && x.res !== 'v'), ...leans.filter(x => x.res)].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
+  const mkS = k => MARKETS.find(m => m[0] === k)?.[2] || k;
+  const itemTxt = x => x.k ? `${esc(x.name)} ${x.side === 'u' ? 'U' : 'O'} ${x.line} ${mkS(x.k)}` : x.t === 't' ? `${esc(x.game)} ${x.side === 'u' ? 'Under' : 'Over'} ${x.line}` : `${esc(x.team)} ${x.line > 0 ? '+' : ''}${x.line} (${esc(x.game)})`;
+  main.innerHTML = `<div class="rc-top">
+      <div class="rc-big"><small>Top props</small><b>${recTxt(all)}</b><span>${all.pct != null ? Math.round(all.pct * 100) + '% hit' : 'no results yet'}${pend ? ` · ${pend} pending` : ''}</span></div>
+      <div class="rc-big"><small>Total leans</small><b>${recTxt(lt)}</b><span>${lt.pct != null ? Math.round(lt.pct * 100) + '%' : '–'}</span></div>
+      <div class="rc-big"><small>Spread leans</small><b>${recTxt(ls)}</b><span>${ls.pct != null ? Math.round(ls.pct * 100) + '%' : '–'}</span></div>
+    </div>
+    ${byMk.length ? `<div class="card rc-card"><div class="card-h"><h4>By market</h4></div><table class="bd-t rc-t"><thead><tr><th class="pl">Market</th><th>Record</th><th>Hit</th></tr></thead><tbody>${byMk.map(([m, r]) => `<tr><td class="pl">${esc(m[1])}</td><td class="nm">${recTxt(r)}</td><td>${pctCell(r)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${recent.length ? `<div class="card rc-card"><div class="card-h"><h4>Recent results</h4></div><ul class="rc-list">${recent.map(x => `<li><span class="rc-r ${x.res}">${{ w: 'W', l: 'L', p: 'P' }[x.res]}</span><span class="rc-what">${itemTxt(x)}</span><small>${esc(fmtDay(x.date, { month: 'short', day: 'numeric' }))}${x.act != null ? ` · ${x.t === 's' ? (x.act > 0 ? 'won by ' + x.act : x.act < 0 ? 'lost by ' + -x.act : 'tied') : 'had ' + x.act}` : ''}</small></li>`).join('')}</ul></div>` : ''}
+    <p class="bd-note">Saved on this device whenever the Bet desk is open before tip-off: each day's top 12 sportsbook props by Score (80 and up), and every game-line lean. Players who sit are voided. A record of how the numbers have done, not betting advice.</p>`;
+}
+
+/* ---------- starred props: alert when the line moves a point, the odds swing, or the book posts it ---------- */
+async function checkStars(list) {
+  if (IS_W) return;
+  const st = readStars(), keys = Object.keys(st); if (!keys.length) return;
+  let rows = list;
+  if (!rows) {
+    const sl = await bdSlate(0).catch(() => null); if (!sl) return;
+    BD.lines.clear(); BD.slates.delete(0);
+    const fresh = await bdSlate(0).catch(() => sl);
+    const gids = new Set(keys.map(k => st[k].gid));
+    rows = (await Promise.all(fresh.games.filter(g => gids.has(g.id)).map(g => gameProps(g).catch(() => [])))).flat();
+    for (const g of fresh.games) if (g.state === 'post') for (const k of keys) if (st[k].gid === g.id) delete st[k];
+  }
+  const msgs = [];
+  for (const k of keys) {
+    const s = st[k]; if (!s) continue;
+    const r = rows.find(x => !x.est && String(x.pid) + '|' + x.k === k && Number.isFinite(x.line)); if (!r) continue;
+    const mk = MARKETS.find(m => m[0] === s.k)?.[2] || s.k, od = +r.over;
+    if (s.est) msgs.push(`${s.name}: book posted ${mk} ${r.line} (${amer(od)})`);
+    else if (Math.abs(r.line - s.line) >= 1) msgs.push(`${s.name} ${mk} moved ${s.line} → ${r.line}`);
+    else if (Number.isFinite(od) && Number.isFinite(s.odds) && Math.abs(od - s.odds) >= 25) msgs.push(`${s.name} ${mk} ${r.line}: over ${amer(s.odds)} → ${amer(od)}`);
+    else continue;
+    Object.assign(s, { line: r.line, odds: Number.isFinite(od) ? od : s.odds, est: false });
+  }
+  writeStars(st);
+  if (!msgs.length) return;
+  const body = msgs.slice(0, 3).join(' · ') + (msgs.length > 3 ? ` · +${msgs.length - 3} more` : '');
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify('Starred prop moved', body, st[keys[0]]?.gid || 'stars');
+  else toast('★ ' + body);
+  if (!list && BD.tab === 'props' && S.view === 'bets') bdDraw();
+}
+
 function drawGames(main, games) {
   const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
   const card = g => {
-    const o = g.odds, H = std.get(g.home.id), A = std.get(g.away.id);
-    let proj = null, margin = null;
-    if (H && A) { const hp = parseFloat(H.ppg), ho = parseFloat(H.opp), ap = parseFloat(A.ppg), ao = parseFloat(A.opp); if ([hp, ho, ap, ao].every(Number.isFinite)) { proj = (hp + ao) / 2 + (ap + ho) / 2; margin = ((hp - ho) - (ap - ao)) / 2 + 1.5; } }
-    const hs = parseFloat(o?.home?.spread);
-    const tl = o?.ou != null && proj != null ? proj - o.ou : null, sl = Number.isFinite(hs) && margin != null ? margin + hs : null;
+    const o = g.odds, { proj, margin, hs, tl, sl } = leanOf(g, std);
     const team = (s, side) => `<div class="bg-tm"><span>${logo(s.abbr, 48)}<b>${esc(s.name)}</b><small>${esc(s.rec || '')}</small></span>
       <span class="bg-c"><small>Spread</small><b>${esc(o?.[side]?.spread || '–')}</b><small>${esc(o?.[side]?.spreadOdds || '')}</small></span>
       <span class="bg-c"><small>Money</small><b>${esc(o?.[side]?.ml || '–')}</b>${o?.[side]?.mlOpen && o[side].mlOpen !== o[side].ml ? `<small>opened ${esc(o[side].mlOpen)}</small>` : '<small>&nbsp;</small>'}</span>
@@ -271,17 +442,23 @@ function bdWire(body) {
   body.addEventListener('click', e => {
     const t = e.target.closest('[data-bdt]'); if (t) { BD.tab = t.dataset.bdt; $$('[data-bdt]').forEach(b => b.setAttribute('aria-pressed', b === t)); bdDraw(); return; }
     const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
-    const m = e.target.closest('[data-bdmk]'); if (m) { BD.mk = m.dataset.bdmk; BD.cap = 150; if (BD.mk === 'all' && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (Q1.has(BD.mk)) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
+    const m = e.target.closest('[data-bdmk]'); if (m) { BD.mk = m.dataset.bdmk; saveView(); BD.cap = 150; if (BD.mk === 'all' && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (Q1.has(BD.mk)) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
-    const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; bdTable($('#bdMain'), true); return; }
-    const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } bdTable($('#bdMain'), true); return; }
+    const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; saveView(); bdTable($('#bdMain'), true); return; }
+    const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } saveView(); bdTable($('#bdMain'), true); return; }
+    const sr = e.target.closest('[data-bdstar]');
+    if (sr) { const [pid, k] = sr.dataset.bdstar.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const st = readStars(), key = pid + '|' + k;
+      if (st[key]) delete st[key]; else if (x) { st[key] = { name: x.p.name, k, gid: x.g.id, line: x.line, odds: +(x.over) || null, est: !!x.est, game: `${x.g.away.abbr} @ ${x.g.home.abbr}` }; }
+      writeStars(st); bdTable($('#bdMain'), true);
+      if (st[key]) { toast(`★ Starred: you'll get a heads-up if this line moves`); try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission()?.catch?.(() => {}); } catch (e) {} }
+      return; }
     const sl = e.target.closest('[data-bdslip]');
     if (sl) { const [pid, k] = sl.dataset.bdslip.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); if (x) { toggleSlip(x); bdTable($('#bdMain'), true); } return; }
     const row = e.target.closest('[data-bdrow]');
     if (row && !e.target.closest('button') && !Q1.has(row.dataset.bdrow.split('|')[1])) {
       const [pid, k, line] = row.dataset.bdrow.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k);
       if (!x) return;
-      openPropDetail(pid, k, Math.floor(+line) + 1, { r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], ...(x.log ? { log: x.log } : {}) });
+      openPropDetail(pid, k, Math.floor(+line) + 1, { r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) });
     }
   });
   body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; bdTable($('#bdMain')); } });
