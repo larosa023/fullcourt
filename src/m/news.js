@@ -6,7 +6,7 @@ const UPDATES = [
     ['Minutes overlay', 'Tap MIN on the game-by-game chart to lay his minutes over every bar.'],
     ['New Bet desk flags', 'Rows now flag back-to-backs, 3 games in 4 nights, fast or slow matchups, and blowout risk for starters.'],
     ['First basket', 'Each game on the Game lines tab has a First basket section: how often each team gets the first possession and scores first, and who usually makes their first basket.'],
-    ['Export to your book', 'The parlay slip has an Export button for DraftKings, FanDuel, Fanatics, Hard Rock, theScore Bet, PrizePicks and Sleeper. It copies your picks in that app\'s wording and opens it.'],
+    ['Export to your book', 'The parlay slip has an Export button for DraftKings, FanDuel, Fanatics, Hard Rock, theScore Bet, bet365, PrizePicks and Sleeper. It copies your picks in that app\'s wording and opens it.'],
   ] },
   { id: '2026-11-01b', date: 'Nov 1', items: [
     ['New prop charts', 'The prop breakdown has a new game-by-game chart: green and red bars against your line, a dotted bar for games he sat, and L5 / L10 / L15 / Season / vs-opponent hit rates you can tap to change the range. Filter by home/away or opponent.'],
