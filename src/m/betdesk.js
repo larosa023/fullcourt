@@ -91,7 +91,10 @@ const bdPct = (vals, line, side) => vals.length ? vals.filter(v => side === 'u' 
 function rowStats(r, side = BD.side) {
   const lg = (r.log || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
   const vals = lg.map(g => bdVal(g, r.k));
-  const vsOpp = lg.filter(g => g.opp === r.opp.abbr || String(g.oppId) === String(r.opp.id)).map(g => bdVal(g, r.k));
+  // last season's games fill out L5 / L10 / H2H early in a season (same as the prop breakdown); Season stays this season
+  const pg = (r.prevLog || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
+  const ext = [...vals, ...pg.map(g => bdVal(g, r.k))];
+  const vsOpp = [...lg, ...pg].filter(g => g.opp === r.opp.abbr || String(g.oppId) === String(r.opp.id)).map(g => bdVal(g, r.k));
   if (r.est) {
     // no book line: Fullcourt's. Early in a season a handful of games swing it, so lean on last season too:
     // his recent average blended with last season's, averaged with the median of his last 15 games
@@ -103,13 +106,13 @@ function rowStats(r, side = BD.side) {
     const L15 = [...vals, ...pv].slice(0, 15).sort((a, b) => a - b), med = L15.length % 2 ? L15[L15.length >> 1] : (L15[L15.length / 2 - 1] + L15[L15.length / 2]) / 2;
     r.line = Math.max(0.5, Math.floor((blend + med) / 2) + 0.5);
   }
-  const L5 = vals.slice(0, 5), L10 = vals.slice(0, 10), avg = L10.length ? L10.reduce((a, b) => a + b, 0) / L10.length : null;
+  const L5 = ext.slice(0, 5), L10 = ext.slice(0, 10), avg = L10.length ? L10.reduce((a, b) => a + b, 0) / L10.length : null;
   const s = side;
   const h5 = bdPct(L5, r.line, s), h10 = bdPct(L10, r.line, s), hs = bdPct(vals, r.line, s), hv = bdPct(vsOpp, r.line, s);
   const diff = avg == null ? null : (s === 'u' ? r.line - avg : avg - r.line);
   // edge: mostly how often it's cashed lately, nudged by how far the average sits from the line
   const edge = h10 == null ? null : h10 * 0.55 + (h5 ?? h10) * 0.25 + (hs ?? h10) * 0.2 + Math.max(-0.15, Math.min(0.15, (diff || 0) / Math.max(2, r.line) * 0.6));
-  let streak = 0; for (const v of vals) { if (s === 'u' ? v < r.line : v > r.line) streak++; else break; }
+  let streak = 0; for (const v of ext) { if (s === 'u' ? v < r.line : v > r.line) streak++; else break; }
   return { vals, L5, L10, h5, h10, hs, hv, nv: vsOpp.length, avg, diff, edge, streak };
 }
 // defense vs position, from the game logs already loaded: how far players at this position run above or below
@@ -284,7 +287,7 @@ async function bdDraw() {
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
   const seasonYr = (() => { const n = new Date(); return n.getFullYear() + (n.getMonth() >= 7 ? 1 : 0); })();
   await poolRun(order, 6, async pid => { const log = await logOf(pid);
-    const needPrev = log.length < 10 && list.some(x => String(x.pid) === pid && x.est && !Q1.has(x.k));
+    const needPrev = log.length < 10;
     const prev = needPrev ? await prevOf(pid, seasonYr - 1) : null;
     list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
