@@ -1430,6 +1430,7 @@ async function openPropDetail(pid, k, m0, extra) {
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
           <small>Over ${m - 0.5} ${word}</small>
+          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip" role="group" aria-label="Add ${m - 0.5} ${short} to your parlay"><button data-pdslip="o" title="Add over ${m - 0.5} to your parlay">+ Over ${od(o.o)}</button><button data-pdslip="u" title="Add under ${m - 0.5} to your parlay">+ Under ${od(o.u)}</button></div>`; })() : ''}
         </div>
       </div>
       ${(() => {
@@ -1465,7 +1466,6 @@ async function openPropDetail(pid, k, m0, extra) {
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
       ${altCard(all)}${cmpCard()}
-      ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa'].includes(k) ? (() => { const o = slipOdds(); return `<div class="pd-slip"><span>Add <b>${m - 0.5}</b> ${short} to your parlay</span><button class="btn" data-pdslip="o">Over ${o.o != null ? `<em>${o.o > 0 ? '+' + o.o : o.o}</em>` : ''}</button><button class="btn ghost" data-pdslip="u">Under ${o.u != null ? `<em>${o.u > 0 ? '+' + o.u : o.u}</em>` : ''}</button></div>`; })() : ''}
       <div class="btn-row"><button class="btn" data-pdtrack>Track over ${m - 0.5} ${short}</button><button class="btn ghost" data-player="${r.id}">Open ${esc(r.last || r.name)}'s profile</button>${g ? `<button class="btn ghost" data-game="${g.id}">Open the game</button>` : ''}</div>
       <p class="pp-note">Trends from his games this season, not a guarantee and not betting advice. Your book's line may differ.</p>
     </div>`;
