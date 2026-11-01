@@ -22,12 +22,17 @@ const MARKETS = [
 const EST = new Set(['fga', 'tpa', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
 const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map() };
 // your last market, side and sort come back next time
-try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar }); } catch (e) {}
+try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar, odds: v.odds || null }); } catch (e) {}
 // markets can be combined (pts,reb,...); 'all' is every book market
 const mkSel = () => BD.mk === 'all' ? null : BD.mk.split(',').filter(k => MARKETS.some(m => m[0] === k));
 const mkHas = k => BD.mk === 'all' ? !Q1.has(k) : mkSel().includes(k);
+// odds filter: American odds on one line from -1500 to +1500 with even money in the middle
+const oddsPos = o => o <= -100 ? o + 100 : o >= 100 ? o - 100 : 0;
+const posOdds = p => p < 0 ? p - 100 : p > 0 ? p + 100 : 100;
+const oddsTxt = o => o == null ? '' : o >= 100 ? '+' + o : String(o);
+const inOdds = o => { if (!BD.odds) return true; const n = +o; if (!Number.isFinite(n) || !n) return false; const p = oddsPos(n); return (BD.odds.min == null || p >= oddsPos(BD.odds.min)) && (BD.odds.max == null || p <= oddsPos(BD.odds.max)); };
 const mkQ1 = () => (mkSel() || []).some(k => Q1.has(k));
-const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir, radar: BD.radar }));
+const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.side, sort: BD.sort, dir: BD.dir, radar: BD.radar, odds: BD.odds }));
 const readStars = () => { try { return JSON.parse(lsGet('fc-bd-stars') || '{}') || {}; } catch (e) { return {}; } };
 const writeStars = o => lsSet('fc-bd-stars', Object.keys(o).length ? JSON.stringify(o) : null);
 const MILES = { 'Points Milestones': 'pts', 'Rebounds Milestones': 'reb', 'Assists Milestones': 'ast', '3-Point Field Goals Milestones': 'tpm', 'Points + Assists + Rebounds Milestones': 'pra', 'Points + Rebounds Milestones': 'pr', 'Points + Assists Milestones': 'pa', 'Rebounds + Assists Milestones': 'ra' };
@@ -334,6 +339,13 @@ function bdTable(main, keepScroll, final) {
   list.forEach(x => { x.st = x.log && (!Q1.has(x.k) || BD.q1.size) ? rowStats(x) : null; });
   list = list.filter(x => !x.est || !x.log || x.st || (Q1.has(x.k) && (BD.q1busy || !BD.q1.size))); // estimated rows with no games drop out
   if (BD.radar) list = list.filter(x => !x.log || radarOf(x) != null);
+  if (BD.odds) {
+    // only lines priced inside the range; overs also bring in DraftKings' alt lines at those prices
+    const sd = BD.odds.side, alts = [];
+    if (sd !== 'u' && BD.side === 'o') for (const x of list) { if (x.est || Q1.has(x.k)) continue; for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
+    list = list.filter(x => !x.est && (sd === 'o' ? inOdds(x.over) : sd === 'u' ? inOdds(x.under) : inOdds(x.over) || inOdds(x.under))).concat(alts);
+  }
+  BD.shown = list;
   const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
   const key = { dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
   list.sort((a, b) => { const sa = starred(a), sb = starred(b); if (sa !== sb) return sa ? -1 : 1; const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
@@ -348,10 +360,12 @@ function bdTable(main, keepScroll, final) {
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
         <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All ${games.length} games</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
+        <button class="chip sm bd-oddsbtn" data-bdodds aria-expanded="${!!BD.oddsOpen}" aria-pressed="${!!BD.odds}">Odds${BD.odds ? `<span class="lgx"> ${esc(oddsTxt(BD.odds.min) || 'any')} to ${esc(oddsTxt(BD.odds.max) || 'any')}</span><i class="shx bd-dot"></i>` : ''}</button>
         <button class="chip sm bd-radar" data-bdradar aria-pressed="${!!BD.radar}" title="Only role players (under 15 a game) whose minutes are up 2+ over their last 3 games"><span class="lgx">Under the radar</span><span class="shx">Radar</span></button>
         <input class="bd-q" type="search" placeholder="Find a player" value="${esc(BD.q)}" data-bdq aria-label="Find a player">
       </div>
     </div>
+    ${BD.oddsOpen ? oddsPanel() : ''}
     ${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
       <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
@@ -363,7 +377,7 @@ function bdTable(main, keepScroll, final) {
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
           <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
-          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
+          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
           <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld"></span>'}</td>
           <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld"></span>'}</td>
@@ -374,7 +388,7 @@ function bdTable(main, keepScroll, final) {
           <td class="nm dk">${dr ? `<span class="bd-def ${dr >= 21 ? 'soft' : dr <= 10 ? 'tough' : ''}">${ordN(dr)}</span>` : '–'}</td>
           <td class="nm dk ${dv ? (dv.v * (BD.side === 'u' ? -1 : 1) > 0.5 ? 'pos' : dv.v * (BD.side === 'u' ? -1 : 1) < -0.5 ? 'neg' : '') : ''}" title="${dv ? `${posGroup(x.p.pos) === 'G' ? 'Guards' : posGroup(x.p.pos) === 'C' ? 'Centers' : 'Forwards'} vs ${esc(x.opp.abbr)}: ${dv.v >= 0 ? '+' : ''}${dv.v.toFixed(1)} vs their own average (${dv.n} games)` : 'Not enough games vs this team yet'}">${dv ? (dv.v >= 0 ? '+' : '') + dv.v.toFixed(1) : '–'}</td>
           <td class="sc dk">${s?.edge != null ? `<span class="bd-score"><i style="width:${Math.round(Math.max(0, Math.min(1, s.edge)) * 100)}%"></i></span>` : ''}</td>
-          <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
+          <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}|${x.line}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
 
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
@@ -384,7 +398,24 @@ function bdTable(main, keepScroll, final) {
     <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, a key teammate out, B2B or 3 games in 4 nights, a fast or slow matchup (2+ possessions off the league pace, from PBPStats), and blowout risk for starters when the spread is 10 or more. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
-  placeKnob($('[data-bdsideseg]', main));
+  placeKnob($('[data-bdsideseg]', main)); if ($('[data-bdopside]', main)) placeKnob($('[data-bdopside]', main));
+}
+function oddsPanel() {
+  const o = BD.odds || { side: 'e', min: null, max: null }, lo = o.min == null ? -1400 : oddsPos(o.min), hi = o.max == null ? 1400 : oddsPos(o.max);
+  const an = BD.oddsAnim; BD.oddsAnim = false;
+  return `<div class="bd-op${an ? ' anim' : ''}" data-bdop>
+    <div class="bd-op-h"><div><b>Min / max odds</b><small>DraftKings · ${{ e: 'Either side', o: 'Overs', u: 'Unders' }[o.side]}${BD.odds ? ` · ${esc(oddsTxt(o.min) || 'any')} to ${esc(oddsTxt(o.max) || 'any')}` : ''}</small></div><span class="bd-op-act"><button class="btn ghost sm" data-bdoclear>Clear</button><button class="btn sm" data-bdodds>Done</button></span></div>
+    <div class="seg bd-op-side" data-bdopside><span class="knob"></span>${[['e', 'Either'], ['o', 'Overs'], ['u', 'Unders']].map(([k, l]) => `<button data-bdoside="${k}" aria-pressed="${o.side === k}">${l}</button>`).join('')}</div>
+    <div class="bd-op-in"><label><span>From</span><input inputmode="numeric" placeholder="-1500" value="${esc(oddsTxt(o.min))}" data-bdomin></label><label><span>To</span><input inputmode="numeric" placeholder="+1500" value="${esc(oddsTxt(o.max))}" data-bdomax></label></div>
+    <div class="bd-op-sl"><div class="bd-op-tr"><i style="left:${(lo + 1400) / 28}%;right:${100 - (hi + 1400) / 28}%"></i></div><input type="range" min="-1400" max="1400" step="10" value="${lo}" data-bdolo aria-label="Lowest odds"><input type="range" min="-1400" max="1400" step="10" value="${hi}" data-bdohi aria-label="Highest odds"><div class="bd-op-lb"><span>-1500</span><span>EVEN</span><span>+1500</span></div></div>
+    <p class="bd-note">Overs also show DraftKings alt lines priced in this range, marked <em class="est alt">alt</em>, with each one's hit rates.</p>
+  </div>`;
+}
+function setOdds(patch) {
+  const o = { ...(BD.odds || { side: 'e', min: null, max: null }), ...patch };
+  BD.odds = o.min == null && o.max == null && o.side === 'e' ? null : o;
+  if (o.side === 'o') BD.side = 'o'; if (o.side === 'u') BD.side = 'u';
+  saveView();
 }
 const ordN = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
 
@@ -570,6 +601,20 @@ function drawGames(main, games) {
 
 function bdWire(body) {
   body.dataset.wired = '1';
+  const parseO = v => { const n = parseInt(String(v).replace(/[^\d+-]/g, ''), 10); return Number.isFinite(n) && Math.abs(n) >= 100 ? n : null; };
+  body.addEventListener('change', e => {
+    const a = e.target.closest('[data-bdomin]'), b = e.target.closest('[data-bdomax]');
+    if (a || b) { setOdds(a ? { min: parseO(a.value) } : { max: parseO(b.value) }); bdTable($('#bdMain'), true); }
+  });
+  let slT = 0;
+  body.addEventListener('input', e => {
+    const lo = e.target.closest('[data-bdolo]'), hi = e.target.closest('[data-bdohi]'); if (!lo && !hi) return;
+    const P = e.target.closest('.bd-op'), L = $('[data-bdolo]', P), Hh = $('[data-bdohi]', P);
+    let a = +L.value, c = +Hh.value; if (a > c) { if (lo) c = a; else a = c; L.value = a; Hh.value = c; }
+    $('.bd-op-tr i', P).style.cssText = `left:${(a + 1400) / 28}%;right:${100 - (c + 1400) / 28}%`;
+    $('[data-bdomin]', P).value = a <= -1400 ? '' : oddsTxt(posOdds(a)); $('[data-bdomax]', P).value = c >= 1400 ? '' : oddsTxt(posOdds(c));
+    clearTimeout(slT); slT = setTimeout(() => { setOdds({ min: a <= -1400 ? null : posOdds(a), max: c >= 1400 ? null : posOdds(c) }); bdTable($('#bdMain'), true); }, 250);
+  });
   body.addEventListener('toggle', e => { const d = e.target; if (d.matches?.('[data-fbgame]') && d.open) { const g = BD.gmap?.get(d.dataset.fbgame); if (g) fillFirstBasket(d, g); } }, true);
   body.addEventListener('click', e => {
     if (e.target.closest('[data-bdpriv]')) { lsSet('fc-bd-priv', privOn() ? null : '1'); privApply(); return; }
@@ -590,6 +635,9 @@ function bdWire(body) {
     if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
     const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; saveView(); bdTable($('#bdMain'), true); return; }
     const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } saveView(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-bdodds]')) { BD.oddsOpen = !BD.oddsOpen; BD.oddsAnim = BD.oddsOpen; bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-bdoclear]')) { BD.odds = null; saveView(); bdTable($('#bdMain'), true); return; }
+    const os = e.target.closest('[data-bdoside]'); if (os) { setOdds({ side: os.dataset.bdoside }); bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdradar]')) { BD.radar = !BD.radar; saveView(); bdTable($('#bdMain'), true); return; }
     const sr = e.target.closest('[data-bdstar]');
     if (sr) { const [pid, k] = sr.dataset.bdstar.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const st = readStars(), key = pid + '|' + k;
@@ -598,7 +646,7 @@ function bdWire(body) {
       if (st[key]) { toast(`★ Starred: you'll get a heads-up if this line moves`); try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission()?.catch?.(() => {}); } catch (e) {} }
       return; }
     const sl = e.target.closest('[data-bdslip]');
-    if (sl) { const [pid, k] = sl.dataset.bdslip.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); if (x) { toggleSlip(x); bdTable($('#bdMain'), true); } return; }
+    if (sl) { const [pid, k, ln] = sl.dataset.bdslip.split('|'); const x = (BD.shown || []).find(y => String(y.pid) === pid && y.k === k && String(y.line) === ln) || BD.all.find(y => String(y.pid) === pid && y.k === k); if (x) { toggleSlip(x); bdTable($('#bdMain'), true); } return; }
     const row = e.target.closest('[data-bdrow]');
     if (row && !e.target.closest('button') && !Q1.has(row.dataset.bdrow.split('|')[1])) {
       const [pid, k, line] = row.dataset.bdrow.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k);
@@ -616,7 +664,7 @@ const STATS_OF = { pts: ['pts'], reb: ['reb'], ast: ['ast'], tpm: ['tpm'], pra: 
 const SLIP = (() => { try { const v = JSON.parse(sessionStorage.getItem(SLIP_KEY) || 'null'); if (v && Array.isArray(v.legs)) return v; } catch (e) {} return { legs: [], stake: 10, open: false }; })();
 const saveSlip = () => { try { sessionStorage.setItem(SLIP_KEY, JSON.stringify(SLIP)); } catch (e) {} };
 const legKey = (pid, k) => `${pid}|${k}`;
-const inSlip = x => SLIP.legs.some(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
+const inSlip = x => SLIP.legs.some(l => legKey(l.pid, l.k) === legKey(x.pid, x.k) && l.line === x.line);
 const decOf = o => { const n = +o; return n > 0 ? 1 + n / 100 : n < 0 ? 1 + 100 / -n : 1; };
 const amerOf = d => d >= 2 ? '+' + Math.round((d - 1) * 100) : d > 1 ? String(Math.round(-100 / (d - 1))) : '–';
 const usd = v => '$' + (Math.round(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -630,8 +678,9 @@ function addSlipLeg(l) {
 }
 function toggleSlip(x) {
   const i = SLIP.legs.findIndex(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
-  if (i >= 0) SLIP.legs.splice(i, 1);
+  if (i >= 0 && SLIP.legs[i].line === x.line) SLIP.legs.splice(i, 1);
   else {
+    if (i >= 0) SLIP.legs.splice(i, 1); // same player and stat at another line: swap it
     const side = BD.side, odds = x.est ? -115 : +(side === 'u' ? x.under : x.over) || -110;
     SLIP.legs.push({ pid: String(x.pid), k: x.k, side, line: x.line, odds, est: !!x.est, name: x.p.name, teamId: x.p.teamId, abbr: x.p.abbr, gid: x.g.id, game: `${x.g.away.abbr} @ ${x.g.home.abbr}`, date: (x.g.date || '').slice(0, 10).replace(/-/g, ''), time: x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g) });
     if (SLIP.legs.length === 1) SLIP.open = true;
