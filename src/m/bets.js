@@ -201,24 +201,44 @@ function recordLine(list) {
   return `${w}-${l}${known && (w + l) ? ` · ${net >= 0 ? '+' : '-'}${money(Math.abs(net))}` : ''}`;
 }
 
+// which day(s) a bet's games are on (ET), so it only shows on those days' Scores pages
+const etDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+async function betDays(list) {
+  let changed = false;
+  await Promise.all(list.filter(b => !b.days).map(async b => {
+    const days = new Set();
+    await Promise.all(b.legs.map(async l => {
+      if (!l.gid) return;
+      const onPage = (S.games || []).find(g => String(g.id) === String(l.gid));
+      if (onPage) { days.add(etDay(onPage.date)); return; }
+      try { const d = await summaryCached(l.gid, 6 * 3600e3), dt = d?.header?.competitions?.[0]?.date; if (dt) days.add(etDay(dt)); } catch (e) {}
+    }));
+    if (!days.size) { if (b.legs.some(l => l.gid)) return; days.add(etDay(b.at)); } // nothing to look up: the day it was added
+    b.days = [...days]; changed = true;
+  }));
+  if (changed) { const byId = new Map(list.map(b => [b.id, b])); writeBets(readBets().map(b => byId.get(b.id) || b)); }
+}
 async function renderBets(force) {
   const blk = $('#betBlock'); if (!blk) return;
   let list = readBets();
-  const now = Date.now();
-  const show = list.filter(b => !b.result || now - (b.settledAt || 0) < KEEP_SETTLED);
-  if (!show.length) { blk.hidden = true; $('#betRec') && ($('#betRec').textContent = ''); return; }
-  blk.hidden = false;
+  if (list.some(b => !b.days)) await betDays(list);
+  const day = S.date || S.today;
+  const show = list.filter(b => b.days?.includes(day));
+  // bets still open on other days keep getting graded in the background so they settle
+  const grade = list.filter(b => show.includes(b) || (!b.result && b.days?.some(d => d <= S.today)));
+  if (!show.length) { blk.hidden = true; $('#betRec') && ($('#betRec').textContent = ''); }
+  else blk.hidden = false;
   const draw = res => {
     $('#betRec').textContent = recordLine(list) ? `Record ${recordLine(list)}` : 'Updates live';
     $('#betStrip').innerHTML = show.map(b => betCard(b, res[b.id] || b.legs.map(() => ({ st: 'pending', text: 'Loading…' })))).join('');
     dragScroll($('#betStrip'));
   };
   if (!S.betRes) S.betRes = {};
-  draw(S.betRes);
+  if (show.length) draw(S.betRes);
   if (betBusy && !force) return;
   betBusy = true;
   let changed = false;
-  for (const b of show) {
+  for (const b of grade) {
     if (b.result && S.betRes[b.id] && b.legs.every(l => sums[l.gid]?.fin)) continue;
     const res = await gradeBet(b);
     const prev = S.betRes[b.id];
@@ -229,9 +249,9 @@ async function renderBets(force) {
     if (gamesOver && !b.legRes) { b.legRes = res.map(r => r.st); b.legNow = res.map(r => r.now ?? null); changed = true; }
     if (!b.result && (st === 'lost' || (gamesOver && ['won', 'push'].includes(st)))) { b.result = st; b.settledAt = Date.now(); changed = true; }
   }
-  if (changed) { list = readBets().map(b => show.find(x => x.id === b.id) || b); writeBets(list); }
+  if (changed) { list = readBets().map(b => grade.find(x => x.id === b.id) || b); writeBets(list); }
   betBusy = false;
-  draw(S.betRes);
+  if (show.length) draw(S.betRes);
 }
 
 // a leg just hit or just died: toast here, a notification if the tab is in the background
