@@ -59,11 +59,18 @@ async function gameProps(g) {
     const ref = o?.items?.find(i => i.propBets?.$ref)?.propBets?.$ref;
     if (ref) d = await getJSON(ref.replace(/^http:/, 'https:') + '&limit=1000', { retries: 0, timeout: 15000 }).catch(() => null);
   }
-  const by = new Map();
+  const by = new Map(), ladders = new Map();
   for (const it of d?.items || []) {
     const pid = (it.athlete?.$ref || '').match(/athletes\/(\d+)/)?.[1]; if (!pid) continue;
     const mi = MILES[it.type?.name];
-    if (mi) { const t = +(it.current?.target?.value ?? parseFloat(it.odds?.total?.value)); if (Number.isFinite(t)) { const k = pid + '|' + mi; const a = BD.alts.get(k) || []; if (!a.some(x => x.t === t)) a.push({ t, o: +it.odds?.american?.value }); a.sort((x, y) => x.t - y.t); BD.alts.set(k, a); } continue; }
+    if (mi) {
+      // the feed can hold more than one ladder under the same name (a partial-game one too), each listed in
+      // ascending order: start a new ladder whenever the target stops climbing
+      const t = +(it.current?.target?.value ?? parseFloat(it.odds?.total?.value)); if (!Number.isFinite(t)) continue;
+      const k = pid + '|' + mi, L = ladders.get(k) || [[]], cur = L.at(-1);
+      if (cur.length && t <= cur.at(-1).t) L.push([{ t, o: +it.odds?.american?.value }]); else cur.push({ t, o: +it.odds?.american?.value });
+      ladders.set(k, L); continue;
+    }
     const mk = MARKETS.find(m => m[3] === it.type?.name); if (!mk) continue;
     const key = pid + '|' + mk[0];
     const e = by.get(key) || { pid, k: mk[0], gid: g.id, odds: [], line: null, open: null };
@@ -73,6 +80,15 @@ async function gameProps(g) {
     by.set(key, e);
   }
   const rows = [...by.values()].filter(e => Number.isFinite(e.line)).map(e => ({ ...e, over: e.odds[0], under: e.odds[1] }));
+  // keep the full-game ladder: the one whose rung at the main line is priced like the main over
+  const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
+  for (const [k, L] of ladders) {
+    const main = rows.find(r => r.pid + '|' + r.k === k), t = main ? Math.floor(main.line) + 1 : null, ov = main ? +main.over : NaN;
+    const withT = t != null && Number.isFinite(ov) ? L.filter(l => l.some(x => x.t === t)) : [];
+    const best = withT.length ? withT.sort((a, b) => Math.abs(imp(a.find(x => x.t === t).o) - imp(ov)) - Math.abs(imp(b.find(x => x.t === t).o) - imp(ov)))[0]
+      : [...L].sort((a, b) => b.at(-1).t - a.at(-1).t || b.length - a.length)[0];
+    if (best?.length) BD.alts.set(k, best.filter(x => Number.isFinite(x.o)));
+  }
   BD.lines.set(g.id, { t: Date.now(), rows });
   return rows;
 }
