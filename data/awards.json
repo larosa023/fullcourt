@@ -1,0 +1,61 @@
+{
+  "season": "2026-27",
+  "updated": "2026-10-31",
+  "note": "Media rankings gathered from sportsbook odds, expert panels and staff picks. Odds become an implied chance; panel points and staff picks become a share of the vote. Each source counts the same.",
+  "races": {
+    "mvp": [
+      { "name": "DraftKings odds", "via": "Sports Illustrated", "url": "https://www.si.com/betting/nba-mvp-odds-for-2026-27-season-victor-wembanyama-favored-nikola-jokic-luka-doncic-are-contenders", "date": "2026-10-16", "kind": "odds",
+        "list": [["Victor Wembanyama", 210], ["Shai Gilgeous-Alexander", 350], ["Nikola Jokic", 500], ["Luka Doncic", 550], ["Giannis Antetokounmpo", 1200], ["Jayson Tatum", 1800], ["Anthony Edwards", 1800], ["Cade Cunningham", 2200], ["Jalen Brunson", 5000], ["Tyrese Maxey", 8000], ["Donovan Mitchell", 8000], ["Jaylen Brown", 10000]] },
+      { "name": "FanDuel odds", "via": "BettingPros", "url": "https://www.bettingpros.com/articles/nba-futures-odds-picks-predictions-2026/", "date": "2026-10-09", "kind": "odds",
+        "list": [["Victor Wembanyama", 200], ["Shai Gilgeous-Alexander", 400], ["Luka Doncic", 500], ["Nikola Jokic", 600], ["Giannis Antetokounmpo", 1000], ["Anthony Edwards", 1600]] },
+      { "name": "ESPN Summer Forecast", "via": "ESPN panel", "url": "https://abc13.com/post/nba-summer-forecast-2026-27-predictions-every-major-award/19738205/", "date": "2026-08-26", "kind": "points",
+        "list": [["Victor Wembanyama", 102], ["Nikola Jokic", 31], ["Luka Doncic", 28], ["Shai Gilgeous-Alexander", 26], ["Giannis Antetokounmpo", 8]] },
+      { "name": "The Ringer staff picks", "via": "The Ringer", "url": "https://www.theringer.com/2026/10/21/nba/nba-awards-predictions-mvp-victor-wembanyama-nikola-jokic-shai-gilgeous-alexander", "date": "2026-10-21", "kind": "picks",
+        "list": [["Victor Wembanyama", 6], ["Shai Gilgeous-Alexander", 1]] },
+      { "name": "SI staff picks", "via": "Sports Illustrated", "url": "https://www.si.com/nba/predicting-2026-27-nba-award-winners-mvp-rookie-of-the-year-and-more", "date": "2026-09-30", "kind": "picks",
+        "list": [["Victor Wembanyama", 3]] },
+      { "name": "Bleacher Report", "via": "Bleacher Report", "url": "https://bleacherreport.com/articles/25470990-early-betting-odds-and-predictions-every-2027-nba-award", "date": "2026-08-16", "kind": "odds",
+        "list": [["Victor Wembanyama", 200], ["Shai Gilgeous-Alexander", 350], ["Nikola Jokic", 600], ["Luka Doncic", 700], ["Giannis Antetokounmpo", 1000]] }
+    ],
+    "roy": [
+      { "name": "FanDuel odds", "via": "BettingPros", "url": "https://www.bettingpros.com/articles/nba-futures-odds-picks-predictions-2026/", "date": "2026-10-09", "kind": "odds",
+        "list": [["Cameron Boozer", 300], ["Caleb Wilson", 340], ["Darryn Peterson", 350], ["AJ Dybantsa", 410]] },
+      { "name": "FanDuel opening odds", "via": "Sports Illustrated", "url": "https://www.si.com/betting/2026-27-nba-rookie-of-the-year-opening-odds-cameron-boozer-favored-over-aj-dybantsa-darryn-peterson", "date": "2026-06-24", "kind": "odds",
+        "list": [["Cameron Boozer", 240], ["Darryn Peterson", 400], ["AJ Dybantsa", 400], ["Darius Acuff Jr.", 450], ["Caleb Wilson", 950], ["Mikel Brown Jr.", 1500], ["Yaxel Lendeborg", 2000], ["Keaton Wagler", 3500], ["Brayden Burries", 5000], ["Nate Ament", 10000], ["Karim Lopez", 10000], ["Kingston Flemings", 10000]] },
+      { "name": "ESPN Summer Forecast", "via": "ESPN panel", "url": "https://abc13.com/post/nba-summer-forecast-2026-27-predictions-every-major-award/19738205/", "date": "2026-08-26", "kind": "points",
+        "list": [["Cameron Boozer", 61], ["Darryn Peterson", 56], ["AJ Dybantsa", 54], ["Caleb Wilson", 32], ["Darius Acuff Jr.", 3]] },
+      { "name": "The Ringer staff picks", "via": "The Ringer", "url": "https://www.theringer.com/2026/10/21/nba/nba-awards-predictions-mvp-victor-wembanyama-nikola-jokic-shai-gilgeous-alexander", "date": "2026-10-21", "kind": "picks",
+        "list": [["Cameron Boozer", 3], ["Caleb Wilson", 2], ["Darryn Peterson", 1], ["Darius Acuff Jr.", 1]] },
+      { "name": "SI staff picks", "via": "Sports Illustrated", "url": "https://www.si.com/nba/predicting-2026-27-nba-award-winners-mvp-rookie-of-the-year-and-more", "date": "2026-09-30", "kind": "picks",
+        "list": [["Cameron Boozer", 1], ["Caleb Wilson", 1], ["Darryn Peterson", 1]] },
+      { "name": "Bleacher Report", "via": "Bleacher Report", "url": "https://bleacherreport.com/articles/25470990-early-betting-odds-and-predictions-every-2027-nba-award", "date": "2026-08-16", "kind": "odds",
+        "list": [["Cameron Boozer", 300], ["Caleb Wilson", 330], ["Darryn Peterson", 350], ["AJ Dybantsa", 400], ["Darius Acuff Jr.", 1500]] }
+    ],
+    "dpoy": [
+      { "name": "DraftKings odds", "via": "Sports Illustrated", "url": "https://www.si.com/betting/2026-27-nba-defensive-player-of-the-year-odds-victor-wembanyama-set-as-clear-favorite-dark-horse-to-bet", "date": "2026-10-18", "kind": "odds",
+        "list": [["Victor Wembanyama", -360], ["Chet Holmgren", 1200], ["Ausar Thompson", 2500], ["Rudy Gobert", 3000], ["Evan Mobley", 4000], ["Bam Adebayo", 4000], ["Scottie Barnes", 5000], ["OG Anunoby", 6500], ["Giannis Antetokounmpo", 7500], ["Amen Thompson", 7500], ["Jaren Jackson Jr.", 8000], ["Walker Kessler", 8000]] },
+      { "name": "William Hill odds", "via": "William Hill", "url": "https://news.williamhill.com/sport/basketball/nba-award-odds-and-best-bets-2026-27/", "date": "2026-10-16", "kind": "odds",
+        "list": [["Victor Wembanyama", -350], ["Chet Holmgren", 1000], ["Ausar Thompson", 2500], ["Rudy Gobert", 3300], ["Amen Thompson", 7500]] },
+      { "name": "ESPN Summer Forecast", "via": "ESPN panel", "url": "https://abc13.com/post/nba-summer-forecast-2026-27-predictions-every-major-award/19738205/", "date": "2026-08-26", "kind": "points",
+        "list": [["Victor Wembanyama", 108], ["Giannis Antetokounmpo", 20], ["Chet Holmgren", 13], ["Amen Thompson", 12], ["Bam Adebayo", 12], ["Rudy Gobert", 10]] },
+      { "name": "The Ringer staff picks", "via": "The Ringer", "url": "https://www.theringer.com/2026/10/21/nba/nba-awards-predictions-mvp-victor-wembanyama-nikola-jokic-shai-gilgeous-alexander", "date": "2026-10-21", "kind": "picks",
+        "list": [["Victor Wembanyama", 7]] },
+      { "name": "SI staff picks", "via": "Sports Illustrated", "url": "https://www.si.com/nba/predicting-2026-27-nba-award-winners-mvp-rookie-of-the-year-and-more", "date": "2026-09-30", "kind": "picks",
+        "list": [["Victor Wembanyama", 2], ["Ausar Thompson", 1]] },
+      { "name": "Bleacher Report", "via": "Bleacher Report", "url": "https://bleacherreport.com/articles/25470990-early-betting-odds-and-predictions-every-2027-nba-award", "date": "2026-08-16", "kind": "odds",
+        "list": [["Victor Wembanyama", -340], ["Chet Holmgren", 1000], ["Ausar Thompson", 2500], ["Rudy Gobert", 3000], ["Bam Adebayo", 4000]] }
+    ],
+    "smoy": [
+      { "name": "DraftKings odds", "via": "Sports Illustrated", "url": "https://www.si.com/betting/nba-sixth-man-of-the-year-odds-for-2026-27-season-ajay-mitchell-payton-pritchard-dylan-harper-all-inside-10-1", "date": "2026-10-17", "kind": "odds",
+        "list": [["Ajay Mitchell", 600], ["Payton Pritchard", 650], ["Dylan Harper", 800], ["Ayo Dosunmu", 1400], ["DeMar DeRozan", 1700], ["Anfernee Simons", 1800], ["Isaiah Joe", 3000], ["Collin Sexton", 3000], ["Anthony Black", 3000], ["Terrence Shannon Jr.", 3500], ["Ace Bailey", 3500], ["Reed Sheppard", 4000]] },
+      { "name": "ESPN Summer Forecast", "via": "ESPN panel", "url": "https://abc13.com/post/nba-summer-forecast-2026-27-predictions-every-major-award/19738205/", "date": "2026-08-26", "kind": "points",
+        "list": [["Alex Caruso", 34], ["Dylan Harper", 23], ["Ajay Mitchell", 22], ["Reed Sheppard", 20]] },
+      { "name": "The Ringer staff picks", "via": "The Ringer", "url": "https://www.theringer.com/2026/10/21/nba/nba-awards-predictions-mvp-victor-wembanyama-nikola-jokic-shai-gilgeous-alexander", "date": "2026-10-21", "kind": "picks",
+        "list": [["DeMar DeRozan", 1], ["Reed Sheppard", 1], ["Devin Vassell", 1], ["Ajay Mitchell", 1], ["Payton Pritchard", 1], ["Dylan Harper", 1]] },
+      { "name": "SI staff picks", "via": "Sports Illustrated", "url": "https://www.si.com/nba/predicting-2026-27-nba-award-winners-mvp-rookie-of-the-year-and-more", "date": "2026-09-30", "kind": "picks",
+        "list": [["Dylan Harper", 1], ["Alex Caruso", 1], ["Ajay Mitchell", 1]] },
+      { "name": "Bleacher Report", "via": "Bleacher Report", "url": "https://bleacherreport.com/articles/25470990-early-betting-odds-and-predictions-every-2027-nba-award", "date": "2026-08-16", "kind": "odds",
+        "list": [["Dylan Harper", 700], ["Ajay Mitchell", 800], ["Anfernee Simons", 1100], ["Anthony Black", 1800], ["Reed Sheppard", 1800], ["Payton Pritchard", 1800]] }
+    ]
+  }
+}

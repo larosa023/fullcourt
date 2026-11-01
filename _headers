@@ -4,3 +4,5 @@
   Cache-Control: no-cache
 /ocr/*
   Cache-Control: public, max-age=2592000
+/data/*
+  Cache-Control: public, max-age=600

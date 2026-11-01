@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-31e', date: 'Oct 31', items: [
+    ['Award races', 'MVP, Rookie, Defensive Player and Sixth Man races now blend sportsbook odds, the ESPN panel and staff picks from The Ringer, SI and Bleacher Report with Fullcourt\'s stats model, with stats on every row and sources listed.'],
+    ['Track your bets', 'Type a bet or paste a slip screenshot into Ask to follow it live under My bets on Scores.'],
+  ] },
   { id: '2026-10-31d', date: 'Oct 31', items: [
     ['Advanced stats', 'An Advanced switch on box scores (TS%, eFG%, usage, game score), team stats (ratings, pace, four factors), player splits, game logs and career stats (efficiency, shot profile, per 36), team rankings and Leaders. It remembers your choice everywhere.'],
     ['Team leaders', "Team pages show the team's top 5 in any stat. Tap Points, Rebounds, Assists, Steals, Blocks, 3-pointers, FG% or Minutes to switch."],

@@ -22,7 +22,7 @@ const TEAM_COLORS = { ATL:'c8102e', BOS:'008348', BKN:'1a1a1a', CHA:'008ca8', CH
 const LEADER_CATS = [
   { k: 'Points', u: 'PPG', cat: 'offensive', name: 'avgPoints' },
   { k: 'MVP race', award: 'mvp' },
-  ...(IS_W ? [] : [{ k: 'Rookie race', award: 'roy' }]),
+  ...(IS_W ? [] : [{ k: 'Rookie race', award: 'roy' }, { k: 'DPOY race', award: 'dpoy' }, { k: '6MOY race', award: 'smoy' }]),
   { k: 'Rebounds', u: 'RPG', cat: 'general', name: 'avgRebounds' },
   { k: 'Assists', u: 'APG', cat: 'offensive', name: 'avgAssists' },
   { k: 'Steals', u: 'SPG', cat: 'defensive', name: 'avgSteals' },
@@ -1938,7 +1938,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-10-31d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-10-31e'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
