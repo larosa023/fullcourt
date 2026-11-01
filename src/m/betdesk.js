@@ -122,6 +122,17 @@ async function bdDraw() {
   const all = per.flat();
   if (n !== drawN) return;
   const games2 = new Map(games.map(g => [g.id, g]));
+  const unknown = [...new Set(all.map(e => String(e.pid)).filter(id => !byId.has(id)))];
+  await poolRun(unknown, 6, async id => {
+    if (BD.ath?.has(id)) { byId.set(id, BD.ath.get(id)); return; }
+    const a = await getJSON(`${CORE}/athletes/${id}?lang=en&region=us`, { retries: 0, timeout: 8000 }).catch(() => null);
+    if (!a?.displayName) return;
+    const tid = String(a.team?.$ref || '').match(/teams\/(\d+)/)?.[1];
+    const t = tid && S.teams[tid];
+    const p = { id, name: a.displayName, short: a.shortName || a.displayName, last: a.lastName || '', teamId: tid, abbr: t?.abbr || '', pos: a.position?.abbreviation || '', gp: 0 };
+    (BD.ath = BD.ath || new Map()).set(id, p); byId.set(id, p);
+  });
+  if (n !== drawN) return;
   const list = all.map(e => {
     const p = byId.get(String(e.pid)); if (!p) return null;
     const g = games2.get(e.gid); if (!g) return null;
@@ -187,7 +198,7 @@ function bdTable(main, keepScroll, final) {
   list.sort((a, b) => { const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
   const games = [...new Map((BD.all || []).map(x => [x.gid, x.g])).values()];
   const loading = list.some(x => !x.log) || (Q1.has(BD.mk) && BD.q1busy);
-  const total = list.length; list = list.slice(0, BD.cap || 150);
+  const total = list.length;
   const mk = MARKETS.find(m => m[0] === BD.mk);
   const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"><button data-bdsort="${k}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
   const sc = $('.bd-wrap', main)?.scrollLeft || 0;
@@ -200,14 +211,14 @@ function bdTable(main, keepScroll, final) {
       </div>
     </div>
     ${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
-      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
+      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
         const s = x.st, mv = Number.isFinite(x.open) && x.open !== x.line ? `<em class="${x.line > x.open ? 'up' : 'dn'}" title="Opened ${x.open}">${x.line > x.open ? '▲' : '▼'}</em>` : '';
         const dr = defRankOf(x.opp.id);
         return `<tr data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
           <td class="pl"><span class="bd-pl">${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b><small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
-          ${ALL ? `<td class="mk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
-          <td class="ln">${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
+          ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
+          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
           <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld"></span>'}</td>
           <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld"></span>'}</td>
@@ -221,10 +232,10 @@ function bdTable(main, keepScroll, final) {
 
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>Try another market or game.</div>`}
-    ${total > list.length ? `<div class="bd-more"><button class="btn ghost" data-bdmore>Show ${Math.min(150, total - list.length)} more of ${total}</button></div>` : ''}
     ${EST.has(BD.mk) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(MARKETS.find(q => q[0] === BD.mk)[1])} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${Q1.has(BD.mk) ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">Props aren't posted yet for ${esc(BD.missing.join(', '))}. Books usually add them the morning of the game.</p>` : ''}
-    <p class="bd-note">${loading ? '<span class="bd-ld"></span> Loading each player\'s games… ' : ''}Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p>`;
+    ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
+    <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
   placeKnob($('[data-bdsideseg]', main));

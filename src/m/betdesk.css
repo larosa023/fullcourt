@@ -31,7 +31,8 @@
 .bd-t td.ln b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 18px; }
 .bd-t td.ln em { font-style: normal; font-size: 9px; margin-left: 3px; vertical-align: 3px; }
 .bd-t td.ln em.up { color: var(--win); } .bd-t td.ln em.dn { color: var(--loss); }
-.bd-t td.od { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+.bd-t td.od, .bd-t td.mk .bd-mkt { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 18px; color: var(--ink); }
+.bd-t td.od .bd-pill.na { font-family: var(--body); font-weight: 600; font-size: 13px; }
 .bd-t td.nm { font-weight: 600; }
 .bd-t td.pos { color: var(--win); } .bd-t td.neg { color: var(--loss); }
 .bd-pill { display: inline-block; min-width: 46px; padding: 3px 6px; border-radius: 8px; font-weight: 650; font-size: 12.5px; background: var(--surface-2); color: var(--ink-2); }
@@ -91,7 +92,7 @@
 }
 
 .bd-t td.ln em.est, .bd-note em.est { font-style: normal; font-family: var(--mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 3px; margin-left: 4px; vertical-align: 2px; }
-.bd-mkt { font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--ink-2); }
+.bd-mkt { letter-spacing: .01em; }
 .chip.est { border-style: dashed; }
 .bd-more { display: flex; justify-content: center; margin-top: 10px; }
 
@@ -133,4 +134,32 @@
 @media (max-width: 760px) {
   .bd-slip { left: 12px; right: 12px; width: auto; max-width: none; bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--nfb, 0px)); }
   .bs-sum { grid-template-columns: 1fr 1fr; }
+  .bs-od input, .bs-in input { font-size: 16px; }
+}
+
+.bd-mkm { display: none; }
+.bd-about { margin: 10px 2px 0; }
+.bd-about summary { cursor: pointer; font-size: 12.5px; color: var(--muted); width: fit-content; }
+.bd-about summary:hover { color: var(--ink); }
+.bd-about .bd-note { margin-top: 6px; }
+@media (max-width: 760px) {
+  /* phones: one compact, sticky toolbar so markets and filters stay in reach while scrolling */
+  .bd-top { margin: 0 0 10px; gap: 8px; }
+  .bd-top .bd-seg button { padding: 7px 12px; font-size: 13px; }
+  .bd-days .chip { padding: 6px 12px; font-size: 13px; }
+  .bd-ctrl { position: sticky; top: calc(54px + env(safe-area-inset-top, 0px)); z-index: 20; margin: 0 -16px 10px; padding: 8px 16px 10px; background: color-mix(in oklab, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); gap: 8px; }
+  .bd-ctrl .chip { padding: 8px 13px; font-size: 13.5px; }
+  .bd-row2 { flex-wrap: nowrap; gap: 8px; }
+  .bd-side button { padding: 7px 11px; font-size: 13px; }
+  .bd-sel { height: 36px; font-size: 16px; padding: 0 6px; flex: 1.1; }
+  .bd-q { height: 36px; font-size: 16px; flex: 1; flex-basis: auto; min-width: 0; width: 0; padding: 0 10px; }
+  .bd-t tbody tr { -webkit-tap-highlight-color: transparent; }
+  .bd-t td { padding: 10px 4px; }
+  .bd-add { width: 36px; height: 36px; border-radius: 10px; font-size: 18px; }
+  .bd-t td.ln b, .bd-t td.od { font-size: 17px; }
+  .bd-face { width: 30px; height: 30px; }
+  .bd-pl { gap: 8px; }
+  .bd-pill { min-width: 38px; padding: 3px 4px; font-size: 12px; }
+  .bd-mkm { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .05em; color: var(--muted); margin-bottom: -2px; }
+  #v-bets { padding-bottom: 110px; }
 }
