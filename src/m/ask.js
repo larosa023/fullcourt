@@ -1285,14 +1285,14 @@ function barChart(games, k, m, pbp) {
         segs = seg('d', P.dreb, 'DREB') + seg('o', P.oreb, 'OREB');
       }
       const share = split && P?.avail ? Math.round(P.fgReb / P.avail * 100) : null;
-      return `<div class="pc-col" title="${esc(fmtET(g.date, { month: 'short', day: 'numeric' }))} ${g.atVs === '@' ? '@' : 'vs'} ${esc(g.opp)}: ${v}${P?.avail ? ` · ${P.fgReb} of ${P.avail} available rebounds (${share}%)` : ''}">
+      return `<div class="pc-col${g.prev ? ' prev' : ''}" title="${esc(fmtET(g.date, { month: 'short', day: 'numeric' }))} ${g.atVs === '@' ? '@' : 'vs'} ${esc(g.opp)}: ${v}${P?.avail ? ` · ${P.fgReb} of ${P.avail} available rebounds (${share}%)` : ''}">
         <em class="pc-v ${hit ? 'y' : 'n'}" style="bottom:${pct(v)}%">${v}</em>
         <div class="pc-bar ${hit ? 'y' : 'n'}${segs ? ' st' : ''}" style="height:${v ? pct(v) : 1.2}%">${segs}</div>
         ${share != null ? `<small class="pc-sh">${share}%</small>` : ''}
       </div>`;
     }).join('')}
   </div>
-  <div class="pc-x">${games.map(g => `<span><b>${g.atVs === '@' ? '@' : ''}${esc(g.opp)}</b><small>${esc(fmtET(g.date, { month: 'numeric', day: 'numeric' }))}</small></span>`).join('')}</div></div>`;
+  <div class="pc-x">${games.map(g => `<span class="${g.prev ? 'prev' : ''}"><b>${g.atVs === '@' ? '@' : ''}${esc(g.opp)}</b><small>${esc(fmtET(g.date, { month: 'numeric', day: 'numeric' }))}</small></span>`).join('')}</div></div>`;
 }
 
 async function openPropDetail(pid, k, m0, extra) {
@@ -1312,6 +1312,9 @@ async function openPropDetail(pid, k, m0, extra) {
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
   let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null;
   if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
+  // last season's games, so L10 / L15 still mean ten and fifteen games early in a new season
+  let prev = [];
+  if (log.length < 15) { const now = new Date(), cur = IS_W ? now.getFullYear() : now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0); gameLog(pid, cur - 1).then(l => { const have = new Set(log.map(g => String(g.id))); prev = l.filter(g => g.min > 0 && !have.has(String(g.id))).map(g => ({ ...g, prev: true })); if (prev.length) draw(); }).catch(() => {}); }
   if (['reb', 'ast', 'pr', 'ra', 'pa', 'pra'].includes(k)) pbpLog(r.name).then(d => { pbp = d; if (d) draw(); });
   const alts = (ctx.alts || []).filter(a => Number.isFinite(a.o)), peers = (ctx.peers || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
@@ -1367,13 +1370,14 @@ async function openPropDetail(pid, k, m0, extra) {
       </div>
       ${(() => {
         // filters first, then the range strip and the chart both read from the filtered games
-        const pool = [...log, ...dnps].sort((a, b) => new Date(b.date) - new Date(a.date)).filter(g => (ha === 'all' || (ha === 'home' ? g.atVs !== '@' : g.atVs === '@')) && (oppF === 'all' || g.opp === oppF));
+        const pool = [...log, ...dnps, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)).filter(g => (ha === 'all' || (ha === 'home' ? g.atVs !== '@' : g.atVs === '@')) && (oppF === 'all' || g.opp === oppF));
         const played = pool.filter(g => !g.dnp), vv = a => a.map(g => propVal(g, k));
         const H2H = opp ? played.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : [];
-        const R = { L5: played.slice(0, 5), L10: played.slice(0, 10), L15: played.slice(0, 15), Season: played, ...(opp ? { H2H } : {}) };
+        const cur = played.filter(g => !g.prev);
+        const R = { L5: played.slice(0, 5), L10: played.slice(0, 10), L15: played.slice(0, 15), Season: cur, ...(opp ? { H2H } : {}) };
         if (!R[rng]) rng = 'L10';
         const cell = (key, games) => { const v = vv(games), p = hitPct(v, m); return `<button class="pr-c${key === rng ? ' on' : ''}" data-pdrng="${key}"><span>${key === 'H2H' ? `vs ${esc(opp.abbr)}` : key === 'Season' ? 'Season' : key}</span><b class="${p == null ? '' : p >= 70 ? 'hot' : p >= 50 ? 'warm' : 'cold'}">${p == null ? '–' : `HR ${p}%`}</b><small>${v.length ? `Avg ${avg(v)}${key === 'H2H' ? ` · ${v.length}G` : ''}` : 'no games'}</small></button>`; };
-        const shown = rng === 'Season' ? pool : rng === 'H2H' ? pool.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : (() => { const lim = R[rng].length, last = R[rng].at(-1); return last ? pool.filter(g => new Date(g.date) >= new Date(last.date)) : []; })();
+        const shown = rng === 'Season' ? pool.filter(g => !g.prev) : rng === 'H2H' ? pool.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : (() => { const lim = R[rng].length, last = R[rng].at(-1); return last ? pool.filter(g => new Date(g.date) >= new Date(last.date)) : []; })();
         const opps = [...new Set(log.map(g => g.opp))].sort();
         // PBPStats extras for the shown games
         let extra = '';
@@ -1389,7 +1393,7 @@ async function openPropDetail(pid, k, m0, extra) {
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </div></div>
         ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null)}
-        ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.</p>` : ''}
+        ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.${prev.length ? ' Faded bars are from last season.' : ''}</p>` : ''}
       </div>`;
       })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>

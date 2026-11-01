@@ -287,3 +287,5 @@ button.pd-alt:hover { background: var(--surface-2); }
   .pd-flt { width: 100%; }
   .pd-flt .bd-sel { flex: 1 1 0; min-width: 0; max-width: none; height: 36px; }
 }
+.pc-col.prev .pc-bar { opacity: .62; }
+.pc-x span.prev b, .pc-x span.prev small { opacity: .7; }

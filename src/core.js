@@ -2036,8 +2036,8 @@ async function leagueTable() {
 const scoreboardOn = date => getJSON(`${API}/scoreboard?dates=${date}`).then(d => (d.events || []).map(parseGame));
 const summaryOf = id => getJSON(`${API}/summary?event=${id}`);
 const scheduleOf = id => getJSON(`${API}/teams/${id}/schedule`);
-async function gameLog(pid) {
-  const d = await getJSON(`${WEB}/athletes/${pid}/gamelog`);
+async function gameLog(pid, season) {
+  const d = await getJSON(`${WEB}/athletes/${pid}/gamelog${season ? `?season=${season}` : ''}`);
   const lab = d.labels || [];
   const evs = [];
   for (const st of d.seasonTypes || []) {
