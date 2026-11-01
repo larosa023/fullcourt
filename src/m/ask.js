@@ -476,6 +476,10 @@ async function answer(raw) {
 
   if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: 'Ask about this season: players, teams, games, leaders, standings, schedules and odds. Some examples:', examples: true };
 
+  // prop ideas
+  if (has(/ (props?|prop bets?|player props|best bets?|locks?|good bets?|bets? (for |to make )?(tonight|today|tomorrow)|what should i bet|who should i bet|what to bet|parlay ideas?|sgp ideas?|suggest\w*|recommend\w*|picks?|leans?|best overs?|best unders?) /) && !has(/ (draft|lottery|first|1st|no 1|number one|top \d+) picks? /) && !has(/ over under /))
+    return aProps({ pid: players[0]?.id, teamId: !players.length ? teams[0]?.id : null });
+
   // standings / records
   if (!players.length && has(/ (standings?|seeds?|seeded|first place|1st place|playoff picture|games back|gb|ranked|ranking|record|place|where (are|do|is) the|best team|worst team|top team) /) && !st) {
     if (teams.length) return aTeamRecord(teams[0]);
@@ -554,6 +558,7 @@ const ASK_EXAMPLES = IS_W ? [
   'Brunson vs the Pistons',
   'East standings',
   'Hornets leading scorer',
+  'Best props tonight',
   'Track: Jayson Tatum over 26.5 points',
 ];
 let askSheet = null;
@@ -1038,3 +1043,153 @@ async function readImage(file, onProgress) {
   return data.text || '';
 }
 
+
+/* ---------------- prop ideas: who's been clearing what, and how tonight's lines compare to the teams' scoring ---------------- */
+const PROP_STATS = [
+  ['pts', 'PTS', 'points', [10, 15, 20, 25, 30, 35, 40]],
+  ['reb', 'REB', 'rebounds', [4, 6, 8, 10, 12, 14]],
+  ['ast', 'AST', 'assists', [3, 4, 6, 8, 10, 12]],
+  ['tpm', '3PM', 'threes', [1, 2, 3, 4, 5, 6]],
+  ['pra', 'PRA', 'points + rebounds + assists', [20, 25, 30, 35, 40, 45, 50]],
+];
+const propVal = (g, k) => k === 'pra' ? g.pts + g.reb + g.ast : k === 'tpm' ? g.tp[0] : g[k];
+async function poolMap(items, n, fn) {
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; } } }));
+  return out;
+}
+// the next slate with games still to tip: tonight if any haven't started, otherwise the next day that has games.
+// For one team or player, their next game (up to a few days out).
+async function propSlate(teamId) {
+  for (let i = 0; i <= (teamId ? 4 : 3); i++) {
+    const d = addDays(S.today, i);
+    const games = d === S.date && S.games.length ? S.games : await scoreboardOn(d).catch(() => []);
+    let open = games.filter(g => g.state === 'pre');
+    if (teamId) open = games.filter(g => g.state !== 'post' && (g.home.id === teamId || g.away.id === teamId));
+    if (open.length) return { date: d, games: open };
+  }
+  return { date: S.today, games: [] };
+}
+function defRank(teamId) {
+  const all = (S.standings?.confs || []).flatMap(c => c.rows).filter(r => parseFloat(r.opp));
+  const sorted = [...all].sort((a, b) => parseFloat(a.opp) - parseFloat(b.opp));
+  const i = sorted.findIndex(r => r.id === teamId);
+  return i < 0 ? null : { rank: i + 1, of: sorted.length, opp: parseFloat(sorted[i].opp) };
+}
+const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+// who's out on each team tonight (only players who matter: 12+ a game)
+async function outStars(rows) {
+  const all = await leagueInjuries();
+  const m = new Map();
+  for (const e of all?.injuries || all?.teams || []) {
+    const tid = e.id || e.team?.id;
+    for (const n of (e.injuries || []).map(normInjury)) {
+      if (!/^out/i.test(n.status)) continue;
+      const r = rows.find(x => String(x.id) === String(n.id)) || rows.find(x => x.name === n.name);
+      if (r && r.pts >= 12) { if (!m.has(String(tid || r.teamId))) m.set(String(tid || r.teamId), []); m.get(String(tid || r.teamId)).push(r); }
+    }
+  }
+  return m;
+}
+// the best "clears it most nights" mark for one player and stat
+function bestMark(log, k, marks, seasonAvg) {
+  const L = log.slice(0, 10), n = L.length;
+  if (n < 4) return null;
+  const vals = L.map(g => propVal(g, k)), avg = vals.reduce((a, b) => a + b, 0) / n;
+  let best = null;
+  for (const m of marks) {
+    const hits = vals.filter(v => v >= m).length, rate = hits / n;
+    if (rate < 0.7 || m < avg * 0.75 || (seasonAvg != null && seasonAvg < m * 0.9)) continue;
+    const score = rate * 1.5 + Math.min(0.6, (avg - m) / m) + m / (marks.at(-1) * 3);
+    if (!best || m > best.m) best = { k, m, hits, n, rate, avg, vals, score };
+  }
+  return best;
+}
+const sparks = (vals, m) => `<span class="pp-spark" title="Last ${vals.length} games, oldest to newest">${[...vals].reverse().map(v => `<i class="${v >= m ? 'y' : 'n'}" style="height:${Math.max(12, Math.min(100, v / (m * 1.6) * 100)).toFixed(0)}%"></i>`).join('')}</span>`;
+
+async function aProps(opts = {}) {
+  const [rows] = await Promise.all([leagueTable(), loadStandings().catch(() => {})]);
+  const focusTeam = opts.teamId || (opts.pid ? rows.find(r => String(r.id) === String(opts.pid))?.teamId : null);
+  const { date, games } = await propSlate(focusTeam);
+  if (!games.length) return { text: opts.pid || opts.teamId ? 'No game for them on the next slate, so no prop ideas yet.' : 'No games left on the slate to look at.', miss: true };
+  const when = date === S.today ? 'tonight' : date === addDays(S.today, 1) ? 'tomorrow' : fmtDay(date, { weekday: 'long' });
+  const gameOf = tid => games.find(g => g.home.id === tid || g.away.id === tid);
+  const out = await outStars(rows).catch(() => new Map());
+
+  // players worth a look: regular minutes, a few games in, not on the injury report as out
+  const outIds = new Set([...out.values()].flat().map(r => String(r.id)));
+  let cands = rows.filter(r => gameOf(r.teamId) && r.gp >= 3 && (r.min || 0) >= 20 && !outIds.has(String(r.id)));
+  if (opts.pid) cands = rows.filter(r => String(r.id) === String(opts.pid));
+  else { const by = new Map(); for (const r of cands.sort((a, b) => (b.min || 0) - (a.min || 0))) { const t = String(r.teamId); if ((by.get(t) || 0) < (opts.teamId ? 6 : 4)) { by.set(t, (by.get(t) || 0) + 1); } else r._skip = true; } cands = cands.filter(r => !r._skip); }
+  const logs = await poolMap(cands, 8, r => gameLog(r.id));
+  const ideas = [];
+  cands.forEach((r, i) => {
+    const log = (logs[i] || []).filter(g => g.min > 0);
+    const g = gameOf(r.teamId), opp = g.home.id === r.teamId ? g.away : g.home, dr = defRank(opp.id);
+    const mates = (out.get(String(r.teamId)) || []).filter(x => String(x.id) !== String(r.id));
+    const seasonOf = { pts: r.pts, reb: r.reb, ast: r.ast, tpm: r.tpm, pra: (r.pts || 0) + (r.reb || 0) + (r.ast || 0) };
+    const picks = PROP_STATS.map(([k, , , marks]) => bestMark(log, k, marks, seasonOf[k])).filter(Boolean);
+    for (const p of picks) {
+      let score = p.score;
+      if (dr && ['pts', 'pra', 'tpm'].includes(p.k)) score += (dr.rank - dr.of / 2) / dr.of * 0.4; // weak defenses help scoring props
+      if (mates.length && ['pts', 'pra', 'ast'].includes(p.k)) score += 0.15;
+      ideas.push({ r, g, opp, dr, mates, ...p, score });
+    }
+  });
+  // two ideas per player at most, best first
+  ideas.sort((a, b) => b.score - a.score);
+  const per = new Map(), top = [];
+  for (const x of ideas) { const c = per.get(x.r.id) || 0; if (c >= (opts.pid ? 5 : 2)) continue; per.set(x.r.id, c + 1); top.push(x); if (top.length >= (opts.pid ? 5 : opts.teamId ? 8 : 10)) break; }
+
+  // game lines vs how these teams have actually scored
+  const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
+  const leans = opts.pid ? [] : games.filter(g => g.odds && (g.odds.ou != null || g.odds.home.spread)).map(g => {
+    const H = std.get(g.home.id), A = std.get(g.away.id); if (!H || !A) return null;
+    const hp = parseFloat(H.ppg), ho = parseFloat(H.opp), ap = parseFloat(A.ppg), ao = parseFloat(A.opp);
+    if (![hp, ho, ap, ao].every(Number.isFinite)) return null;
+    const proj = (hp + ao) / 2 + (ap + ho) / 2, margin = ((hp - ho) - (ap - ao)) / 2 + 1.5; // home court is worth about 1.5
+    const L = [];
+    if (g.odds.ou != null) { const d = proj - g.odds.ou; L.push({ kind: 'total', line: g.odds.ou, proj, d, lean: Math.abs(d) >= 3 ? (d > 0 ? 'Over' : 'Under') : null }); }
+    const hs = parseFloat(g.odds.home.spread);
+    if (Number.isFinite(hs)) { const d = margin + hs; L.push({ kind: 'spread', hs, margin, d, lean: Math.abs(d) >= 2.5 ? (d > 0 ? `${g.home.abbr} ${hs > 0 ? '+' : ''}${hs}` : `${g.away.abbr} ${-hs > 0 ? '+' : ''}${-hs}`) : null }); }
+    return { g, L };
+  }).filter(Boolean);
+
+  // one player: a hit-rate table for each stat at the marks around his recent average
+  if (opts.pid && cands[0]) {
+    const r = cands[0], log = (logs[0] || []).filter(g => g.min > 0).slice(0, 10), g = gameOf(r.teamId);
+    if (!g || log.length < 3) return { text: `Not enough games from ${r.name} yet to show trends.`, miss: true };
+    const opp = g.home.id === r.teamId ? g.away : g.home, dr = defRank(opp.id);
+    const hurt = [...out.values()].flat().some(x => String(x.id) === String(r.id));
+    const mates = (out.get(String(r.teamId)) || []).filter(x => String(x.id) !== String(r.id));
+    const tbl = PROP_STATS.map(([k, short, word, marks]) => {
+      const vals = log.map(x => propVal(x, k)), avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      let i = marks.findIndex(m => m > avg); if (i < 0) i = marks.length; const pick = marks.slice(Math.max(0, i - 2), Math.max(0, i - 2) + 3);
+      return `<tr><td><b>${short}</b><small>avg ${avg.toFixed(1)}</small></td>${pick.map(m => { const h = vals.filter(v => v >= m).length; return `<td class="${h / vals.length >= 0.7 ? 'hot' : h / vals.length <= 0.3 ? 'cold' : ''}"><button class="pp-cell" data-askq="${esc(`Track: ${r.name} over ${m - 0.5} ${word}`)}" title="Track ${m}+ ${short}">${m}+<small>${h}/${vals.length}</small></button></td>`; }).join('')}<td>${sparks(vals, pick[1] ?? pick[0])}</td></tr>`;
+    }).join('');
+    rememberPlayer({ id: r.id, displayName: r.name, shortName: r.short }, r.teamId);
+    const notes = [`${g.away.id === r.teamId ? '@' : 'vs'} ${opp.abbr} ${when === 'tonight' ? 'tonight' : when}`, dr ? `${opp.abbr} allow ${dr.opp.toFixed(1)} a game (${ord(dr.rank)} of ${dr.of} on D)` : '', mates.length ? `${mates.slice(0, 2).map(m => m.name).join(' and ')} out` : ''].filter(Boolean);
+    return { text: `${esc(r.name)}: how often he's cleared each mark in his last ${log.length} games.${hurt ? ' <b>He is listed as out.</b>' : ''}`, html: `<p class="pp-sub">${esc(notes.join(' · '))}</p><div class="pp-tbl-wrap"><table class="pp-tbl"><tbody>${tbl}</tbody></table></div><p class="pp-note">Green: cleared it at least 70% of the time. Tap a mark to track it. Trends, not guarantees, and not betting advice.</p>`, ctx: { pid: r.id } };
+  }
+  top.forEach(x => rememberPlayer({ id: x.r.id, displayName: x.r.name, shortName: x.r.short }, x.r.teamId));
+  const row = x => {
+    const [, short, word] = PROP_STATS.find(s => s[0] === x.k);
+    const notes = [`${x.hits} of last ${x.n}`, `L${x.n} avg ${x.avg.toFixed(1)}`, `${x.g.away.id === x.r.teamId ? '@' : 'vs'} ${x.opp.abbr}${x.dr && ['pts', 'pra', 'tpm'].includes(x.k) ? ` (${ord(x.dr.rank)} of ${x.dr.of} on D)` : ''}`];
+    if (x.mates.length && ['pts', 'pra', 'ast'].includes(x.k)) notes.push(`${x.mates.slice(0, 2).map(m => m.last || m.name).join(' & ')} out`);
+    return `<div class="pp-row">
+      <button class="pp-who" data-player="${x.r.id}">${face(x.r.id, x.r.name, 'ask-face', 120)}<span class="nm"><b>${esc(x.r.name)} <em>${x.m}+ ${short}</em></b><small>${esc(notes.join(' · '))}</small></span></button>
+      ${sparks(x.vals, x.m)}
+      <button class="pp-add" data-askq="${esc(`Track: ${x.r.name} over ${x.m - 0.5} ${word}`)}" title="Track this as a bet" aria-label="Track ${esc(x.r.name)} ${x.m}+ ${short}">+</button>
+    </div>`;
+  };
+  const leanRow = ({ g, L }) => `<div class="pp-game"><button class="pp-gt" data-game="${g.id}">${logo(g.away.abbr, 32)}${esc(g.away.abbr)} <i>@</i> ${logo(g.home.abbr, 32)}${esc(g.home.abbr)}<small>${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</small></button>
+    ${L.map(l => l.kind === 'total'
+      ? `<span class="pp-ln${l.lean ? ' on' : ''}"><small>Total ${l.line}</small><b>${l.lean ? `Lean ${l.lean}` : 'No lean'}</b><small>They project ${Math.round(l.proj)}</small>${l.lean ? `<button class="pp-add sm" data-askq="${esc(`Track: ${g.away.abbr}/${g.home.abbr} ${l.lean.toLowerCase()} ${l.line}`)}" title="Track this">+</button>` : ''}</span>`
+      : `<span class="pp-ln${l.lean ? ' on' : ''}"><small>${esc(g.home.abbr)} ${l.hs > 0 ? '+' : ''}${l.hs}</small><b>${l.lean ? `Lean ${esc(l.lean)}` : 'No lean'}</b><small>Project ${l.margin >= 0 ? g.home.abbr : g.away.abbr} by ${Math.abs(l.margin).toFixed(1)}</small>${l.lean ? `<button class="pp-add sm" data-askq="${esc(`Track: ${l.lean}`)}" title="Track this">+</button>` : ''}</span>`).join('')}</div>`;
+  const early = Math.min(...games.map(g => { const H = std.get(g.home.id); return H ? (+H.w || 0) + (+H.l || 0) : 0; })) < 10;
+  const html = `${top.length ? `<div class="pp-h">Player trends ${when}</div><div class="pp-list">${top.map(row).join('')}</div>` : ''}
+    ${leans.length ? `<div class="pp-h">Game lines</div><div class="pp-games">${leans.map(leanRow).join('')}</div>` : ''}
+    <p class="pp-note">Built from each player's last 10 games, how many points the opponent allows, who's ruled out, and each team's scoring this season${early ? ' (still a small sample this early)' : ''}. Trends, not guarantees, and not betting advice. Tap + to track one.</p>`;
+  const lead = opts.pid ? `${top[0]?.r.name || 'He'}'s marks he's been clearing ${when}:` : top.length ? `Here's who's been clearing their numbers, for ${games.length === 1 ? `${games[0].away.abbr} @ ${games[0].home.abbr}` : `${when}'s ${games.length} games`}:` : 'Nobody on this slate has been clearing a mark often enough to stand out yet.';
+  return { text: lead, html, ctx: opts.pid ? { pid: opts.pid } : {} };
+}

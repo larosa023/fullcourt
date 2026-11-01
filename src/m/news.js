@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-10-31f', date: 'Oct 31', items: [
+    ['Prop ideas in Ask', 'Ask "best props tonight", "Knicks game picks" or "Wembanyama props" for players who keep clearing their marks, matchup and injury notes, and how each game line compares with the teams\' scoring. Tap + to track one.'],
+    ['Game log totals', 'The season game log now has a Totals row, and shooting percentages in the averages.'],
+  ] },
   { id: '2026-10-31e', date: 'Oct 31', items: [
     ['Award races', 'MVP, Rookie, Defensive Player and Sixth Man races now blend sportsbook odds, the ESPN panel and staff picks from The Ringer, SI and Bleacher Report with Fullcourt\'s stats model, with stats on every row and sources listed.'],
     ['Track your bets', 'Type a bet or paste a slip screenshot into Ask to follow it live under My bets on Scores.'],
