@@ -1339,3 +1339,9 @@ table.box.adv { min-width: 560px; }
 @media (max-width: 760px) {
   .mast { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+/* phones: pin the header with position: fixed. iOS Safari treats a fixed bar at the top edge as the page's own
+   top bar and stops softening/blurring it like scrolling content */
+@media (max-width: 760px) {
+  .mast { position: fixed; top: 0; left: 0; right: 0; padding-top: env(safe-area-inset-top, 0px); }
+  body { padding-top: calc(55px + env(safe-area-inset-top, 0px)); }
+}

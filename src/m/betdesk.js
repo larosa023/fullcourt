@@ -691,10 +691,12 @@ const usd = v => '$' + (Math.round(v * 100) / 100).toLocaleString('en-US', { min
 function addSlipLeg(l) {
   const i = SLIP.legs.findIndex(y => legKey(y.pid, y.k) === legKey(l.pid, l.k));
   if (i >= 0) SLIP.legs.splice(i, 1, l); else SLIP.legs.push(l);
-  SLIP.open = true; saveSlip(); drawSlip();
+  if (!PHONE()) SLIP.open = true; saveSlip(); drawSlip(); bumpSlip();
   if ($('#bdMain') && BD.tab === 'props') bdTable($('#bdMain'), true);
   toast(S.view === 'bets' ? `Added to your parlay: ${l.name} ${l.side === 'u' ? 'under' : 'over'} ${l.line}` : `Added to your parlay in the Bets tab`);
 }
+const PHONE = () => matchMedia('(max-width: 760px)').matches;
+const bumpSlip = () => { const n = $('#bdSlip .bs-n'); if (!n) return; n.classList.remove('bump'); void n.offsetWidth; n.classList.add('bump'); };
 function toggleSlip(x) {
   const i = SLIP.legs.findIndex(l => legKey(l.pid, l.k) === legKey(x.pid, x.k));
   if (i >= 0 && SLIP.legs[i].line === x.line) SLIP.legs.splice(i, 1);
@@ -702,9 +704,9 @@ function toggleSlip(x) {
     if (i >= 0) SLIP.legs.splice(i, 1); // same player and stat at another line: swap it
     const side = BD.side, odds = x.est ? -115 : +(side === 'u' ? x.under : x.over) || -110;
     SLIP.legs.push({ pid: String(x.pid), k: x.k, side, line: x.line, odds, est: !!x.est, name: x.p.name, teamId: x.p.teamId, abbr: x.p.abbr, gid: x.g.id, game: `${x.g.away.abbr} @ ${x.g.home.abbr}`, date: (x.g.date || '').slice(0, 10).replace(/-/g, ''), time: x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g) });
-    if (SLIP.legs.length === 1) SLIP.open = true;
+    if (SLIP.legs.length === 1 && !PHONE()) SLIP.open = true;
   }
-  saveSlip(); drawSlip();
+  saveSlip(); drawSlip(); bumpSlip();
 }
 function slipMath() {
   const d = SLIP.legs.reduce((a, l) => a * decOf(l.odds), 1), stake = Math.max(0, +SLIP.stake || 0);
@@ -724,11 +726,14 @@ function exportSlip(id) {
 function drawSlip() {
   const view = $('#v-bets'); if (!view) return;
   let dock = $('#bdSlip');
-  if (!SLIP.legs.length) { dock?.remove(); return; }
+  if (!SLIP.legs.length) { dock?.remove(); $('#bsScrim')?.classList.remove('on'); return; }
   if (!dock) { dock = document.createElement('div'); dock.id = 'bdSlip'; dock.className = 'bd-slip'; view.append(dock); wireSlip(dock); }
   const m = slipMath(), n = SLIP.legs.length, mk = k => MARKETS.find(q => q[0] === k);
   const sameGame = new Set(SLIP.legs.map(l => l.gid)).size < n;
   dock.classList.toggle('open', !!SLIP.open);
+  let sc = $('#bsScrim');
+  if (!sc) { sc = document.createElement('div'); sc.id = 'bsScrim'; sc.className = 'bs-scrim'; sc.addEventListener('click', () => { SLIP.open = false; saveSlip(); drawSlip(); }); view.append(sc); }
+  sc.classList.toggle('on', !!SLIP.open);
   dock.innerHTML = `<button class="bs-bar" data-slipopen aria-expanded="${!!SLIP.open}">
       <span class="bs-n">${n}</span><span class="bs-t"><b>${n > 1 ? `${n}-leg parlay` : 'Single'}</b><small>${m.amer} · ${usd(m.stake)} pays ${usd(m.pays)}</small></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
