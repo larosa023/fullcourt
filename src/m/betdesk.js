@@ -107,7 +107,9 @@ async function bdDraw() {
   const rows = await leagueTable();
   const byId = new Map(rows.map(r => [String(r.id), r]));
   main.innerHTML = `<div class="sk" style="height:520px"></div>`;
-  const all = (await Promise.all(games.map(g => gameProps(g).catch(() => [])))).flat();
+  const per = await Promise.all(games.map(g => gameProps(g).catch(() => [])));
+  BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
+  const all = per.flat();
   if (n !== drawN) return;
   if (!all.length) { main.innerHTML = `<div class="empty"><b>No player props posted yet</b>Books usually post them the morning of the game. Game lines are under the other tab.</div>`; return; }
   const games2 = new Map(games.map(g => [g.id, g]));
@@ -142,7 +144,7 @@ function bdTable(main, keepScroll, final) {
       <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag>${MARKETS.map(m => `<button class="chip" data-bdmk="${m[0]}" aria-pressed="${m[0] === BD.mk}">${m[1]}</button>`).join('')}</div></div>
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
-        <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All ${games.length} games</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
+        <select class="bd-sel" data-bdgame aria-label="Game"><option value="all">All games with props</option>${games.map(g => `<option value="${g.id}" ${BD.game === g.id ? 'selected' : ''}>${esc(g.away.abbr)} @ ${esc(g.home.abbr)} · ${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</option>`).join('')}</select>
         <input class="bd-q" type="search" placeholder="Find a player" value="${esc(BD.q)}" data-bdq aria-label="Find a player">
       </div>
     </div>
@@ -166,6 +168,7 @@ function bdTable(main, keepScroll, final) {
           <td class="tr"><button class="bd-add" data-bdtrack="${x.pid}|${x.k}|${x.line}" title="Track this" aria-label="Track ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line}">+</button></td>
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>Try another market or game.</div>`}
+    ${BD.missing?.length ? `<p class="bd-note bd-miss">Props aren't posted yet for ${esc(BD.missing.join(', '))}. Books usually add them the morning of the game.</p>` : ''}
     <p class="bd-note">${loading ? '<span class="bd-ld"></span> Loading each player\'s games… ' : ''}Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). Score blends those. Tap a row for the full breakdown. Trends, not betting advice.</p>`;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
