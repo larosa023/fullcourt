@@ -20,7 +20,7 @@ async function openWeek() {
     const row = g => {
       const fav = g.a.id === favId || g.h.id === favId;
       const team = s => `<span class="wk-t${g.state === 'post' && !s.winner ? ' lose' : ''}">${logo(s.abbreviation, 40)}<b>${esc(s.abbreviation)}</b>${g.state !== 'pre' ? `<em>${esc(s.score)}</em>` : ''}</span>`;
-      const st = g.state === 'pre' ? esc(fmtTime(g.date).replace(' ET', '')) : g.state === 'in' ? `<span class="wk-live">Live</span>` : 'Final';
+      const st = g.state === 'pre' ? esc(fmtTime(g.date, true)) : g.state === 'in' ? `<span class="wk-live">Live</span>` : 'Final';
       return `<button class="wk-g${fav ? ' fav' : ''}" data-game="${esc(g.id)}"><span class="wk-st">${st}</span>${team(g.a)}<i>@</i>${team(g.h)}<span class="wk-x">${esc(g.tv || (g.state === 'pre' ? g.line : ''))}</span></button>`;
     };
     sheet.body.innerHTML = `<div class="wk">

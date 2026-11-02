@@ -22,7 +22,7 @@ async function shareGame(d, sides) {
   const K = await canvasKit(); const { x, C, font, text, fit } = K;
   const comp = d.header?.competitions?.[0], st = comp?.status;
   const g = { state: st?.type?.state, period: st?.period, clock: st?.displayClock, desc: st?.type?.description || '' };
-  const status = g.state === 'pre' ? fmtET(comp.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET' : statusText(g);
+  const status = g.state === 'pre' ? fmtLocal(comp.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ' + TZ_AB : statusText(g);
   text(status.toUpperCase(), 72, 128, font(600, 30, 'mono'), g.state === 'in' ? cssVar('--live') || C.accent : C.accent);
   text(fmtET(comp.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), 1008, 128, font(500, 26, 'mono'), C.muted, 'right');
   const imgs = await Promise.all(sides.map(s => loadImg(logoSrc(s.abbr, 300))));

@@ -299,7 +299,7 @@ async function aTeamNext(t) {
   const up = evs.filter(e => e.state !== 'post').slice(0, 4);
   if (!up.length) return { text: `The ${esc(t.short || t.name)} have no upcoming games on the schedule.` };
   const n = up[0];
-  const when = n.state === 'in' ? 'right now' : `${fmtET(n.date, { weekday: 'long', month: 'short', day: 'numeric' })} at ${fmtTime(n.date)}`;
+  const when = n.state === 'in' ? 'right now' : `${fmtLocal(n.date, { weekday: 'long', month: 'short', day: 'numeric' })} at ${fmtTime(n.date)}`;
   const text = `The ${esc(t.short || t.name)} ${n.state === 'in' ? 'are playing' : 'play next'} ${n.home ? 'at home against' : 'on the road at'} the ${esc(n.op.displayName || n.op.shortDisplayName)} ${esc(when)}${n.tv ? ` (${esc(n.tv)})` : ''}.`;
   const html = card(up.map(e => `<button class="ask-li" data-game="${e.id}">${logo(e.op.abbreviation, 64)}<span class="nm"><b>${e.home ? 'vs' : '@'} ${esc(e.op.displayName || e.op.abbreviation)}</b><small>${esc(e.tv || '')}</small></span><span class="v small">${esc(e.state === 'in' ? 'Live now' : fmtET(e.date, { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + fmtTime(e.date))}</span></button>`).join(''));
   return { text, html, ctx: { teamId: t.id } };
@@ -1439,7 +1439,7 @@ async function openPropDetail(pid, k, m0, extra) {
     sheet.body.innerHTML = `<div class="pd">
       <div class="pd-head" style="--tc:${teamColor(r.teamId || r.abbr)}">
         ${face(r.id, r.name, 'pd-face', 260)}
-        <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtET(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
+        <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtLocal(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
           <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}</small>

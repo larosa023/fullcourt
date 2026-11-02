@@ -117,7 +117,17 @@ const fmtDay = (s, opts) => fromYmd(s).toLocaleDateString('en-US', { timeZone: '
 /* Everything runs on New York time: the NBA's own calendar, and Anthony's (New Jersey). */
 const TZ = 'America/New_York';
 const ROLLOVER_HOUR = 4; // before 4 AM ET, "today" is still last night's slate so late West Coast games stay put
-const fmtTime = iso => new Date(iso).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) + ' ET';
+// game times show in the viewer's own time zone (the device's setting, which follows where they are);
+// which day a game belongs to stays on ET, the way the NBA schedules it
+const UTZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || TZ; } catch (e) { return TZ; } })();
+const TZ_AB = (() => {
+  try {
+    const n = new Date().toLocaleTimeString('en-US', { timeZone: UTZ, timeZoneName: 'short' }).split(' ').pop();
+    return { EST: 'ET', EDT: 'ET', CST: 'CT', CDT: 'CT', MST: 'MT', MDT: 'MT', PST: 'PT', PDT: 'PT', AKST: 'AKT', AKDT: 'AKT', HST: 'HT', HDT: 'HT' }[n] || n;
+  } catch (e) { return 'ET'; }
+})();
+const fmtTime = (iso, bare) => new Date(iso).toLocaleTimeString('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }) + (bare ? '' : ' ' + TZ_AB);
+const fmtLocal = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: UTZ, ...opts });
 const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
 const fmtET = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
 function etNow() {
@@ -1078,7 +1088,7 @@ async function openGame(id) {
           <div class="gh-score">${pre ? `<span class="tip" style="font-size:26px;white-space:nowrap">${esc(fmtTime(g.date))}</span>` : `<span class="score" style="${!sides[0].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[0].score)}</span><span class="sep"></span><span class="score" style="${!sides[1].winner && g.state === 'post' ? 'color:var(--muted)' : ''}">${esc(sides[1].score)}</span>`}</div>
           <button class="gh-team" data-team="${sides[1].id}">${logo(sides[1].abbr, 120)}<b>${esc(sides[1].short)}</b><span>${esc(sides[1].rec)} · Home</span>${sitOf(sides[1])}</button>
         </div>
-        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>
+        <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtLocal(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>
         <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span></div>
       </div>`;
 
@@ -1290,7 +1300,7 @@ function preGame(d, sides, g) {
   const tv = [...new Set((d.broadcasts || []).flatMap(b => [b.media?.shortName || b.station || '']).filter(Boolean))].join(' · ');
   const ss = d.seasonseries?.[0]?.summary;
   let html = `<div class="card"><div class="card-h"><h4>Game info</h4></div><div class="facts">
-    <div class="fact"><span>Tip-off</span><b>${esc(fmtET(g.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET')}</b></div>
+    <div class="fact"><span>Tip-off</span><b>${esc(fmtLocal(g.date, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ' + TZ_AB)}</b></div>
     ${d.gameInfo?.venue?.fullName ? `<div class="fact"><span>Arena</span><b>${esc(d.gameInfo.venue.fullName)}</b></div>` : ''}
     ${ss ? `<div class="fact"><span>Season series</span><b>${esc(ss)}</b></div>` : ''}
     ${d.gameInfo?.officials?.length ? `<div class="fact"><span>Officials</span><b>${esc(d.gameInfo.officials.map(o => o.displayName || o.fullName).join(', '))}</b></div>` : ''}
@@ -2739,7 +2749,7 @@ function calHTML(info, ym) {
   for (let dd = 1; dd <= days; dd++) {
     const key = `${ym}${String(dd).padStart(2, '0')}`, e = byDay.get(key);
     if (!e) { cells.push(`<span class="cd${key === today ? ' today' : ''}"><span class="dn">${dd}</span></span>`); continue; }
-    const res = e.state === 'post' ? `<span class="cr ${e.win ? 'w' : 'l'}">${e.win ? 'W' : 'L'}<span> ${esc(e.my)}-${esc(e.their)}</span></span>` : e.state === 'in' ? '<span class="cr live">Live</span>' : `<span class="cr t">${esc(fmtTime(e.date).replace(' ET', '').replace(':00', ''))}</span>`;
+    const res = e.state === 'post' ? `<span class="cr ${e.win ? 'w' : 'l'}">${e.win ? 'W' : 'L'}<span> ${esc(e.my)}-${esc(e.their)}</span></span>` : e.state === 'in' ? '<span class="cr live">Live</span>' : `<span class="cr t">${esc(fmtTime(e.date, true).replace(':00', ''))}</span>`;
     cells.push(`<button class="cd g${e.home ? '' : ' away'}${e.trip ? ' trip ' + e.tripPos : ''}${key === today ? ' today' : ''}" data-game="${esc(e.id)}" title="${esc(`${fmtShortDate(e.date)} · ${e.home ? 'vs' : '@'} ${e.op.displayName || e.op.abbreviation}${e.b2b ? ' · 2nd night of a back-to-back' : e.rest != null ? ` · ${e.rest} day${e.rest === 1 ? '' : 's'} rest` : ''}${e.trip ? ` · ${e.trip}-game road trip` : ''}`)}">
       <span class="dn">${dd}${e.b2b ? '<em class="b2b">B2B</em>' : ''}</span>
       <span class="co">${logo(e.op.abbreviation, 40)}<span>${e.home ? 'vs' : '@'}${esc(e.op.abbreviation)}</span></span>${res}</button>`);
@@ -2953,7 +2963,7 @@ function renderPicks() {
       const res = mine && p.res ? (p.res === 'W' ? ' right' : ' wrong') : '';
       return `<button class="pk-t${mine ? ' on' : ''}${res}" data-pick="${g.id}:${s.id}" ${open ? '' : 'disabled'} aria-pressed="${mine}">${logo(s.abbr, 40)}<b>${esc(s.abbr)}</b>${g.state !== 'pre' ? `<span>${esc(s.score)}</span>` : ''}</button>`;
     };
-    const st = g.state === 'pre' ? esc(fmtTime(g.date).replace(' ET', '')) : g.state === 'in' ? `<span class="pk-live">${esc(statusText(g))}</span>` : (p?.res ? `<span class="pk-res ${p.res === 'W' ? 'w' : 'l'}">${p.res === 'W' ? '✓' : '✗'}</span>` : 'Final');
+    const st = g.state === 'pre' ? esc(fmtTime(g.date, true)) : g.state === 'in' ? `<span class="pk-live">${esc(statusText(g))}</span>` : (p?.res ? `<span class="pk-res ${p.res === 'W' ? 'w' : 'l'}">${p.res === 'W' ? '✓' : '✗'}</span>` : 'Final');
     return `<div class="pk-row">${side(g.away)}<i>@</i>${side(g.home)}<span class="pk-st">${st}</span></div>`;
   }).join('') + (day.length ? `<div class="pk-day">${S.date === S.today ? 'Today' : esc(fmtDay(S.date, { weekday: 'long' }))}: ${dayDone ? `${dayW} of ${dayDone} right` : ''}${dayDone && day.length > dayDone ? ' · ' : ''}${day.length > dayDone ? `${day.length - dayDone} pick${day.length - dayDone === 1 ? '' : 's'} waiting on results` : ''}</div>` : `<div class="pk-day">Tap a team to pick the winner. Picks lock at tip-off.</div>`);
 }
@@ -3125,3 +3135,4 @@ loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" styl
 // refresh "tips in" countdowns & time labels each minute
 setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) { const back = holdScroll(); renderGames(false); back(); } }, 60000);
 }
+try { const t = document.getElementById('tzNote'); if (t) t.textContent = TZ_AB === 'ET' ? 'ET' : TZ_AB + ' (your time zone)'; } catch (e) {}

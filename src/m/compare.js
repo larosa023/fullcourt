@@ -10,12 +10,31 @@ const CMP_STATS = [
   ['PTS', 'Points'], ['REB', 'Rebounds'], ['AST', 'Assists'], ['STL', 'Steals'], ['BLK', 'Blocks'],
   ['FG%', 'Field goal %'], ['3P%', '3-point %'], ['FT%', 'Free throw %'], ['MIN', 'Minutes'], ['TO', 'Turnovers', true], ['GP', 'Games played'],
 ];
+// advanced numbers, worked out from the per-game shooting lines (FGM-FGA etc.)
+const CMP_ADV = [
+  ['TS%', 'True shooting %'], ['eFG%', 'Effective FG %'], ['P36', 'Points per 36'], ['3PAr', '3-point attempt rate'], ['FTr', 'Free throw rate'],
+  ['AST/TO', 'Assist to turnover'], ['OREB', 'Offensive rebounds'], ['DREB', 'Defensive rebounds'], ['STK', 'Stocks (steals + blocks)'], ['DD2', 'Double-doubles'],
+];
+function advFrom(row, lab, dd) {
+  if (!row) return null;
+  const v = k => row[lab.indexOf(k)], n = k => parseFloat(v(k));
+  const [fgm, fga] = splitMA(v('FG')), [tpm, tpa] = splitMA(v('3PT')), [, fta] = splitMA(v('FT'));
+  const pts = n('PTS'), min = n('MIN');
+  const f1 = x => Number.isFinite(x) ? x.toFixed(1) : '–', f2 = x => Number.isFinite(x) ? x.toFixed(2) : '–', pc = x => Number.isFinite(x) ? (x * 100).toFixed(1) : '–';
+  return { 'TS%': pc(tsPct(pts, fga, fta)), 'eFG%': pc(efgPct(fgm, tpm, fga)), P36: f1(min ? pts / min * 36 : NaN), '3PAr': pc(fga ? tpa / fga : NaN), FTr: pc(fga ? fta / fga : NaN),
+    'AST/TO': f2(astTo(n('AST'), n('TO'))), OREB: f1(n('OR')), DREB: f1(n('DR')), STK: f1(n('STL') + n('BLK')), DD2: dd ?? '–' };
+}
 async function cmpData(id) {
   if (S.cmpCache[id]) return S.cmpCache[id];
-  const [ov, bio] = await Promise.all([
+  const [ov, bio, stx] = await Promise.all([
     getJSON(`${WEB}/athletes/${id}/overview`).catch(() => null),
     getJSON(`${WEB}/athletes/${id}`).catch(() => null),
+    getJSON(`${WEB}/athletes/${id}/stats`).catch(() => null),
   ]);
+  const avg = stx?.categories?.find(c => c.name === 'averages'), misc = stx?.categories?.find(c => c.name === 'miscellaneous');
+  const yr = (() => { const n = new Date(); return IS_W ? n.getFullYear() : n.getFullYear() + (n.getMonth() >= 7 ? 1 : 0); })();
+  const curRow = avg?.statistics?.find(r => r.season?.year === yr), curMisc = misc?.statistics?.find(r => r.season?.year === yr);
+  const ddOf = r => r ? r[(misc.labels || []).indexOf('DD2')] : null;
   const a = bio?.athlete || {};
   if (a.team) regTeam(a.team);
   const st = ov?.statistics;
@@ -26,6 +45,7 @@ async function cmpData(id) {
     teamId: a.team?.id || S.players[id]?.teamId, pos: a.position?.abbreviation || '', jersey: a.jersey || '',
     age: a.age, ht: a.displayHeight, exp: a.displayExperience,
     season: pack(split(/regular/i)), career: pack(split(/career/i)),
+    adv: { season: avg ? advFrom(curRow?.stats, avg.labels, ddOf(curMisc?.stats)) : null, career: avg ? advFrom(avg.totals, avg.labels, misc ? ddOf(misc.totals) : null) : null },
   });
 }
 async function ensureCmpDefaults() {
@@ -45,7 +65,8 @@ async function renderCompare() {
   const [A, B] = await Promise.all(S.cmp.map(cmpData));
   if (S.view !== 'compare') return;
   ['0', '1'].forEach((k, i) => { const inp = $(`#cmpIn${k}`); if (document.activeElement !== inp) inp.value = [A, B][i].name; });
-  const sa = A[S.cmpSplit], sb = B[S.cmpSplit];
+  const ADV = advOn, STATS = ADV ? CMP_ADV : CMP_STATS;
+  const sa = ADV ? A.adv?.[S.cmpSplit] : A[S.cmpSplit], sb = ADV ? B.adv?.[S.cmpSplit] : B[S.cmpSplit];
   const card = (P, side) => {
     const t = S.teams[P.teamId] || {};
     return `<button class="cmp-card enter" style="--tc:${teamColor(P.teamId || t.abbr)}" data-player="${P.id}">
@@ -56,7 +77,7 @@ async function renderCompare() {
       <span class="cmp-side">${side}</span></button>`;
   };
   let winsA = 0, winsB = 0;
-  const rows = CMP_STATS.map(([k, label, lowerBetter]) => {
+  const rows = STATS.map(([k, label, lowerBetter]) => {
     const va = sa?.[k], vb = sb?.[k];
     const na = parseFloat(va), nb = parseFloat(vb);
     const ok = Number.isFinite(na) && Number.isFinite(nb);
@@ -70,13 +91,13 @@ async function renderCompare() {
   const missing = !sa || !sb;
   body.innerHTML = `<div class="cmp-grid">${card(A, 'A')}${card(B, 'B')}</div>
     <div class="card cmp-card-stats">
-      <div class="card-h"><h4>${S.cmpSplit === 'season' ? 'This season' : 'Career'} · per game</h4>
+      <div class="card-h"><h4>${S.cmpSplit === 'season' ? 'This season' : 'Career'} · ${ADV ? 'advanced' : 'per game'}</h4>${advBtn()}
         <span class="cmp-share"><button class="btn ghost sm" data-cmpshare title="Share this comparison as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Share</span></button><button class="btn ghost sm" data-cmplink title="Copy a link to this comparison"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg><span>Link</span></button></span>
         <span class="cmp-score"><b style="color:var(--sideA)">${esc(A.last || A.name)} ${winsA}</b> – <b style="color:var(--sideB)">${winsB} ${esc(B.last || B.name)}</b> <span class="eyebrow">categories won</span></span></div>
       <div class="cmp">${rows}</div>
       ${missing ? `<p class="odds-note">${!sa && !sb ? 'Neither player has' : `${esc((!sa ? A : B).name)} hasn't`} played ${S.cmpSplit === 'season' ? 'this season' : 'yet'}, so some numbers are missing.</p>` : ''}
     </div>`;
-  S.cmpShown = { A, B, sa, sb, winsA, winsB };
+  S.cmpShown = { A, B, sa, sb, winsA, winsB, stats: STATS, adv: ADV };
   requestAnimationFrame(() => requestAnimationFrame(() => $$('#cmpBody [data-w]').forEach(i => i.style.width = i.dataset.w + '%')));
 }
 function cmpPicker(slot) {
@@ -122,9 +143,9 @@ function cmpLink() { return `${location.origin}${location.pathname}?cmp=${S.cmp.
 const loadImg = src => new Promise(res => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 async function cmpImage() {
   const X = S.cmpShown; if (!X) return null;
-  const { A, B, sa, sb, winsA, winsB } = X;
+  const { A, B, sa, sb, winsA, winsB } = X, ROWS = X.stats || CMP_STATS;
   try { await document.fonts.ready; } catch (e) {}
-  const W = 1080, rowH = 74, top = 470, H = top + CMP_STATS.length * rowH + 120;
+  const W = 1080, rowH = 74, top = 470, H = top + ROWS.length * rowH + 120;
   const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
   const disp = "Archivo, 'Arial Narrow', Arial, sans-serif", mono = "'IBM Plex Mono', Menlo, monospace", body = "'Instrument Sans', system-ui, sans-serif";
   const font = (w, sz, f, cond) => { x.font = `${w} ${sz}px ${f}`; try { x.fontStretch = cond ? 'condensed' : 'normal'; } catch (e) {} };
@@ -147,9 +168,9 @@ async function cmpImage() {
   panel(A, 30, fa, colA); panel(B, 550, fb, colB);
   // header line
   font(700, 22, mono); x.fillStyle = mute; x.textAlign = 'center';
-  x.fillText(`${S.cmpSplit === 'season' ? 'THIS SEASON' : 'CAREER'} · PER GAME`, W / 2, top - 14);
+  x.fillText(`${S.cmpSplit === 'season' ? 'THIS SEASON' : 'CAREER'} · ${X.adv ? 'ADVANCED' : 'PER GAME'}`, W / 2, top - 14);
   x.textAlign = 'left';
-  CMP_STATS.forEach(([k, label, lowerBetter], i) => {
+  ROWS.forEach(([k, label, lowerBetter], i) => {
     const y = top + i * rowH, va = sa?.[k], vb = sb?.[k], na = parseFloat(va), nb = parseFloat(vb), ok = Number.isFinite(na) && Number.isFinite(nb);
     const aWin = ok && na !== nb && (lowerBetter ? na < nb : na > nb), bWin = ok && na !== nb && !aWin, m = Math.max(Math.abs(na) || 0, Math.abs(nb) || 0) || 1;
     x.fillStyle = line; x.fillRect(40, y + rowH - 1, W - 80, 1);
@@ -162,7 +183,7 @@ async function cmpImage() {
       x.fillStyle = aWin ? colA : '#596171'; x.fillRect(W / 2 - 4 - wa, cy, wa, 8);
       x.fillStyle = bWin ? colB : '#596171'; x.fillRect(W / 2 + 4, cy, wb, 8); }
   });
-  const fy = top + CMP_STATS.length * rowH + 60;
+  const fy = top + ROWS.length * rowH + 60;
   font(800, 34, disp, true); x.fillStyle = colA; x.fillText(`${(A.last || A.name).toUpperCase()} ${winsA}`, 40, fy);
   x.textAlign = 'right'; x.fillStyle = colB; x.fillText(`${winsB} ${(B.last || B.name).toUpperCase()}`, W - 40, fy);
   x.textAlign = 'center'; font(600, 18, mono); x.fillStyle = mute; x.fillText('CATEGORIES WON', W / 2, fy - 6);
@@ -185,3 +206,5 @@ document.addEventListener('click', async e => {
   try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); toast('Image copied: paste it anywhere'); return; } catch (err) {}
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Image saved');
 });
+
+document.addEventListener('fcadv', () => { if (S.view === 'compare') renderCompare(); });
