@@ -7,9 +7,9 @@ on:
     branches: [main]
     paths: ['tools/odds.mjs', '.github/workflows/odds.yml']
   schedule:
-    # ET (UTC-5 in winter): 9:05am, 12:05pm, 3:05pm, 5:35pm, 6:45pm, 8:45pm
-    - cron: '5 14 * * *'
-    - cron: '5 17 * * *'
+    # ET (UTC-5 in winter): 10:05am, 3:05pm, 5:35pm, 6:45pm, 8:45pm. About 60 games a day on a full slate,
+    # which keeps the free plan's 2,500 a month in reach
+    - cron: '5 15 * * *'
     - cron: '5 20 * * *'
     - cron: '35 22 * * *'
     - cron: '45 23 * * *'

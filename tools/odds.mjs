@@ -15,7 +15,7 @@ for (let page = 0; page < 5; page++) {
   if (cursor) u.searchParams.set('cursor', cursor);
   const r = await fetch(u, { headers: H });
   const j = await r.json();
-  if (!r.ok || !j.success) { console.error('SGO error', r.status, JSON.stringify(j).slice(0, 300)); break; }
+  if (!r.ok || !j.success) { console.error('SGO error', r.status, JSON.stringify(j).slice(0, 300)); if (!events.length) process.exit(1); break; } // keep the last good file
   events.push(...(j.data || []));
   if (!j.nextCursor || !(j.data || []).length) break;
   cursor = j.nextCursor;
@@ -43,5 +43,6 @@ for (const e of events) {
   }
   out.events.push(ev);
 }
+if (!out.events.length) { console.log('no games with lines in the window; keeping the last file'); process.exit(1); }
 writeFileSync(process.argv[2] || 'odds.json', JSON.stringify(out));
 console.log(`${out.events.length} games, ${out.events.reduce((a, e) => a + Object.keys(e.props).length, 0)} players`);
