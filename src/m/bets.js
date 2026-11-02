@@ -123,6 +123,7 @@ const dec = o => o > 0 ? 1 + o / 100 : 1 + 100 / -o;
 // profit boost (b.boost, a %) multiplies the winnings; b.toWin, when saved, already includes it
 function payout(b, results) {
   if (b.stake == null) return null;
+  if (Number.isFinite(+b.payOverride) && +b.payOverride > 0) return Math.round((+b.payOverride - b.stake) * 100) / 100; // the book's own number wins
   if (b.toWin != null && !results?.some(r => r.st === 'push' || r.st === 'void')) return b.toWin;
   const p = rawPayout(b, results); return p == null ? null : Math.round(p * (1 + (+b.boost || 0) / 100) * 100) / 100;
 }
@@ -176,6 +177,7 @@ function editForm(b) {
       <input inputmode="numeric" placeholder="odds" value="${odTxt(l.odds)}" data-bteodds="${i}" aria-label="Odds">
       ${b.legs.length > 1 ? `<button class="bte-x" data-bterm="${i}" aria-label="Remove leg">×</button>` : '<span></span>'}</div>`).join('')}
     <div class="bte-row"><label>Stake <span>$<input inputmode="decimal" value="${b.stake ?? ''}" data-btestake></span></label>${b.legs.length > 1 ? `<label>Parlay odds <input inputmode="numeric" placeholder="from legs" value="${odTxt(b.odds)}" data-bteparl></label>` : ''}</div>
+    <div class="bte-row"><label title="What your book says it pays (stake included). Use it when a leg was voided or same-game legs were priced together, so the tracker matches the book exactly.">Book payout <span>$<input inputmode="decimal" placeholder="optional" value="${b.payOverride ?? ''}" data-btepay></span></label></div>
     <div class="bte-boost"><span>Profit boost</span>${[0, 10, 25, 50].map(v => `<button data-bteboost="${v}" aria-pressed="${(+b.boost || 0) === v}">${v ? v + '%' : 'None'}</button>`).join('')}</div>
     <div class="bte-act"><button class="btn" data-btesave="${esc(b.id)}">Save</button><button class="btn ghost" data-btecancel>Cancel</button></div>
   </div>`;
@@ -213,13 +215,18 @@ if (!window.__bteWired) {
     else if (t.matches('[data-bteodds]')) W.legs[+t.dataset.bteodds].odds = num(t.value) || null;
     else if (t.matches('[data-btestake]')) W.stake = num(t.value);
     else if (t.matches('[data-bteparl]')) W.odds = num(t.value) || null;
+    else if (t.matches('[data-btepay]')) { const v = num(t.value); if (v) W.payOverride = v; else delete W.payOverride; }
+    else return;
+    // keep the "To win" line in step while typing
+    const w = payout({ ...W, toWin: null }, S.betRes?.[EDIT.id] || []);
+    $$(`.bt-card[data-bid="${CSS.escape(EDIT.id)}"] .bt-f span:last-child b`).forEach(x => { x.textContent = w != null ? money(w) : '–'; });
   });
 }
 function betCard(b, res) {
   if (EDIT?.id === b.id) b = EDIT.b;
   const st = b.result || betStatus(res);
   const editing = EDIT?.id === b.id;
-  const win = editing ? payout({ ...b, toWin: null }, []) : payout(b, res);
+  const win = editing ? payout({ ...b, toWin: null }, res) : payout(b, res);
   const head = b.dfs ? `${b.legs.length}-pick entry` : b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
   const pill = { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st];
   const done = res.filter(r => r.st === 'won').length, voids = res.filter(r => r.st === 'void').length;
