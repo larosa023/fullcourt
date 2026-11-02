@@ -165,15 +165,19 @@ function dragScroll(el) {
   if (el._drag) return; el._drag = true;
   let down = false, sx = 0, sl = 0, moved = false, lastX = 0, lastT = 0, v = 0, raf = 0;
   const wrap = el.closest('.hs-wrap');
-  const fades = () => {
+  // only touch the edge fades when they actually flip; writing them on every scroll event restyles the page
+  let fl = -1, fr = -1, max = 0;
+  const fades = sized => {
     if (!wrap) return;
-    const max = el.scrollWidth - el.clientWidth;
-    wrap.style.setProperty('--fl', el.scrollLeft > 4 ? 1 : 0);
-    wrap.style.setProperty('--fr', el.scrollLeft < max - 4 ? 1 : 0);
+    if (sized !== false) max = el.scrollWidth - el.clientWidth;
+    const l = el.scrollLeft > 4 ? 1 : 0, r = el.scrollLeft < max - 4 ? 1 : 0;
+    if (l !== fl) wrap.style.setProperty('--fl', fl = l);
+    if (r !== fr) wrap.style.setProperty('--fr', fr = r);
   };
-  el.addEventListener('scroll', fades, { passive: true });
+  el.addEventListener('scroll', () => fades(false), { passive: true });
   el.addEventListener('click', ev => { if (Date.now() - (el._sup || 0) < 250) { ev.stopPropagation(); ev.preventDefault(); } }, true);
-  new ResizeObserver(fades).observe(el);
+  new ResizeObserver(() => fades()).observe(el);
+  el._fades = fades;
   el.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'mouse' || e.button !== 0) return;
     cancelAnimationFrame(raf);
@@ -1659,6 +1663,7 @@ function renderTicker() {
   } else tr.dataset.loop = '';
   tr.scrollLeft = keep;
   dragScroll(tr);
+  tr._fades?.(); tr._half = 0; // contents changed: re-measure on the next frame
 }
 (() => {
   const tr = $('#tickerTrack'); if (!tr) return;
@@ -1667,15 +1672,21 @@ function renderTicker() {
   tr.addEventListener('pointerleave', () => hover = false);
   tr.addEventListener('focusin', () => hover = true);
   tr.addEventListener('focusout', () => hover = false);
-  const step = () => {
-    if (!hover && !reduced && !document.hidden && tr.dataset.loop && !tr.classList.contains('dragging') && innerWidth > 760) {
-      if (Math.abs(tr.scrollLeft - pos) > 2) pos = tr.scrollLeft;
-      pos += 0.45;
-      const a = $('#tkA'), gap = parseFloat(getComputedStyle(tr).columnGap) || 0;
-      const half = a ? a.offsetWidth + gap : 0;
-      if (half && pos >= half) pos -= half;
+  // the loop width is measured once per content change (not every frame: a per-frame measure forces a full
+  // page layout, which made big pages like the Bet desk stutter), and the loop sleeps when the ticker is off screen
+  let onScreen = true, wide = innerWidth > 760, last = 0;
+  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; }).observe(tr);
+  addEventListener('resize', () => { wide = innerWidth > 760; tr._half = 0; }, { passive: true });
+  const step = t => {
+    if (onScreen && wide && !hover && !reduced && !document.hidden && tr.dataset.loop && !tr.classList.contains('dragging')) {
+      if (!tr._half) { const a = $('#tkA'); tr._half = a ? a.offsetWidth + (parseFloat(getComputedStyle(tr).columnGap) || 0) : 0; }
+      const cur = tr.scrollLeft;
+      if (Math.abs(cur - pos) > 2) pos = cur;
+      pos += 0.45 * Math.min(3, last ? (t - last) / 16.7 : 1);
+      if (tr._half && pos >= tr._half) pos -= tr._half;
       tr.scrollLeft = pos;
     } else pos = tr.scrollLeft;
+    last = t;
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);

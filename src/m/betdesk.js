@@ -306,22 +306,19 @@ async function bdDraw() {
     if (!early) { Object.assign(BD, { all: dc.list, missing: dc.missing, missingIds: dc.missingIds, allDay: BD.day, allDone: true }); bdTable(main); }
     if (Date.now() - dc.t < 4 * 60e3) return;
   }
-  const rows = await leagueTable();
-  const byId = new Map(rows.map(r => [String(r.id), r]));
   if (!dc) main.innerHTML = `<div class="sk" style="height:520px"></div>`;
-  const per = await Promise.all(games.map(g => gameProps(g).catch(() => [])));
-  try {
-    const inj = await leagueInjuries(); BD.outByTeam = new Map();
+  // start everything at once instead of one after another
+  const injP = leagueInjuries().catch(() => null), booksP = loadBooks(games).catch(() => {});
+  const [rows, per] = await Promise.all([leagueTable(), Promise.all(games.map(g => gameProps(g).catch(() => [])))]);
+  const byId = new Map(rows.map(r => [String(r.id), r]));
+  const applyInj = inj => { try {
+    BD.outByTeam = new Map();
     for (const e of inj?.injuries || inj?.teams || []) for (const x of (e.injuries || []).map(normInjury)) {
       if (!/^out/i.test(x.status)) continue; const r = rows.find(y => String(y.id) === String(x.id)); if (!r || r.pts < 15) continue;
       const t = String(r.teamId); if (!BD.outByTeam.has(t)) BD.outByTeam.set(t, []); BD.outByTeam.get(t).push({ id: String(r.id), last: r.last || r.name.split(' ').slice(-1)[0] });
     }
-  } catch (e) {}
+  } catch (e) {} };
   // rest, pace and blowout flags
-  try {
-    const [rest, pt] = await Promise.all([Promise.all(games.flatMap(g => [g.home.id, g.away.id]).map(async t => [String(t), await restOf(t, slate.date)])), pbpTeams()]);
-    BD.rest = new Map(rest); BD.pbpT = pt;
-  } catch (e) {}
   BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
   BD.missingIds = new Set(games.filter((g, i) => !per[i].length).map(g => g.id));
   (BD.missingIdsFor ||= {})[slate.date] = [...BD.missingIds];
@@ -329,7 +326,7 @@ async function bdDraw() {
   if (n !== drawN) return;
   const games2 = new Map(games.map(g => [g.id, g]));
   const unknown = [...new Set(all.map(e => String(e.pid)).filter(id => !byId.has(id)))];
-  await poolRun(unknown, 6, async id => {
+  await poolRun(unknown, 10, async id => {
     if (BD.ath?.has(id)) { byId.set(id, BD.ath.get(id)); return; }
     const a = await getJSON(`${CORE}/athletes/${id}?lang=en&region=us`, { retries: 0, timeout: 8000 }).catch(() => null);
     if (!a?.displayName) return;
@@ -357,7 +354,7 @@ async function bdDraw() {
     }
   }
   // other books: when DraftKings hasn't posted (or the market is one ESPN doesn't carry), use a real line from another book
-  await loadBooks(games).catch(() => {});
+  await booksP;
   for (const x of list) {
     if (!x.est || Q1.has(x.k)) continue;
     const bk = booksOf(x); if (!bk) continue;
@@ -369,25 +366,33 @@ async function bdDraw() {
   // cache right away: the rows keep filling in (logs) even if the user switches days mid-load
   { const mi = new Set(BD.missingIdsFor?.[slate.date] || []); BD.dayCache.set('o' + day, { list, slate, missing: slate.games.filter(g => mi.has(g.id)).map(g => `${g.away.abbr} @ ${g.home.abbr}`), missingIds: mi, t: Date.now() }); }
   bdTable(main, !!dc);
+  // injuries, rest and pace flags fill in when they land; they don't hold up the table
+  let late = null; const lateDraw = () => { clearTimeout(late); late = setTimeout(() => { if (n === drawN && BD.tab === 'props' && BD.all === list) bdTable(main, true, false, true); }, 150); };
+  injP.then(inj => { if (inj) { applyInj(inj); lateDraw(); } });
+  // rest flags need every team's schedule (30 requests), so they start only after the table is up
+  const restP = Promise.all([poolAll(games.flatMap(g => [g.home.id, g.away.id]), 6, async t => [String(t), await restOf(t, slate.date)]), pbpTeams()]).catch(() => null);
+  restP.then(r => { if (r) { BD.rest = new Map(r[0]); BD.pbpT = r[1]; lateDraw(); } });
   // fill hit rates as each player's games arrive (players in the shown market first)
   const order = [...new Set([...list.filter(x => mkHas(x.k)), ...list].map(x => String(x.pid)))];
   let done = 0, pending = null;
-  const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true); }, 250); };
+  const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true, false, true); }, 900); };
   const seasonYr = (() => { const n = new Date(); return n.getFullYear() + (n.getMonth() >= 7 ? 1 : 0); })();
-  await poolRun(order, 6, async pid => { const log = await logOf(pid);
+  await poolRun(order, 10, async pid => { const log = await logOf(pid);
     const needPrev = log.length < 10;
     const prev = needPrev ? await prevOf(pid, seasonYr - 1) : null;
-    list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
-  if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
+    list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; refresh(); });
+  if (n === drawN && BD.tab === 'props') bdTable(main, true, true, true);
   if (BD.all === list) BD.allDone = true;
   { const mi = new Set(BD.missingIdsFor?.[slate.date] || []), gs = slate.games.filter(g => mi.has(g.id));
     BD.dayCache.set('o' + day, { list, slate, missing: gs.map(g => `${g.away.abbr} @ ${g.home.abbr}`), missingIds: mi, t: Date.now() }); }
   // warm the other day in the background so switching is quick
   if (n === drawN) setTimeout(() => warmDay(day === 0 ? 1 : 0, rows), 1200);
-  refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
+  refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true, false, true); });
   checkStars(list);
   if (mkQ1()) loadQ1(games, n, main);
 }
+// like Promise.all over items, but only `k` running at once
+async function poolAll(items, k, fn) { const out = new Array(items.length); let i = 0; await Promise.all(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) { const j = i++; out[j] = await fn(items[j]); } })); return out; }
 async function warmDay(off, rows) {
   try {
     const sl = await bdSlate(off); const gs = sl.games.filter(g => g.state !== 'post'); if (!gs.length) return;
@@ -428,7 +433,7 @@ async function loadQ1(games, n, main) {
 }
 async function poolRun(items, k, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) { const it = items[i++]; try { await fn(it); } catch (e) {} } })); }
 
-function bdTable(main, keepScroll, final) {
+function bdTable(main, keepScroll, final, soft) {
   if (BD.mk !== 'all' && !mkSel().length) BD.mk = 'pts';
   const SEL = mkSel(), ALL = !SEL || SEL.length > 1; // ALL: show the Market column
   let list = (BD.all || []).filter(x => mkHas(x.k) && (BD.game === 'all' || x.gid === BD.game) && (!BD.q || nameKey(x.p.name).includes(nameKey(BD.q))));
@@ -448,6 +453,8 @@ function bdTable(main, keepScroll, final) {
   const games = [...new Map((BD.all || []).map(x => [x.gid, x.g])).values()];
   const loading = list.some(x => !x.log) || (mkQ1() && BD.q1busy);
   const total = list.length;
+  // only build the top rows (sorted over everything); a full slate is 1,000+ rows and drawing them all is what made the desk heavy
+  const lim = BD.limit || 80, full = list; list = list.slice(0, lim);
   const mk = SEL?.length === 1 ? MARKETS.find(m => m[0] === SEL[0]) : [null, SEL ? SEL.map(k => MARKETS.find(m => m[0] === k)[1]).join(' / ') : 'stat'];
   const sd = BD.side === 'u' ? 'under' : 'over';
   const TIP = {
@@ -468,7 +475,7 @@ function bdTable(main, keepScroll, final) {
   };
   const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"${TIP[k] ? ` data-tip="${esc(TIP[k])}"` : ''}><button data-bdsort="${k}" aria-label="${esc(l)}: ${esc(TIP[k] || '')}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
   const sc = $('.bd-wrap', main)?.scrollLeft || 0;
-  main.innerHTML = `<div class="bd-ctrl">
+  const html = `<div class="bd-ctrl">
       <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag><button class="chip" data-bdmk="all" aria-pressed="${!SEL}">All stats</button>${MARKETS.map(m => `<button class="chip${EST.has(m[0]) ? ' est' : ''}" data-bdmk="${m[0]}" aria-pressed="${!!SEL?.includes(m[0])}">${m[1]}</button>`).join('')}</div></div>
       <div class="bd-row2">
         <div class="seg bd-side" data-bdsideseg><span class="knob"></span><button data-bdside="o" aria-pressed="${BD.side === 'o'}">Over</button><button data-bdside="u" aria-pressed="${BD.side === 'u'}">Under</button></div>
@@ -479,7 +486,7 @@ function bdTable(main, keepScroll, final) {
       </div>
     </div>
     ${BD.oddsOpen ? oddsPanel() : ''}
-    ${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
+    <div class="bd-body">${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
       <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${BD.books.size ? th('best', 'Best', 'dk') : ''}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
         const s = x.st, mv = Number.isFinite(x.open) && x.open !== x.line ? `<em class="${x.line > x.open ? 'up' : 'dn'}" title="Opened ${x.open}">${x.line > x.open ? '▲' : '▼'}</em>` : '';
@@ -490,13 +497,13 @@ function bdTable(main, keepScroll, final) {
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
           <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
-          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
+          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld st"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
           ${BD.books.size ? (() => { const bs = bestOf(x); return `<td class="od dk bd-best" title="${bs ? `Best ${BD.side === 'u' ? 'under' : 'over'} across books: ${esc(bookName(bs.b))} ${bs.l} at ${amer(bs.price)}` : 'Only one book has this line'}">${bs ? `${bs.l !== x.line ? `<small>${bs.l}</small> ` : ''}${amer(bs.price)}<i>${esc(bookAb(bs.b))}</i>` : '<span class="bd-pill na">–</span>'}</td>`; })() : ''}
-          <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld"></span>'}</td>
-          <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld"></span>'}</td>
-          <td class="dk">${s ? pill(s.hs, s.vals.length) : '<span class="bd-ld"></span>'}</td>
-          <td class="dk">${s ? (s.nv ? pill(s.hv, s.nv) : '<span class="bd-pill na">–</span>') : '<span class="bd-ld"></span>'}</td>
+          <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld st"></span>'}</td>
+          <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld st"></span>'}</td>
+          <td class="dk">${s ? pill(s.hs, s.vals.length) : '<span class="bd-ld st"></span>'}</td>
+          <td class="dk">${s ? (s.nv ? pill(s.hv, s.nv) : '<span class="bd-pill na">–</span>') : '<span class="bd-ld st"></span>'}</td>
           <td class="nm dk">${s?.avg != null ? s.avg.toFixed(1) : '–'}</td>
           <td class="nm dk ${s?.diff > 0 ? 'pos' : s?.diff < 0 ? 'neg' : ''}">${s?.diff != null ? (s.diff > 0 ? '+' : '') + s.diff.toFixed(1) : '–'}</td>
           <td class="nm dk">${dr ? `<span class="bd-def ${dr >= 21 ? 'soft' : dr <= 10 ? 'tough' : ''}">${ordN(dr)}</span>` : '–'}</td>
@@ -505,14 +512,39 @@ function bdTable(main, keepScroll, final) {
           <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}|${x.line}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
 
         </tr>`;
-      }).join('')}</tbody></table></div>` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
+      }).join('')}</tbody></table></div>${full.length > list.length ? `<button class="btn bd-more" data-bdmore>Show ${Math.min(100, full.length - list.length)} more <small>${list.length} of ${full.length}</small></button>` : ''}` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
     ${(SEL || []).some(k => EST.has(k)) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(SEL.filter(k => EST.has(k)).map(k => MARKETS.find(q => q[0] === k)[1]).join(', '))} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${mkQ1() ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">DraftKings hasn't posted props yet for ${esc(BD.missing.join(', '))}. Lines tagged with another book (FD, ESPN…) are that book's real line; <em class="est">est</em> lines are Fullcourt's, set at each player's recent average, until a book posts.</p>` : ''}
-    ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}
+    ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}</div>
     <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, a key teammate out, B2B or 3 games in 4 nights, a fast or slow matchup (2+ possessions off the league pace, from PBPStats), and blowout risk for starters when the spread is 10 or more. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
+  // background refreshes (hit rates filling in, live stats) swap just the table, so the filters, search box
+  // and anything you're about to click stay put
+  const oldBody = soft && $('.bd-body', main);
+  if (oldBody) { const t = document.createElement('div'); t.innerHTML = html; morph(oldBody, $('.bd-body', t)); }
+  else main.innerHTML = html;
   const w = $('.bd-wrap', main); if (w && keepScroll) w.scrollLeft = sc;
   wireDrag(main);
   placeKnob($('[data-bdsideseg]', main)); if ($('[data-bdopside]', main)) placeKnob($('[data-bdopside]', main));
+}
+// update `a` to match `b` while reusing every element that didn't change (table rows are matched by their key),
+// so a background refresh never yanks a row or button out from under the cursor
+function morph(a, b) {
+  if (a.isEqualNode(b)) return;
+  if (a.nodeType !== 1 || a.tagName !== b.tagName) { a.replaceWith(b); return; }
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  const keyed = a.tagName === 'TBODY', kOf = el => el.nodeType === 1 && el.dataset.bdrow, olds = [...a.childNodes];
+  const pool = new Map(); if (keyed) olds.forEach(o => { const k = kOf(o); if (k) (pool.get(k) || pool.set(k, []).get(k)).push(o); });
+  const news = [...b.childNodes]; let i = 0;
+  const out = news.map(n => {
+    let o = keyed ? pool.get(kOf(n))?.shift() : olds[i++];
+    if (!o) return n;
+    if (o.nodeType !== n.nodeType || (o.nodeType === 1 && o.tagName !== n.tagName)) return n;
+    if (o.nodeType === 1) { morph(o, n); return o; }
+    if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; return o;
+  });
+  out.forEach((n, j) => { if (a.childNodes[j] !== n) a.insertBefore(n, a.childNodes[j] || null); });
+  while (a.childNodes.length > out.length) a.lastChild.remove();
 }
 function oddsPanel() {
   const o = BD.odds || { side: 'e', min: null, max: null }, lo = o.min == null ? -1400 : oddsPos(o.min), hi = o.max == null ? 1400 : oddsPos(o.max);
@@ -740,19 +772,20 @@ function bdWire(body) {
       if (BD.tab === 'props' && sl && BD.all && BD.allDay === BD.day && BD.allDone) { drawN++; tabChrome(sl); bdTable($('#bdMain')); return; }
       if (sl) tabChrome(sl);
       bdDraw(); return; }
-    const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
+    const d = e.target.closest('[data-bdday]'); if (d) { BD.day = +d.dataset.bdday; BD.game = 'all'; BD.limit = 0; $$('[data-bdday]').forEach(b => b.setAttribute('aria-pressed', b === d)); bdDraw(); return; }
     const m = e.target.closest('[data-bdmk]'); if (m) {
       // tap markets to combine them; tapping a selected one removes it; All stats resets
       const k = m.dataset.bdmk, cur = mkSel();
+      BD.limit = 0;
       if (k === 'all' || !cur) BD.mk = k;
       else { const nx = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]; BD.mk = nx.length ? MARKETS.map(q => q[0]).filter(q => nx.includes(q)).join(',') : 'all'; }
-      saveView(); BD.cap = 150; if (mkSel()?.length !== 1 && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (mkQ1()) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
-    if (e.target.closest('[data-bdmore]')) { BD.cap = (BD.cap || 150) + 150; bdTable($('#bdMain'), true); return; }
+      saveView(); if (mkSel()?.length !== 1 && BD.sort === 'line') BD.sort = 'edge'; bdTable($('#bdMain')); if (mkQ1()) bdSlate(BD.day).then(sl => loadQ1(sl.games.filter(g => g.state !== 'post'), drawN, $('#bdMain'))); return; }
     const sd = e.target.closest('[data-bdside]'); if (sd) { BD.side = sd.dataset.bdside; saveView(); bdTable($('#bdMain'), true); return; }
     const so = e.target.closest('[data-bdsort]'); if (so) { const k = so.dataset.bdsort; if (BD.sort === k) BD.dir = -BD.dir; else { BD.sort = k; BD.dir = k === 'name' || k === 'mk' || k === 'def' && BD.side === 'u' ? 1 : -1; } saveView(); bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdodds]')) { BD.oddsOpen = !BD.oddsOpen; BD.oddsAnim = BD.oddsOpen; bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdoclear]')) { BD.odds = null; saveView(); bdTable($('#bdMain'), true); return; }
     const os = e.target.closest('[data-bdoside]'); if (os) { setOdds({ side: os.dataset.bdoside }); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-bdmore]')) { BD.limit = (BD.limit || 80) + 100; bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdradar]')) { BD.radar = !BD.radar; saveView(); bdTable($('#bdMain'), true); return; }
     const sr = e.target.closest('[data-bdstar]');
     if (sr) { const [pid, k] = sr.dataset.bdstar.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const st = readStars(), key = pid + '|' + k;
@@ -769,7 +802,7 @@ function bdWire(body) {
       openPropDetail(pid, k, Math.floor(+line) + 1, { r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) });
     }
   });
-  body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; bdTable($('#bdMain')); } });
+  body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; BD.limit = 0; bdTable($('#bdMain')); } });
   body.addEventListener('input', e => { if (e.target.matches('[data-bdq]')) { BD.q = e.target.value; clearTimeout(BD.qt); BD.qt = setTimeout(() => { const pos = e.target.selectionStart; bdTable($('#bdMain'), true); const q = $('[data-bdq]'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 200); } });
 }
 
