@@ -126,7 +126,16 @@ const TZ_AB = (() => {
     return { EST: 'ET', EDT: 'ET', CST: 'CT', CDT: 'CT', MST: 'MT', MDT: 'MT', PST: 'PT', PDT: 'PT', AKST: 'AKT', AKDT: 'AKT', HST: 'HT', HDT: 'HT' }[n] || n;
   } catch (e) { return 'ET'; }
 })();
-const fmtTime = (iso, bare) => new Date(iso).toLocaleTimeString('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }) + (bare ? '' : ' ' + TZ_AB);
+// for viewers far from ET (Europe, Asia...), a night game can land on the next calendar day where they are,
+// so add their local date when it differs from the ET date. Anyone whose date matches ET sees no change.
+const ymdIn = (d, tz) => d.toLocaleDateString('en-CA', { timeZone: tz });
+const fmtTime = (iso, bare) => {
+  const d = new Date(iso);
+  let s = d.toLocaleTimeString('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }) + (bare ? '' : ' ' + TZ_AB);
+  if (UTZ !== TZ && Math.abs(d - Date.now()) > 90000 && ymdIn(d, UTZ) !== ymdIn(d, TZ))
+    s += bare ? ' ' + d.toLocaleDateString('en-US', { timeZone: UTZ, month: 'numeric', day: 'numeric' }) : ' · ' + d.toLocaleDateString('en-US', { timeZone: UTZ, weekday: 'short', month: 'numeric', day: 'numeric' }).replace(',', '');
+  return s;
+};
 const fmtLocal = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: UTZ, ...opts });
 const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
 const fmtET = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
