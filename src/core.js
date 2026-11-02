@@ -135,7 +135,10 @@ function etNow() {
     .formatToParts(new Date()).map(x => [x.type, x.value]));
   return { ymd: `${p.year}${p.month}${p.day}`, hour: +p.hour };
 }
-const etToday = () => { const n = etNow(); return n.hour < ROLLOVER_HOUR ? addDays(n.ymd, -1) : n.ymd; };
+// "Today" is the calendar date in ET. The only exception: right after midnight, while last night's games are
+// still being played, stay on last night's slate until they finish (lateLive is set by loadScores)
+let lateLive = false;
+const etToday = () => { const n = etNow(); return n.hour < ROLLOVER_HOUR && lateLive ? addDays(n.ymd, -1) : n.ymd; };
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
@@ -497,6 +500,7 @@ async function loadScores({ silent = false } = {}) {
     refreshTicker();
     refreshSit();
     if (S.date === S.today) alertCheck(S.games);
+    if (S.date === addDays(etNow().ymd, -1)) { lateLive = S.games.some(g => g.state === 'in'); if (!lateLive && S.date === S.today && checkRollover()) loadScores({ silent: true }); }
     renderWatch(); renderPicks(); renderOut();
     if (lsGet(lsKey('fc-bets'))) renderBets(); else { const bb = $('#betBlock'); if (bb) bb.hidden = true; }
     back(); if (silent) Promise.allSettled([document.fonts?.ready]).then(() => requestAnimationFrame(back));
@@ -522,7 +526,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   if (checkRollover() || Date.now() - S.lastUpdate > 15000) loadScores({ silent: true });
 });
-// When the NBA day turns over (4 AM ET), move "Today" forward. If you were looking at today, follow it.
+// When the day turns over (midnight ET, or once last night's late games end), move "Today" forward. If you were looking at today, follow it.
 function checkRollover() {
   const t = etToday();
   if (t === S.today) return false;
