@@ -219,7 +219,7 @@ if (!window.__bteWired) {
     else return;
     // keep the "To win" line in step while typing
     const w = payout({ ...W, toWin: null }, S.betRes?.[EDIT.id] || []);
-    $$(`.bt-card[data-bid="${CSS.escape(EDIT.id)}"] .bt-f span:last-child b`).forEach(x => { x.textContent = w != null ? money(w) : '–'; });
+    $$(`.bt-card[data-bid="${CSS.escape(EDIT.id)}"] .bt-f span:last-child b`).forEach(x => { x.textContent = w != null && W.stake != null ? money(+W.stake + w) : '–'; });
   });
 }
 function betCard(b, res) {
@@ -246,7 +246,7 @@ function betCard(b, res) {
       </span>
       <span class="bt-v">${r.now != null && (l.k === 'prop' || l.k === 'total' || l.k === 'ttotal') ? `<b>${r.now}</b><small>/${l.line}</small>` : r.g && r.st === 'pending' ? `<small>${esc(r.g.label)}</small>` : ''}</span>
     </button>`; }).join('')}</div>`}
-    ${b.stake != null ? `<div class="bt-f"><span>${money(b.stake)} stake${b.boost ? ` <em class="bt-boost">${b.boost}% boost</em>` : ''}</span>${win != null ? `<span>${editing ? 'To win' : st === 'won' ? 'Won' : st === 'lost' ? 'Would have won' : 'To win'} <b>${money(win)}</b></span>` : ''}</div>` : ''}
+    ${b.stake != null ? `<div class="bt-f"><span>${money(b.stake)} stake${b.boost ? ` <em class="bt-boost">${b.boost}% boost</em>` : ''}</span>${win != null ? `<span title="${money(win)} profit + ${money(b.stake)} stake">${editing ? 'Pays' : st === 'won' ? 'Paid' : st === 'lost' ? 'Would have paid' : st === 'push' ? 'Returned' : 'Pays'} <b>${money(st === 'push' && !editing ? b.stake : b.stake + win)}</b></span>` : ''}</div>` : ''}
   </div>`;
 }
 // what a live parlay still needs, in one line
@@ -440,7 +440,7 @@ async function shareBet(id) {
   const foot = [];
   if (b.stake != null) foot.push(['Stake', money(b.stake)]);
   if (b.odds) foot.push(['Odds', b.odds > 0 ? '+' + b.odds : String(b.odds)]);
-  if (win != null) foot.push([st === 'won' ? 'Won' : 'To win', money(win), st === 'won']);
+  if (win != null) foot.push([st === 'won' ? 'Paid' : 'Payout', money(b.stake + win), st === 'won']);
   await shareCard({ title, sub: new Date(b.at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), status: { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st], legs, foot });
 }
 
