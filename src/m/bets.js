@@ -120,9 +120,13 @@ function betStatus(results) {
   return 'pending';
 }
 const dec = o => o > 0 ? 1 + o / 100 : 1 + 100 / -o;
+// profit boost (b.boost, a %) multiplies the winnings; b.toWin, when saved, already includes it
 function payout(b, results) {
   if (b.stake == null) return null;
   if (b.toWin != null && !results?.some(r => r.st === 'push' || r.st === 'void')) return b.toWin;
+  const p = rawPayout(b, results); return p == null ? null : Math.round(p * (1 + (+b.boost || 0) / 100) * 100) / 100;
+}
+function rawPayout(b, results) {
   const legOdds = b.legs.map((l, i) => results?.[i] && ['push', 'void'].includes(results[i].st) ? null : l.odds);
   let price = null;
   if (b.odds && b.legs.length > 1 && !results?.some(r => ['push', 'void'].includes(r.st))) price = dec(b.odds);
@@ -158,9 +162,64 @@ const legName = l => {
   return '';
 };
 const money = v => v == null ? '' : '$' + (Math.round(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+/* ---------------- edit an open bet ---------------- */
+let EDIT = null; // { id, b: working copy }
+const PEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13 7 4 4"/></svg>';
+const odTxt = o => Number.isFinite(+o) && +o ? (+o > 0 ? '+' + +o : String(+o)) : '';
+function editForm(b) {
+  const legTitle = l => l.k === 'prop' ? `${l.name} · ${l.stats.map(k => BSTAT[k]).join('+')}` : l.k === 'dd' || l.k === 'td' ? `${l.name} · ${l.k === 'dd' ? 'double' : 'triple'}-double` : l.k === 'ml' ? `${l.abbr} moneyline` : l.k === 'spread' ? `${l.abbr} spread` : l.k === 'ttotal' ? `${l.abbr} team total` : `${l.game || l.abbr || 'Game'} total`;
+  const hasSide = l => ['prop', 'total', 'ttotal', 'dd', 'td'].includes(l.k), hasLine = l => ['prop', 'total', 'ttotal', 'spread'].includes(l.k);
+  return `<div class="bte">
+    ${b.legs.map((l, i) => `<div class="bte-leg"><span class="bte-n">${esc(legTitle(l))}</span>
+      ${hasSide(l) ? `<span class="bte-side"><button data-bteside="${i}" data-v="o" aria-pressed="${l.side !== 'u'}">${l.k === 'dd' || l.k === 'td' ? 'Yes' : 'O'}</button><button data-bteside="${i}" data-v="u" aria-pressed="${l.side === 'u'}">${l.k === 'dd' || l.k === 'td' ? 'No' : 'U'}</button></span>` : '<span></span>'}
+      ${hasLine(l) ? `<input inputmode="decimal" value="${l.line ?? ''}" data-bteline="${i}" aria-label="Line">` : '<span></span>'}
+      <input inputmode="numeric" placeholder="odds" value="${odTxt(l.odds)}" data-bteodds="${i}" aria-label="Odds">
+      ${b.legs.length > 1 ? `<button class="bte-x" data-bterm="${i}" aria-label="Remove leg">×</button>` : '<span></span>'}</div>`).join('')}
+    <div class="bte-row"><label>Stake <span>$<input inputmode="decimal" value="${b.stake ?? ''}" data-btestake></span></label>${b.legs.length > 1 ? `<label>Parlay odds <input inputmode="numeric" placeholder="from legs" value="${odTxt(b.odds)}" data-bteparl></label>` : ''}</div>
+    <div class="bte-boost"><span>Profit boost</span>${[0, 10, 25, 50].map(v => `<button data-bteboost="${v}" aria-pressed="${(+b.boost || 0) === v}">${v ? v + '%' : 'None'}</button>`).join('')}</div>
+    <div class="bte-act"><button class="btn" data-btesave="${esc(b.id)}">Save</button><button class="btn ghost" data-btecancel>Cancel</button></div>
+  </div>`;
+}
+function redrawCard(id) {
+  const b = EDIT?.id === id ? EDIT.b : readBets().find(x => x.id === id); if (!b) return;
+  const res = S.betRes?.[id] || (b.legRes ? hist(b) : b.legs.map(() => ({ st: 'pending', text: '' })));
+  $$(`.bt-card[data-bid="${CSS.escape(id)}"]`).forEach(c => { c.outerHTML = betCard(b, res); });
+}
+if (!window.__bteWired) {
+  window.__bteWired = true;
+  const num = v => { const n = parseFloat(String(v).replace(/[^\d.+-]/g, '')); return Number.isFinite(n) ? n : null; };
+  document.addEventListener('click', e => {
+    const op = e.target.closest('[data-bteopen]');
+    if (op) { const b = readBets().find(x => x.id === op.dataset.bteopen); if (b) { EDIT = { id: b.id, b: JSON.parse(JSON.stringify(b)) }; redrawCard(b.id); } return; }
+    if (!EDIT) return;
+    const card = e.target.closest('.bt-card'); if (!card || card.dataset.bid !== EDIT.id) return;
+    const W = EDIT.b, id = EDIT.id;
+    const sd = e.target.closest('[data-bteside]'); if (sd) { W.legs[+sd.dataset.bteside].side = sd.dataset.v; redrawCard(id); return; }
+    const rm = e.target.closest('[data-bterm]'); if (rm) { W.legs.splice(+rm.dataset.bterm, 1); W.odds = null; redrawCard(id); return; }
+    const bo = e.target.closest('[data-bteboost]'); if (bo) { W.boost = +bo.dataset.bteboost || undefined; redrawCard(id); return; }
+    if (e.target.closest('[data-btecancel]')) { EDIT = null; redrawCard(id); return; }
+    if (e.target.closest('[data-btesave]')) {
+      // edits change the price, so drop the saved to-win and let it be worked out from the odds and boost
+      W.toWin = null; delete W.legRes; delete W.legNow; delete W.result; delete W.settledAt;
+      writeBets(readBets().map(x => x.id === id ? W : x));
+      EDIT = null; if (S.betRes) delete S.betRes[id];
+      renderBets(true); redrawCard(id); document.dispatchEvent(new Event('fcbets'));
+      toast('Bet updated');
+    }
+  });
+  document.addEventListener('input', e => {
+    if (!EDIT) return; const W = EDIT.b, t = e.target;
+    if (t.matches('[data-bteline]')) W.legs[+t.dataset.bteline].line = num(t.value);
+    else if (t.matches('[data-bteodds]')) W.legs[+t.dataset.bteodds].odds = num(t.value) || null;
+    else if (t.matches('[data-btestake]')) W.stake = num(t.value);
+    else if (t.matches('[data-bteparl]')) W.odds = num(t.value) || null;
+  });
+}
 function betCard(b, res) {
+  if (EDIT?.id === b.id) b = EDIT.b;
   const st = b.result || betStatus(res);
-  const win = payout(b, res);
+  const editing = EDIT?.id === b.id;
+  const win = editing ? payout({ ...b, toWin: null }, []) : payout(b, res);
   const head = b.dfs ? `${b.legs.length}-pick entry` : b.legs.length > 1 ? `${b.legs.length}-leg parlay` : 'Single';
   const pill = { won: 'Won', lost: 'Lost', push: 'Push', live: 'Live', pending: 'Upcoming' }[st];
   const done = res.filter(r => r.st === 'won').length, voids = res.filter(r => r.st === 'void').length;
@@ -168,18 +227,19 @@ function betCard(b, res) {
   return `<div class="bt-card ${st}${mini ? ' mini' : ''}" data-bid="${esc(b.id)}">
     <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small>${done}/${b.legs.length - voids}${voids ? ` · ${voids} void` : ' hit'}</small>` : ''}</span>
       <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
+      ${!b.result ? `<button class="bt-sh" data-bteopen="${esc(b.id)}" title="Edit this bet" aria-label="Edit this bet">${PEN}</button>` : ''}
       <button class="bt-sh" data-betshare="${esc(b.id)}" title="Share as an image" aria-label="Share this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
       <button class="bt-x" data-betdel="${esc(b.id)}" title="Remove this bet" aria-label="Remove this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
-    <div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
+    ${EDIT?.id === b.id ? editForm(b) : `<div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
       <span class="bt-fc">${l.pid && (l.k === 'prop' || l.k === 'dd' || l.k === 'td') ? face(l.pid, l.name || '', 'bt-face', 80) : l.abbr ? logo(l.abbr, 40) : ''}</span>
       <span class="bt-t"><b>${esc(legName(l))}</b><small>${esc(r.text || '')}${r.g && r.st !== 'pending' ? ` · ${esc(r.g.label)}` : ''}</small>
         ${(l.k === 'prop' || l.k === 'total' || l.k === 'ttotal' || l.k === 'dd' || l.k === 'td') && r.st && r.st !== 'pending' && r.st !== 'void' ? `<span class="bt-bar"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i>${r.need != null && l.k !== 'dd' && l.k !== 'td' ? `<em style="left:${Math.min(100, Math.round(r.need / Math.max(r.need, r.now || 0, 0.5) * 100))}%"></em>` : ''}</span>` : ''}
       </span>
       <span class="bt-v">${r.now != null && (l.k === 'prop' || l.k === 'total' || l.k === 'ttotal') ? `<b>${r.now}</b><small>/${l.line}</small>` : r.g && r.st === 'pending' ? `<small>${esc(r.g.label)}</small>` : ''}</span>
-    </button>`; }).join('')}</div>
-    ${b.stake != null ? `<div class="bt-f"><span>${money(b.stake)} stake</span>${win != null ? `<span>${st === 'won' ? 'Won' : st === 'lost' ? 'Would have won' : 'To win'} <b>${money(win)}</b></span>` : ''}</div>` : ''}
+    </button>`; }).join('')}</div>`}
+    ${b.stake != null ? `<div class="bt-f"><span>${money(b.stake)} stake${b.boost ? ` <em class="bt-boost">${b.boost}% boost</em>` : ''}</span>${win != null ? `<span>${editing ? 'To win' : st === 'won' ? 'Won' : st === 'lost' ? 'Would have won' : 'To win'} <b>${money(win)}</b></span>` : ''}</div>` : ''}
   </div>`;
 }
 // what a live parlay still needs, in one line
@@ -234,6 +294,7 @@ async function renderBets(force) {
   if (!show.length) blk.hidden = true;
   else blk.hidden = false;
   const draw = res => {
+    if (EDIT && document.activeElement?.closest?.('.bte')) return; // don't redraw under someone typing in an edit
     $('#betStrip').innerHTML = show.map(b => betCard(b, res[b.id] || b.legs.map(() => ({ st: 'pending', text: 'Loading…' })))).join('');
     dragScroll($('#betStrip'));
   };

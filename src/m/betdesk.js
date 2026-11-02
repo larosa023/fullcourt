@@ -690,6 +690,7 @@ function drawGames(main, games) {
 
 function bdWire(body) {
   body.dataset.wired = '1';
+  document.addEventListener('fcbets', () => { if (S.view === 'bets' && BD.tab === 'mine') bdDraw(); });
   const parseO = v => { const n = parseInt(String(v).replace(/[^\d+-]/g, ''), 10); return Number.isFinite(n) && Math.abs(n) >= 100 ? n : null; };
   body.addEventListener('change', e => {
     const a = e.target.closest('[data-bdomin]'), b = e.target.closest('[data-bdomax]');
@@ -779,8 +780,10 @@ function toggleSlip(x) {
   saveSlip(); drawSlip(); bumpSlip();
 }
 function slipMath() {
-  const d = SLIP.legs.reduce((a, l) => a * decOf(l.odds), 1), stake = Math.max(0, +SLIP.stake || 0);
-  return { d, stake, pays: stake * d, win: stake * (d - 1), amer: SLIP.legs.length ? amerOf(d) : '–' };
+  // profit boosts multiply the winnings (not the stake), the way books apply them
+  const d = SLIP.legs.reduce((a, l) => a * decOf(l.odds), 1), stake = Math.max(0, +SLIP.stake || 0), bo = +SLIP.boost || 0;
+  const bd = 1 + (d - 1) * (1 + bo / 100);
+  return { d, bd, boost: bo, stake, pays: stake * bd, win: stake * (bd - 1), amer: SLIP.legs.length ? amerOf(d) : '–', bamer: SLIP.legs.length ? amerOf(bd) : '–' };
 }
 // sportsbooks and pick'em apps: copy the slip in their wording, then open them
 const BOOKS = [['dk', 'DraftKings', 'https://sportsbook.draftkings.com/leagues/basketball/nba'], ['fd', 'FanDuel', 'https://sportsbook.fanduel.com/navigation/nba'], ['fan', 'Fanatics', 'https://sportsbook.fanatics.com/'], ['hr', 'Hard Rock', 'https://app.hardrock.bet/'], ['score', 'theScore Bet', 'https://thescore.bet/'], ['b365', 'bet365', 'https://www.bet365.com/'], ['pp', 'PrizePicks', 'https://app.prizepicks.com/', 1], ['sl', 'Sleeper', 'https://sleeper.com/', 1]];
@@ -817,10 +820,11 @@ function drawSlip() {
       </div>`).join('')}</div>
       <div class="bs-sum">
         <label class="bs-stake"><span>Stake</span><span class="bs-in">$<input inputmode="decimal" value="${m.stake}" data-slipstake aria-label="Stake"></span></label>
-        <div><span>Odds</span><b>${m.amer}</b></div>
+        <div><span>Odds</span><b>${m.boost ? `<s>${m.amer}</s> ${m.bamer}` : m.amer}</b></div>
         <div><span>To win</span><b>${usd(m.win)}</b></div>
         <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
       </div>
+      <div class="bs-boost" role="group" aria-label="Profit boost"><span>Profit boost</span>${[0, 10, 25, 50].map(v => `<button data-slipboost="${v}" aria-pressed="${(+SLIP.boost || 0) === v}">${v ? v + '%' : 'None'}</button>`).join('')}</div>
       <div class="bs-books" hidden>${BOOKS.map(([id, name, url]) => `<a class="bs-book" href="${url}" ${matchMedia('(pointer: coarse)').matches ? '' : 'target="_blank"'} rel="noopener" data-slipbook="${id}">${name}</a>`).join('')}<p class="bs-note">No sportsbook lets other sites fill your bet slip, so this copies your picks and opens the book. Paste or rebuild them there; lines can differ by book.</p></div>
       ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
       <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-exp" data-slipexp aria-expanded="false">Export</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
@@ -830,17 +834,18 @@ function wireSlip(dock) {
   dock.addEventListener('click', e => {
     if (e.target.closest('[data-slipopen]')) { SLIP.open = !SLIP.open; saveSlip(); drawSlip(); return; }
     const d = e.target.closest('[data-slipdel]'); if (d) { SLIP.legs.splice(+d.dataset.slipdel, 1); saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    const bb = e.target.closest('[data-slipboost]'); if (bb) { SLIP.boost = +bb.dataset.slipboost || 0; saveSlip(); drawSlip(); return; }
     const ex = e.target.closest('[data-slipexp]'); if (ex) { const bx = dock.querySelector('.bs-books'); bx.hidden = !bx.hidden; ex.setAttribute('aria-expanded', !bx.hidden); return; }
     const bk = e.target.closest('[data-slipbook]'); if (bk) { exportSlip(bk.dataset.slipbook); return; } // the link itself does the opening
     if (e.target.closest('[data-slipshare]')) { const m = slipMath(), mk = k => MARKETS.find(q => q[0] === k)[2];
       lazy('bets').then(b => b.shareCard({ title: SLIP.legs.length > 1 ? `${SLIP.legs.length}-leg parlay` : 'Single', sub: 'Built on Fullcourt', legs: SLIP.legs.map(l => ({ name: l.name, what: `${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${mk(l.k)} · ${l.game}`, val: l.odds > 0 ? '+' + l.odds : String(l.odds) })), foot: [['Stake', usd(m.stake)], ['Odds', m.amer], ['Pays', usd(m.pays), true]] }, 'fullcourt-parlay.png')); return; }
-    if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; SLIP.boost = 0; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-sliptrack]')) {
       const m = slipMath();
       const legs = SLIP.legs.map(l => ({ k: 'prop', pid: l.pid, name: l.name, teamId: l.teamId, abbr: l.abbr, stats: STATS_OF[l.k], side: l.side, line: l.line, gid: l.gid, date: l.date, game: l.game, odds: l.odds }));
-      const bet = { id: 'p' + Date.now().toString(36), at: Date.now(), legs, stake: m.stake || null, odds: legs.length > 1 ? Math.round(m.d >= 2 ? (m.d - 1) * 100 : -100 / (m.d - 1)) : null, toWin: m.stake ? Math.round(m.win * 100) / 100 : null };
+      const bet = { id: 'p' + Date.now().toString(36), at: Date.now(), legs, stake: m.stake || null, odds: legs.length > 1 ? Math.round(m.d >= 2 ? (m.d - 1) * 100 : -100 / (m.d - 1)) : null, toWin: m.stake ? Math.round(m.win * 100) / 100 : null, ...(m.boost ? { boost: m.boost } : {}) };
       lazy('bets').then(b => b.addBet(bet));
-      SLIP.legs = []; saveSlip(); drawSlip(); bdTable($('#bdMain'), true);
+      SLIP.legs = []; SLIP.boost = 0; saveSlip(); drawSlip(); bdTable($('#bdMain'), true);
     }
   });
   const num = v => { const n = parseFloat(String(v).replace(/[^\d.+-]/g, '')); return Number.isFinite(n) ? n : null; };

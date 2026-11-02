@@ -396,3 +396,9 @@ em.est.livel { color: var(--live, #ff4170); border-color: color-mix(in oklab, va
 .bd-best i { font-style: normal; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .04em; color: var(--muted); margin-left: 4px; vertical-align: 2px; }
 em.est.bk { color: #2f86ff; border-color: color-mix(in oklab, #2f86ff 45%, var(--line)); }
 .bd-t td.ln em.est.bk { color: #3b8cff; border-color: color-mix(in oklab, #3b8cff 45%, var(--line)); }
+/* profit boost in the slip */
+.bs-boost { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.bs-boost > span { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: auto; }
+.bs-boost button { height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; font-weight: 650; color: var(--ink-2); }
+.bs-boost button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.bs-sum b s { opacity: .5; font-weight: 500; margin-right: 2px; }
