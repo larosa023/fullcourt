@@ -390,3 +390,4 @@ em.est.alt { color: var(--accent); border-color: color-mix(in oklab, var(--accen
   .bd-t th[data-tip]:nth-last-child(-n+3)::after { left: auto; right: 0; transform: translate(0, -4px); }
   .bd-t th[data-tip]:nth-last-child(-n+3):hover::after { transform: translate(0, 0); }
 }
+em.est.livel { color: var(--live, #ff4170); border-color: color-mix(in oklab, var(--live, #ff4170) 50%, var(--line)); }

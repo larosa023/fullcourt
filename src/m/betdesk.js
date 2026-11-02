@@ -43,11 +43,20 @@ const bdVal = (g, k) => Q1.has(k) ? BD.q1.get(String(g.id))?.get(String(g._pid))
 const amer = v => { const n = +v; return Number.isFinite(n) ? (n > 0 ? '+' + n : String(n)) : '–'; };
 
 async function bdSlate(offset) {
-  if (BD.slates.has(offset)) return BD.slates.get(offset);
-  // "today" means the next games that haven't tipped; once tonight is done, roll to tomorrow
-  let d = addDays(S.today, offset), games = await scoreboardOn(d).catch(() => []);
-  if (offset === 0 && games.length && games.every(g => g.state === 'post')) { d = addDays(S.today, 1); games = await scoreboardOn(d).catch(() => []); }
-  const out = { date: d, games };
+  // kept 90 seconds so game states (and which games are left) stay current
+  const c = BD.slates.get(offset); if (c && Date.now() - c.t < 90e3) return c;
+  // "Next up": today until every game is final, then the next day with games.
+  // "Tomorrow": the day after whatever Next up shows, so the two never repeat
+  let d, games;
+  if (offset === 0) {
+    d = S.today; games = await scoreboardOn(d).catch(() => []);
+    for (let i = 0; i < 4 && (!games.length || games.every(g => g.state === 'post')); i++) { d = addDays(d, 1); games = await scoreboardOn(d).catch(() => []); }
+  } else {
+    const first = await bdSlate(0);
+    d = addDays(first.date, 1); games = await scoreboardOn(d).catch(() => []);
+    for (let i = 0; i < 3 && !games.length; i++) { d = addDays(d, 1); games = await scoreboardOn(d).catch(() => []); }
+  }
+  const out = { date: d, games, t: Date.now() };
   BD.slates.set(offset, out);
   return out;
 }
@@ -237,6 +246,8 @@ function tabChrome(slate) {
   const hist = BD.tab === 'mine' || BD.tab === 'record';
   $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${hist ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
   $('.bd-days')?.toggleAttribute('hidden', hist);
+  // label the second day by what it really is (it's not "tomorrow" once tonight's slate is done)
+  bdSlate(1).then(s1 => { const b = $('[data-bdday="1"]'); if (b) b.textContent = s1.date === addDays(S.today, 1) ? 'Tomorrow' : fmtDay(s1.date, { weekday: 'long' }); }).catch(() => {});
   privApply();
 }
 let drawN = 0;
@@ -412,7 +423,7 @@ function bdTable(main, keepScroll, final) {
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
           <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
-          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
+          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld"></span>'}</td>
           <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
           <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld"></span>'}</td>
           <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld"></span>'}</td>
