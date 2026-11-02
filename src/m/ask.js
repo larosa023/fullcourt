@@ -693,6 +693,8 @@ const BET_STATS = [
   [['stl', 'blk'], /\b(blks? ?\+ ?stls?|blocks ?(\+|and|plus) ?steals)\b/],
   [['oreb'], /\b(offensive rebounds?|off(ensive)? rebs?|oreb)\b/],
   [['dreb'], /\b(defensive rebounds?|def(ensive)? rebs?|dreb)\b/],
+  // attempts first, so "two pointers attempted" isn't read as made
+  [['fg2a'], /\b((two|2)[ -]?point(ers?)? (field goals? |fg )?attempt(ed|s)?|(two|2)[ -]?pt (fg )?attempt(ed|s)?|2pa|2pt att|two point attempts)\b/],
   [['fg2'], /\b(two[ -]point(ers?)?( made| fg made)?|2[ -]?pt( made| fg made)?|2pm|2-pointers? made)\b/],
   [['pf'], /\b(personal fouls?|fouls?|pf)\b/],
   // attempts and makes before the plain stats, so "three pointers attempted" isn't read as made threes
