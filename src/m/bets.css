@@ -1,6 +1,15 @@
 /* my bets */
 .bt-strip { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 4px; align-items: flex-start; }
 .bt-strip::-webkit-scrollbar { display: none; }
+/* desktop: bets wrap into a grid so every one is fully visible; phones keep the swipe row, snapping, with the next card peeking in */
+@media (min-width: 761px) {
+  .bt-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); overflow: visible; }
+  .bt-strip > .bt-card { width: auto; }
+}
+@media (max-width: 760px) {
+  .bt-strip { scroll-snap-type: x mandatory; scroll-padding: 0 2px; }
+  .bt-strip > .bt-card { width: min(300px, calc(100vw - 72px)); scroll-snap-align: start; }
+}
 .bt-card { flex: none; width: 300px; display: grid; gap: 2px; padding: 10px 12px 10px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); position: relative; overflow: hidden; }
 .bt-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
 .bt-card.live::before { background: var(--live); } .bt-card.won::before { background: var(--win); } .bt-card.lost::before { background: var(--loss); }
