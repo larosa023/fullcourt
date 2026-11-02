@@ -129,15 +129,21 @@ const TZ_AB = (() => {
 // for viewers far from ET (Europe, Asia...), a night game can land on the next calendar day where they are,
 // so add their local date when it differs from the ET date. Anyone whose date matches ET sees no change.
 const ymdIn = (d, tz) => d.toLocaleDateString('en-CA', { timeZone: tz });
+// DSHIFT: how many calendar days a typical 7 PM ET tip moves for this viewer. 0 for the Americas;
+// 1 for Europe/Asia/Australia, where night games land on the next day. The date strip and day titles
+// are shown on that local date, so the games sit on the day they actually happen for this viewer.
+const DSHIFT = (() => { try { const d = new Date(Date.UTC(2026, 0, 15, 0, 0)); /* 7 PM EST */ return Math.round((Date.parse(ymdIn(d, UTZ)) - Date.parse(ymdIn(d, TZ))) / 864e5); } catch (e) { return 0; } })();
+const localToday = () => ymdIn(new Date(), UTZ).replace(/-/g, '');
 const fmtTime = (iso, bare) => {
   const d = new Date(iso);
   let s = d.toLocaleTimeString('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }) + (bare ? '' : ' ' + TZ_AB);
-  if (UTZ !== TZ && Math.abs(d - Date.now()) > 90000 && ymdIn(d, UTZ) !== ymdIn(d, TZ))
+  const gDay = ymdIn(d, TZ).replace(/-/g, '');
+  if (UTZ !== TZ && Math.abs(d - Date.now()) > 90000 && ymdIn(d, UTZ).replace(/-/g, '') !== addDays(gDay, DSHIFT))
     s += bare ? ' ' + d.toLocaleDateString('en-US', { timeZone: UTZ, month: 'numeric', day: 'numeric' }) : ' · ' + d.toLocaleDateString('en-US', { timeZone: UTZ, weekday: 'short', month: 'numeric', day: 'numeric' }).replace(',', '');
   return s;
 };
 const fmtLocal = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: UTZ, ...opts });
-const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
+const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric' });
 const fmtET = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
 function etNow() {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
@@ -545,7 +551,12 @@ function checkRollover() {
   buildRail();
   return true;
 }
-setInterval(() => { if (!document.hidden && checkRollover()) loadScores({ silent: true }); }, 60000);
+let lastLocal = localToday();
+setInterval(() => {
+  if (document.hidden) return;
+  if (checkRollover()) { lastLocal = localToday(); loadScores({ silent: true }); return; }
+  if (DSHIFT && localToday() !== lastLocal) { lastLocal = localToday(); buildRail(); renderGames(false); } // viewer's own midnight: move the Today label
+}, 60000);
 
 function updatePulse(err) {
   const live = S.games.filter(g => g.state === 'in').length;
@@ -570,11 +581,11 @@ function buildRail() {
   const rail = $('#rail');
   const out = [];
   for (let i = -21; i <= 21; i++) {
-    const d = addDays(S.today, i);
-    out.push(`<button class="day${d === S.today ? ' today' : ''}" data-date="${d}" aria-pressed="${d === S.date}">
-      <span class="dw">${d === S.today ? 'Today' : esc(fmtDay(d, { weekday: 'short' }))}</span>
-      <span class="dn">${fromYmd(d).getUTCDate()}</span>
-      <span class="dm">${esc(fmtDay(d, { month: 'short' }))}</span></button>`);
+    const d = addDays(S.today, i), v = addDays(d, DSHIFT), isT = DSHIFT ? v === localToday() : d === S.today; // v: the date shown to this viewer
+    out.push(`<button class="day${isT ? ' today' : ''}" data-date="${d}" aria-pressed="${d === S.date}">
+      <span class="dw">${isT ? 'Today' : esc(fmtDay(v, { weekday: 'short' }))}</span>
+      <span class="dn">${fromYmd(v).getUTCDate()}</span>
+      <span class="dm">${esc(fmtDay(v, { month: 'short' }))}</span></button>`);
   }
   rail.innerHTML = out.join('');
   dragScroll(rail);
@@ -646,8 +657,8 @@ function gameCard(g, i, animate) {
 }
 
 function renderGames(animate) {
-  const d = S.date;
-  const rel = d === S.today ? 'Today' : d === addDays(S.today, -1) ? 'Yesterday' : d === addDays(S.today, 1) ? 'Tomorrow' : '';
+  const d = addDays(S.date, DSHIFT), lt = DSHIFT ? localToday() : S.today;
+  const rel = d === lt ? 'Today' : d === addDays(lt, -1) ? 'Yesterday' : d === addDays(lt, 1) ? 'Tomorrow' : '';
   $('#dayTitle').textContent = rel || fmtDay(d, { weekday: 'long' });
   $('#dayEyebrow').textContent = fmtDay(d, { weekday: rel ? 'long' : undefined, month: 'long', day: 'numeric', year: 'numeric' });
 
