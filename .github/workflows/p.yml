@@ -1,0 +1,35 @@
+name: odds-probe
+on: { push: { branches: [odds-probe] } }
+permissions: { contents: write }
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: probe
+        env: { SGO_KEY: "${{ secrets.SGO_KEY }}" }
+        run: |
+          node -e '
+          const H = { "X-Api-Key": process.env.SGO_KEY };
+          (async () => {
+            const out = { hasKey: !!process.env.SGO_KEY };
+            const u = await fetch("https://api.sportsgameodds.com/v2/account/usage", { headers: H }); out.usage = await u.json();
+            const r = await fetch("https://api.sportsgameodds.com/v2/events?leagueID=NBA&oddsAvailable=true&started=false&limit=1", { headers: H });
+            const j = await r.json(); out.status = r.status; out.meta = { nextCursor: !!j.nextCursor, n: j.data?.length };
+            const e = j.data?.[0];
+            if (e) {
+              const { odds, players, ...rest } = e;
+              out.eventKeys = Object.keys(e); out.rest = rest;
+              out.players = Object.fromEntries(Object.entries(players || {}).slice(0, 3));
+              const keys = Object.keys(odds || {}); out.nOdds = keys.length;
+              out.statIDs = [...new Set(keys.map(k => k.split("-")[0]))];
+              out.sampleKeys = keys.filter(k => /-game-ou-over$/.test(k)).slice(0, 12);
+              const pk = keys.find(k => /^points-[A-Z]/.test(k) && /-game-ou-over$/.test(k));
+              out.sampleProp = pk ? { key: pk, val: odds[pk] } : null;
+              const ak = keys.filter(k => /^points-[A-Z]/.test(k) && /-game-ou-/.test(k)).slice(0, 4); out.altish = ak;
+            }
+            const u2 = await fetch("https://api.sportsgameodds.com/v2/account/usage", { headers: H }); out.usageAfter = await u2.json();
+            require("fs").writeFileSync("probe.json", JSON.stringify(out, null, 1));
+          })().catch(e => { require("fs").writeFileSync("probe.json", JSON.stringify({ err: String(e) })); });'
+          git config user.name bot; git config user.email bot@users.noreply.github.com
+          git add probe.json; git commit -m "probe [skip ci]"; git push
