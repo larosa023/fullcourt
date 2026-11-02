@@ -1,0 +1,316 @@
+{
+ "hasKey": true,
+ "usage": {
+  "success": true,
+  "data": {
+   "keyID": "6031436319adb96c17add00185325ba5e20f1febabe644df76eb5c3505b7e23c",
+   "customerID": "cus_VYIM52591IwKaN",
+   "email": "anthonylarosa880@gmail.com",
+   "isActive": true,
+   "tier": "amateur",
+   "rateLimits": {
+    "per-second": {
+     "max-requests": "unlimited",
+     "max-entities": "unlimited"
+    },
+    "per-minute": {
+     "max-requests": 10,
+     "current-requests": 0,
+     "max-entities": "unlimited"
+    },
+    "per-hour": {
+     "max-requests": 50000,
+     "current-requests": 2,
+     "max-entities": 250000,
+     "current-entities": 2
+    },
+    "per-day": {
+     "max-requests": 500000,
+     "current-requests": 2,
+     "max-entities": 3000000,
+     "current-entities": 2
+    },
+    "per-month": {
+     "max-requests": "unlimited",
+     "max-entities": 2500,
+     "current-entities": 2
+    }
+   }
+  }
+ },
+ "status": 200,
+ "meta": {
+  "nextCursor": true,
+  "n": 1
+ },
+ "eventKeys": [
+  "eventID",
+  "sportID",
+  "leagueID",
+  "type",
+  "teams",
+  "status",
+  "info",
+  "links",
+  "players",
+  "results",
+  "odds"
+ ],
+ "rest": {
+  "eventID": "TkZGexF6r46bA5nqGbL0",
+  "sportID": "BASKETBALL",
+  "leagueID": "NBA",
+  "type": "match",
+  "teams": {
+   "home": {
+    "teamID": "CLEVELAND_CAVALIERS_NBA",
+    "names": {
+     "long": "Cleveland Cavaliers",
+     "medium": "Cavaliers",
+     "short": "CLE",
+     "location": "Cleveland"
+    },
+    "colors": {
+     "primary": "#871539",
+     "secondary": "#000000",
+     "primaryContrast": "#FFFFFF",
+     "secondaryContrast": "#871539"
+    },
+    "statEntityID": "home"
+   },
+   "away": {
+    "teamID": "OKLAHOMA_CITY_THUNDER_NBA",
+    "names": {
+     "long": "Oklahoma City Thunder",
+     "medium": "Thunder",
+     "short": "OKC",
+     "location": "Oklahoma City"
+    },
+    "colors": {
+     "primary": "#DD4B33",
+     "secondary": "#3479BC",
+     "primaryContrast": "#000000",
+     "secondaryContrast": "#FFFFFF"
+    },
+    "statEntityID": "away"
+   }
+  },
+  "status": {
+   "started": false,
+   "completed": false,
+   "cancelled": false,
+   "ended": false,
+   "live": false,
+   "delayed": false,
+   "currentPeriodID": "",
+   "previousPeriodID": "",
+   "displayShort": "",
+   "displayLong": "Upcoming",
+   "inBreak": false,
+   "startsAt": "2026-11-03T00:00:00.000Z",
+   "previousStartsAt": [],
+   "hardStart": true,
+   "periods": {
+    "started": [],
+    "ended": []
+   },
+   "oddsPresent": true,
+   "oddsAvailable": true,
+   "finalized": false
+  },
+  "info": {
+   "venue": {
+    "name": "Rocket Arena",
+    "countryName": "United States",
+    "countryCode": "US",
+    "regionName": "Ohio",
+    "regionCode": "OH",
+    "city": "Cleveland",
+    "address": "1 Center Ct, Cleveland, OH 44115",
+    "capacity": 19432
+   }
+  },
+  "links": {
+   "bookmakers": {
+    "polymarket": "https://polymarket.com/event/nba-okc-cle-2026-11-02",
+    "betonline": "https://sports.betonline.ag/sportsbook/basketball/nba/game/491170320",
+    "fanduel": "https://sportsbook.fanduel.com/basketball/-/36262178",
+    "lowvig": "https://sports.lowvig.ag/sportsbook/basketball/nba/game/491170320",
+    "pointsbet": "https://pointsbet.com.au/sports/basketball/NBA/2957923",
+    "sportsbet": "https://www.sportsbet.com.au/betting/basketball---us/nba/oklahoma-city-thunder-at-cleveland-cavaliers-11118433",
+    "paddypower": "https://www.paddypower.com/basketball/nba/oklahoma-city-thunder-@-cleveland-cavaliers-36262178",
+    "888sport": "https://www.888sport.com/basketball/united-states/nba/oklahoma-city-thunder-cleveland-cavaliers-e-8484404",
+    "betrsportsbook": "https://www.betr.com.au/sports/Basketball/107/United-States-of-America/NBA/Oklahoma-City-Thunder-@-Cleveland-Cavaliers/2323823/All-Markets",
+    "caesars": "https://sportsbook.caesars.com/us/nj/bet/basketball/52df8a7c-76c7-40e7-8391-01526805d7a7/oklahoma-city-thunder-at-cleveland-cavaliers",
+    "coolbet": "https://www.coolbet.com/en/sports/match/6408933",
+    "draftkings": "https://sportsbook.draftkings.com/event/34936963",
+    "novig": "https://novig.com/event-markets/01a19713-d415-7d01-9c0f-5e8e31120973/sportsgameodds",
+    "tab": "https://www.tab.com.au/sports/betting/Basketball/competitions/NBA/matches/Cleveland%20v%20Oklahoma%20City",
+    "betsson": "https://www.betsson.com/en/sportsbook/basketball/nba/nba?eventId=f-5asRUxSn6UG2ynKs4KnKGg",
+    "boylesports": "https://www.boylesports.com/sports/basketball/event/usa-nba/cleveland-cavaliers-v-oklahoma-city-thunder",
+    "nordicbet": "https://www.nordicbet.com/en/sportsbook/basketball/nba/nba/cleveland-cavaliers-oklahoma-city-thunder",
+    "playup": "https://www.playup.com.au/betting/sports/nba/cleveland-cavaliers-v-oklahoma-city-thunder/308813",
+    "williamhill": "https://sports.williamhill.com/betting/en-gb/basketball/OB_EV41711067/oklahoma-city-thunder-cleveland-cavaliers",
+    "espnbet": "https://espnbet.com/sport/basketball/organization/united-states/competition/nba/event/913535d4-78b7-4f55-8054-7b3c716ea7f0",
+    "thescorebet": "https://thescore.bet/sport/basketball/organization/united-states/competition/nba/event/913535d4-78b7-4f55-8054-7b3c716ea7f0",
+    "1xbet": "https://1xbet.com/en/line/football/13589-nba/386147956-cleveland-cavaliers-oklahoma-city-thunder",
+    "fliff": "https://sports.getfliff.com/markets/423861_c_p_204_prematch",
+    "ballybet": "https://play.ballybet.com/sports#event/1028754179",
+    "betfairsportsbook": "https://www.betfair.com/betting/basketball/nba/oklahoma-city-thunder-cleveland-cavaliers/e-36262178",
+    "betparx": "https://nj.betparx.com/kambi#event/1028754179",
+    "betrivers": "https://nj.betrivers.com/?page=sportsbook#event/1028754179",
+    "casumo": "https://www.casumo.com/en-gb/sports#event/1028754179",
+    "grosvenor": "https://www.grosvenorcasinos.com/sport#event/1028754179",
+    "livescorebet": "https://www.livescorebet.com/uk/sports/basketball/nba/cleveland-cavaliers-oklahoma-city-thunder/SBTE_2_1028754179",
+    "tabtouch": "https://www.tabtouch.mobi/tabtouch-sports/event/1028754179",
+    "unibet": "https://www.unibet.com/betting/sports/event/1028754179",
+    "virginbet": "https://www.virginbet.com/sports/basketball/nba/cleveland-cavaliers-oklahoma-city-thunder/SBTE_2_1028754179",
+    "matchbook": "https://www.matchbook.com/events/basketball/united-states-of-america/nba/34761789034800023",
+    "pinnacle": "https://www.pinnacle.com/en/basketball/nba/oklahoma-city-thunder-vs-cleveland-cavaliers/1639313878",
+    "bovada": "https://www.bovada.lv/sports/basketball/nba/oklahoma-city-thunder-cleveland-cavaliers-202611021900",
+    "hardrockbet": "https://app.hardrock.bet/home/competition/nba/1659739537691247008",
+    "betmgm": "https://sports.nj.betmgm.com/en/sports/events/20031645",
+    "ladbrokes": "https://www.ladbrokes.com.au/sports/-/-/-/-/940f2c50-69e5-4d39-9c8f-4014766440a6",
+    "coral": "https://sports.coral.co.uk/event/basketball/basketball-usa/nba/cle-cavaliers-v-okc-thunder/47294622"
+   }
+  },
+  "results": {}
+ },
+ "players": {
+  "ADAY_MARA_1_NBA": {
+   "playerID": "ADAY_MARA_1_NBA",
+   "firstName": "Aday",
+   "lastName": "Mara",
+   "name": "Aday Mara",
+   "teamID": "OKLAHOMA_CITY_THUNDER_NBA"
+  },
+  "AJAY_MITCHELL_1_NBA": {
+   "playerID": "AJAY_MITCHELL_1_NBA",
+   "firstName": "Ajay",
+   "lastName": "Mitchell",
+   "name": "Ajay Mitchell",
+   "teamID": "OKLAHOMA_CITY_THUNDER_NBA"
+  },
+  "BENNETT_STIRTZ_1_NBA": {
+   "playerID": "BENNETT_STIRTZ_1_NBA",
+   "firstName": "Bennett",
+   "lastName": "Stirtz",
+   "name": "Bennett Stirtz",
+   "teamID": "OKLAHOMA_CITY_THUNDER_NBA"
+  }
+ },
+ "nOdds": 480,
+ "statIDs": [
+  "points",
+  "assists",
+  "blocks",
+  "doubleDouble",
+  "firstBasket",
+  "points+assists",
+  "points+rebounds+assists",
+  "points+rebounds",
+  "rebounds+assists",
+  "rebounds",
+  "steals",
+  "threePointersMade",
+  "tripleDouble",
+  "turnovers",
+  "blocks+steals",
+  "firstTo20"
+ ],
+ "sampleKeys": [
+  "points-all-game-ou-over",
+  "assists-ADAY_MARA_1_NBA-game-ou-over",
+  "assists-AJAY_MITCHELL_1_NBA-game-ou-over",
+  "assists-BENNETT_STIRTZ_1_NBA-game-ou-over",
+  "assists-DONOVAN_MITCHELL_1_NBA-game-ou-over",
+  "assists-EVAN_MOBLEY_1_NBA-game-ou-over",
+  "assists-ISAIAH_HARTENSTEIN_1_NBA-game-ou-over",
+  "assists-JAMES_HARDEN_1_NBA-game-ou-over",
+  "assists-JARED_MCCAIN_1_NBA-game-ou-over",
+  "assists-JARRETT_ALLEN_1_NBA-game-ou-over",
+  "assists-PEYTON_WATSON_1_NBA-game-ou-over",
+  "assists-SHAI_GILGEOUSALEXANDER_1_NBA-game-ou-over"
+ ],
+ "sampleProp": {
+  "key": "points-ADAY_MARA_1_NBA-game-ou-over",
+  "val": {
+   "oddID": "points-ADAY_MARA_1_NBA-game-ou-over",
+   "opposingOddID": "points-ADAY_MARA_1_NBA-game-ou-under",
+   "marketName": "Aday Mara Points Over/Under",
+   "statID": "points",
+   "statEntityID": "ADAY_MARA_1_NBA",
+   "periodID": "game",
+   "betTypeID": "ou",
+   "sideID": "over",
+   "playerID": "ADAY_MARA_1_NBA",
+   "started": false,
+   "ended": false,
+   "cancelled": false,
+   "bookOddsAvailable": true,
+   "fairOddsAvailable": true,
+   "fairOdds": "+113",
+   "bookOdds": "+100",
+   "fairOverUnder": "8.5",
+   "bookOverUnder": "8.5",
+   "openFairOdds": "+100",
+   "openBookOdds": "-102",
+   "openFairOverUnder": "9",
+   "openBookOverUnder": "8.5",
+   "scoringSupported": true,
+   "byBookmaker": {
+    "fanduel": {
+     "odds": "-104",
+     "overUnder": "8.5",
+     "lastUpdatedAt": "2026-11-02T03:18:20.470Z",
+     "available": true,
+     "deeplink": "https://sportsbook.fanduel.com/addToBetslip?marketId=717.195449284&selectionId=91219507"
+    }
+   }
+  }
+ },
+ "altish": [
+  "points-ADAY_MARA_1_NBA-game-ou-over",
+  "points-ADAY_MARA_1_NBA-game-ou-under",
+  "points-AJAY_MITCHELL_1_NBA-game-ou-over",
+  "points-AJAY_MITCHELL_1_NBA-game-ou-under"
+ ],
+ "usageAfter": {
+  "success": true,
+  "data": {
+   "keyID": "6031436319adb96c17add00185325ba5e20f1febabe644df76eb5c3505b7e23c",
+   "customerID": "cus_VYIM52591IwKaN",
+   "email": "anthonylarosa880@gmail.com",
+   "isActive": true,
+   "tier": "amateur",
+   "rateLimits": {
+    "per-second": {
+     "max-requests": "unlimited",
+     "max-entities": "unlimited"
+    },
+    "per-minute": {
+     "max-requests": 10,
+     "current-requests": 1,
+     "max-entities": "unlimited"
+    },
+    "per-hour": {
+     "max-requests": 50000,
+     "current-requests": 3,
+     "max-entities": 250000,
+     "current-entities": 3
+    },
+    "per-day": {
+     "max-requests": 500000,
+     "current-requests": 3,
+     "max-entities": 3000000,
+     "current-entities": 3
+    },
+    "per-month": {
+     "max-requests": "unlimited",
+     "max-entities": 2500,
+     "current-entities": 3
+    }
+   }
+  }
+ }
+}
