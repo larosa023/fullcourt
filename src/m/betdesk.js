@@ -372,7 +372,23 @@ function bdTable(main, keepScroll, final) {
   const loading = list.some(x => !x.log) || (mkQ1() && BD.q1busy);
   const total = list.length;
   const mk = SEL?.length === 1 ? MARKETS.find(m => m[0] === SEL[0]) : [null, SEL ? SEL.map(k => MARKETS.find(m => m[0] === k)[1]).join(' / ') : 'stat'];
-  const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"><button data-bdsort="${k}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
+  const sd = BD.side === 'u' ? 'under' : 'over';
+  const TIP = {
+    name: 'Player and matchup. Tap a row for the full breakdown.',
+    mk: 'Which stat the line is for.',
+    line: 'DraftKings line. EST is Fullcourt\'s estimate where the book has none; ALT is a DraftKings alt line.',
+    odds: `DraftKings price for the ${sd}. -150 risks $150 to win $100; +150 wins $150 on $100.`,
+    h5: `How often he went ${sd} this line in his last 5 games.`,
+    h10: `How often he went ${sd} this line in his last 10 games. Early in a season, last season fills the gap.`,
+    hs: `How often he went ${sd} this line this season.`,
+    hv: `How often he went ${sd} this line against tonight's opponent, this season and last.`,
+    avg: 'His average in this stat over his last 10 games.',
+    diff: `How far his last-10 average sits ${BD.side === 'u' ? 'below' : 'above'} the line. Positive is good for the ${sd}.`,
+    def: 'Opponent\'s rank in points allowed per game. 30th is the softest defense.',
+    dvp: 'Defense vs position: how players at his position do against this team compared with their own averages. + means they run hot here.',
+    edge: 'Fullcourt\'s score: mostly his last-10 hit rate, plus last 5 and season, nudged by the gap between his average and the line. Longer bar, stronger trend.',
+  };
+  const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"${TIP[k] ? ` data-tip="${esc(TIP[k])}"` : ''}><button data-bdsort="${k}" aria-label="${esc(l)}: ${esc(TIP[k] || '')}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
   const sc = $('.bd-wrap', main)?.scrollLeft || 0;
   main.innerHTML = `<div class="bd-ctrl">
       <div class="hs-wrap"><div class="hs chips drag-x bd-mk" data-drag><button class="chip" data-bdmk="all" aria-pressed="${!SEL}">All stats</button>${MARKETS.map(m => `<button class="chip${EST.has(m[0]) ? ' est' : ''}" data-bdmk="${m[0]}" aria-pressed="${!!SEL?.includes(m[0])}">${m[1]}</button>`).join('')}</div></div>
