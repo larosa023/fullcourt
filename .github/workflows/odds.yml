@@ -1,0 +1,36 @@
+name: odds
+# NBA prop lines from every book (SportsGameOdds free plan), saved to the odds-data branch for the site to read.
+# Runs on that branch never touch main, so Netlify doesn't rebuild.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['tools/odds.mjs', '.github/workflows/odds.yml']
+  schedule:
+    # ET (UTC-5 in winter): 9:05am, 12:05pm, 3:05pm, 5:35pm, 6:45pm, 8:45pm
+    - cron: '5 14 * * *'
+    - cron: '5 17 * * *'
+    - cron: '5 20 * * *'
+    - cron: '35 22 * * *'
+    - cron: '45 23 * * *'
+    - cron: '45 1 * * *'
+permissions: { contents: write }
+concurrency: { group: odds, cancel-in-progress: false }
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: src }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Fetch lines
+        env: { SGO_KEY: "${{ secrets.SGO_KEY }}" }
+        run: node src/tools/odds.mjs odds.json
+      - name: Save to odds-data
+        run: |
+          mkdir pub && cd pub && git init -q && git checkout -q --orphan odds-data
+          cp ../odds.json .
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add odds.json && git commit -qm "odds $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" odds-data

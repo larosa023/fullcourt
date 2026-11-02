@@ -391,3 +391,8 @@ em.est.alt { color: var(--accent); border-color: color-mix(in oklab, var(--accen
   .bd-t th[data-tip]:nth-last-child(-n+3):hover::after { transform: translate(0, 0); }
 }
 em.est.livel { color: var(--live, #ff4170); border-color: color-mix(in oklab, var(--live, #ff4170) 50%, var(--line)); }
+.bd-best { white-space: nowrap; }
+.bd-best small { font-size: 12px; opacity: .75; }
+.bd-best i { font-style: normal; font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .04em; color: var(--muted); margin-left: 4px; vertical-align: 2px; }
+em.est.bk { color: #2f86ff; border-color: color-mix(in oklab, #2f86ff 45%, var(--line)); }
+.bd-t td.ln em.est.bk { color: #3b8cff; border-color: color-mix(in oklab, #3b8cff 45%, var(--line)); }

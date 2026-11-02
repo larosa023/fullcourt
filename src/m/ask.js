@@ -1358,6 +1358,15 @@ async function openPropDetail(pid, k, m0, extra) {
   if (['reb', 'ast', 'pr', 'ra', 'pa', 'pra', 'pts', 'tpm', 'fga', 'tpa'].includes(k)) pbpLog(r.name).then(d => { pbp = d; if (d) draw(); });
   const alts = (ctx.alts || []).filter(a => Number.isFinite(a.o)), peers = (ctx.peers || []).slice().sort((a, b) => a.name.localeCompare(b.name));
   const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
+  const BKN = { draftkings: 'DraftKings', fanduel: 'FanDuel', espnbet: 'ESPN BET', betmgm: 'BetMGM', caesars: 'Caesars', fanatics: 'Fanatics', hardrockbet: 'Hard Rock', bet365: 'bet365', bovada: 'Bovada', unibet: 'Unibet', pointsbet: 'PointsBet', williamhill: 'William Hill', betrivers: 'BetRivers' };
+  const bookCard = () => {
+    const P = (ctx.prices || []).filter(p => Number.isFinite(p.l)); if (P.length < 2) return '';
+    const dec = o => o > 0 ? 1 + o / 100 : 1 + 100 / -o, am = v => Number.isFinite(v) ? (v > 0 ? '+' + v : String(v)) : '–';
+    const bestO = [...P].filter(p => Number.isFinite(p.o)).sort((a, b) => a.l - b.l || dec(b.o) - dec(a.o))[0], bestU = [...P].filter(p => Number.isFinite(p.u)).sort((a, b) => b.l - a.l || dec(b.u) - dec(a.u))[0];
+    return `<div class="card pd-card"><div class="card-h"><h4>By book</h4><span class="eyebrow">Best over and under highlighted</span></div>
+      <div class="pd-books"><div class="pb hd"><span>Book</span><span>Line</span><span>Over</span><span>Under</span></div>${P.sort((a, b) => a.l - b.l).map(p => `<button class="pb${p.l === m - 0.5 ? ' on' : ''}" data-pdmark="${Math.floor(p.l) + 1}" title="Use ${p.l}"><span>${esc(BKN[p.b] || p.b)}</span><span><b>${p.l}</b></span><span class="${p === bestO ? 'best' : ''}">${am(p.o)}</span><span class="${p === bestU ? 'best' : ''}">${am(p.u)}</span></button>`).join('')}</div>
+      <p class="pp-note">Tap a book to chart its line. Lines from DraftKings via ESPN and other books via SportsGameOdds, refreshed a few times a day.</p></div>`;
+  };
   const altCard = all => {
     if (!alts.length) return '';
     const L10 = all.slice(0, 10);
@@ -1469,7 +1478,7 @@ async function openPropDetail(pid, k, m0, extra) {
       })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
-      ${altCard(all)}${cmpCard()}
+      ${bookCard()}${altCard(all)}${cmpCard()}
       <div class="btn-row"><button class="btn" data-pdtrack>Track over ${m - 0.5} ${short}</button><button class="btn ghost" data-player="${r.id}">Open ${esc(r.last || r.name)}'s profile</button>${g ? `<button class="btn ghost" data-game="${g.id}">Open the game</button>` : ''}</div>
       <p class="pp-note">Trends from his games this season, not a guarantee and not betting advice. Your book's line may differ.</p>
     </div>`;

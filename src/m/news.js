@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-01d', date: 'Nov 1', items: [
+    ['More sportsbooks', 'The Bet desk now pulls lines from FanDuel, ESPN BET and other books a few times a day. A new Best column shows the friendliest line and price across books, and when DraftKings hasn\'t posted a prop yet you get the real FanDuel (or other book) line instead of an estimate. The prop breakdown has a By book card to compare every book at a glance.'],
+  ] },
   { id: '2026-11-01c', date: 'Nov 1', items: [
     ['Matchup card', 'Every prop breakdown now has a Matchup card: with/without numbers when a key teammate is out (his per-36 with that player on vs off the floor), game pace, rest, blowout risk, and for scoring props his shot zones against what tonight\'s defense allows there. Free data from PBPStats and ESPN.'],
     ['Minutes overlay', 'Tap MIN on the game-by-game chart to lay his minutes over every bar.'],

@@ -338,3 +338,12 @@ button.pd-alt:hover { background: var(--surface-2); }
 @media (max-width: 760px) { .pd-hslip { flex-wrap: nowrap; } }
 .pd-add { background: rgb(0 0 0 / .3); }
 .pd-add:hover { background: rgb(0 0 0 / .45); }
+.pd-books { display: grid; padding: 0 6px 6px; }
+.pb { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; align-items: center; padding: 8px 10px; border-radius: 10px; text-align: center; font-size: 14px; }
+.pb > span:first-child { text-align: left; font-weight: 650; }
+.pb b, .pb span:nth-child(n+3) { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 16px; }
+.pb.hd { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding-block: 4px; }
+.pb.hd span { font-family: var(--mono); font-stretch: normal; font-weight: 500; font-size: 10px; }
+button.pb:hover { background: var(--surface-2); }
+.pb.on { background: color-mix(in oklab, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent); }
+.pb .best { color: var(--win); }
