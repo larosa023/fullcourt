@@ -12,6 +12,11 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://site.api.espn.com" crossorigin>
+<link rel="preconnect" href="https://site.web.api.espn.com" crossorigin>
+<link rel="preconnect" href="https://a.espncdn.com">
+<link rel="dns-prefetch" href="https://sports.core.api.espn.com">
+<link rel="dns-prefetch" href="https://raw.githubusercontent.com">
 <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="splash-1290x2796-dark.png">
 <link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="splash-1290x2796-light.png">
 <link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="splash-1179x2556-dark.png">
@@ -51,8 +56,8 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"/assets/core.d15fcb818f.js"}}</script>
-<link rel="modulepreload" href="/assets/core.d15fcb818f.js">
+<script type="importmap">{"imports":{"core":"/assets/core.3807384c76.js"}}</script>
+<link rel="modulepreload" href="/assets/core.3807384c76.js">
 <link rel="stylesheet" href="/assets/core.16950c6561.css">
 </head>
 <body>
@@ -274,6 +279,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="/assets/core.d15fcb818f.js"></script>
+<script type="module" src="/assets/core.3807384c76.js"></script>
 </body>
 </html>

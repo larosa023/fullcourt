@@ -286,8 +286,11 @@ function tabChrome(slate) {
 }
 let drawN = 0;
 async function bdDraw() {
-  const n = ++drawN, main = $('#bdMain'); if (!main) return;
+  const n = ++drawN, main = $('#bdMain'), day = BD.day; if (!main) return;
   placeKnob($('[data-bdtab]'));
+  // switching days: paint the last build for that day right away, before anything is fetched
+  const early = BD.tab === 'props' && BD.dayCache?.get('o' + day);
+  if (early) { Object.assign(BD, { all: early.list, missing: early.missing, missingIds: early.missingIds, allDay: BD.day, allDone: true }); tabChrome(early.slate); bdTable(main); }
   const slate = await bdSlate(BD.day);
   if (n !== drawN) return;
   const games = slate.games.filter(g => g.state !== 'post');
@@ -297,10 +300,15 @@ async function bdDraw() {
   if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
   if (BD.tab === 'games') return drawGames(main, games);
-  // props
+  // props: show the last build for this day at once; rebuild quietly if it's more than 4 minutes old
+  const dc = (BD.dayCache ||= new Map()).get('o' + day); if (dc && dc.slate.date !== slate.date) BD.dayCache.delete('o' + day);
+  if (dc && dc.slate.date === slate.date) {
+    if (!early) { Object.assign(BD, { all: dc.list, missing: dc.missing, missingIds: dc.missingIds, allDay: BD.day, allDone: true }); bdTable(main); }
+    if (Date.now() - dc.t < 4 * 60e3) return;
+  }
   const rows = await leagueTable();
   const byId = new Map(rows.map(r => [String(r.id), r]));
-  main.innerHTML = `<div class="sk" style="height:520px"></div>`;
+  if (!dc) main.innerHTML = `<div class="sk" style="height:520px"></div>`;
   const per = await Promise.all(games.map(g => gameProps(g).catch(() => [])));
   try {
     const inj = await leagueInjuries(); BD.outByTeam = new Map();
@@ -316,6 +324,7 @@ async function bdDraw() {
   } catch (e) {}
   BD.missing = games.filter((g, i) => !per[i].length).map(g => `${g.away.abbr} @ ${g.home.abbr}`);
   BD.missingIds = new Set(games.filter((g, i) => !per[i].length).map(g => g.id));
+  (BD.missingIdsFor ||= {})[slate.date] = [...BD.missingIds];
   const all = per.flat();
   if (n !== drawN) return;
   const games2 = new Map(games.map(g => [g.id, g]));
@@ -355,8 +364,11 @@ async function bdDraw() {
     const b = ['fanduel', 'espnbet', 'betmgm', 'caesars', ...Object.keys(bk)].find(n => bk[n]); const v = bk[b];
     Object.assign(x, { est: false, fromBook: b, line: v.l, over: v.o, under: v.u, open: null });
   }
+  if (n !== drawN) return;
   BD.all = list; BD.allDay = BD.day; BD.allDone = false;
-  bdTable(main);
+  // cache right away: the rows keep filling in (logs) even if the user switches days mid-load
+  { const mi = new Set(BD.missingIdsFor?.[slate.date] || []); BD.dayCache.set('o' + day, { list, slate, missing: slate.games.filter(g => mi.has(g.id)).map(g => `${g.away.abbr} @ ${g.home.abbr}`), missingIds: mi, t: Date.now() }); }
+  bdTable(main, !!dc);
   // fill hit rates as each player's games arrive (players in the shown market first)
   const order = [...new Set([...list.filter(x => mkHas(x.k)), ...list].map(x => String(x.pid)))];
   let done = 0, pending = null;
@@ -368,9 +380,22 @@ async function bdDraw() {
     list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; if (done % 6 === 0) refresh(); });
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
   if (BD.all === list) BD.allDone = true;
+  { const mi = new Set(BD.missingIdsFor?.[slate.date] || []), gs = slate.games.filter(g => mi.has(g.id));
+    BD.dayCache.set('o' + day, { list, slate, missing: gs.map(g => `${g.away.abbr} @ ${g.home.abbr}`), missingIds: mi, t: Date.now() }); }
+  // warm the other day in the background so switching is quick
+  if (n === drawN) setTimeout(() => warmDay(day === 0 ? 1 : 0, rows), 1200);
   refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
   checkStars(list);
   if (mkQ1()) loadQ1(games, n, main);
+}
+async function warmDay(off, rows) {
+  try {
+    const sl = await bdSlate(off); const gs = sl.games.filter(g => g.state !== 'post'); if (!gs.length) return;
+    await Promise.all(gs.map(g => gameProps(g).catch(() => [])));
+    const ids = new Set(gs.flatMap(g => [g.home.id, g.away.id]));
+    const pids = rows.filter(r => ids.has(r.teamId) && r.gp >= 2 && (r.min || 0) >= 18).map(r => String(r.id));
+    await poolRun(pids, 3, pid => logOf(pid));
+  } catch (e) {}
 }
 // first-quarter numbers come from play-by-play: each team's last 5 games
 async function loadQ1(games, n, main) {

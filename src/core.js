@@ -2075,7 +2075,19 @@ function pbpTeams() {
 }
 // projected pace for a matchup vs the league: + is faster
 function paceOf(P, a, b) { const x = P?.pace?.[pbpAbbr(a)], y = P?.pace?.[pbpAbbr(b)]; return x && y && P.lgPace ? { pace: (x + y) / 2, diff: (x + y) / 2 - P.lgPace } : null; }
-async function gameLog(pid, season) {
+// game logs are the heaviest thing the Bet desk loads (one per player), so keep them for the session:
+// in memory, and in sessionStorage for 2 hours (last season's for a day) so a reload doesn't refetch them all
+const glMemo = new Map();
+function gameLog(pid, season) {
+  const k = `fc-gl:${LG}:${pid}:${season || ''}`, ttl = season ? 864e5 : 2 * 3600e3;
+  const m = glMemo.get(k); if (m && Date.now() - m.t < ttl) return m.p;
+  try { const c = JSON.parse(sessionStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < ttl) { const p = Promise.resolve(c.d); glMemo.set(k, { t: c.t, p }); return p; } } catch (e) {}
+  const p = gameLogFetch(pid, season).then(d => { try { sessionStorage.setItem(k, JSON.stringify({ t: Date.now(), d })); } catch (e) {} return d; });
+  p.catch(() => glMemo.delete(k));
+  glMemo.set(k, { t: Date.now(), p });
+  return p;
+}
+async function gameLogFetch(pid, season) {
   const d = await getJSON(`${WEB}/athletes/${pid}/gamelog${season ? `?season=${season}` : ''}`);
   const lab = d.labels || [];
   const evs = [];

@@ -96,3 +96,12 @@
 @media (max-width: 760px) { .bte input { font-size: 16px; } }
 .bte-leg { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) 22px; row-gap: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .bte-n { grid-column: 1 / -1; }
+/* header: keep everything on one line in the card width */
+.bt-card { width: 320px; }
+.bt-h { gap: 4px; }
+.bt-h > span:first-child { gap: 6px; overflow: hidden; }
+.bt-h small { white-space: nowrap; }
+.bt-card.pending .bt-pill { display: none; }
+.bt-h .bt-sh, .bt-h .bt-min, .bt-h .bt-x { width: 24px; height: 24px; margin: 0; flex: none; }
+.bt-h .bt-sh svg, .bt-h .bt-min svg, .bt-h .bt-x svg { width: 14px; height: 14px; }
+@media (max-width: 760px) { .bt-card { width: min(320px, 86vw); } }
