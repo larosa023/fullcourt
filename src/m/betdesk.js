@@ -264,7 +264,7 @@ async function renderBetDesk() {
 }
 function bdShell() {
   return `<div class="bd-top">
-    <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button><button data-bdt="mine" aria-pressed="${BD.tab === 'mine'}">My bets</button><button data-bdt="record" aria-pressed="${BD.tab === 'record'}">Record</button></div>
+    <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button><button data-bdt="mine" aria-pressed="${BD.tab === 'mine'}">My bets</button></div>
     <button class="chip sm bd-priv" data-bdpriv ${BD.tab === 'mine' || BD.tab === 'record' ? '' : 'hidden'}></button>
     <div class="bd-days"><button class="chip sm" data-bdday="0" aria-pressed="${BD.day === 0}">Next up</button><button class="chip sm" data-bdday="1" aria-pressed="${BD.day === 1}">Tomorrow</button></div>
   </div>`;
@@ -296,7 +296,6 @@ async function bdDraw() {
   if (BD.tab === 'mine') { const sk = setTimeout(() => { if (n === drawN) main.innerHTML = '<div class="sk" style="height:300px"></div>'; }, 150); const m = await lazy('bets'); const html = await m.historyHTML(); clearTimeout(sk); if (n === drawN) main.innerHTML = html; return; }
   if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
-  snapLeans(slate.date, games);
   if (BD.tab === 'games') return drawGames(main, games);
   // props
   const rows = await leagueTable();
@@ -370,7 +369,7 @@ async function bdDraw() {
   if (n === drawN && BD.tab === 'props') bdTable(main, true, true);
   if (BD.all === list) BD.allDone = true;
   refreshLive().then(c => { if (c && BD.all === list && BD.tab === 'props' && n === drawN) bdTable(main, true); });
-  snapProps(slate.date, list); checkStars(list);
+  checkStars(list);
   if (mkQ1()) loadQ1(games, n, main);
 }
 // first-quarter numbers come from play-by-play: each team's last 5 games
