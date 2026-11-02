@@ -18,11 +18,13 @@ const MARKETS = [
   // no sportsbook line in the feed for these: Fullcourt sets a line at the player's recent average
   ['fga', 'FG att', 'FGA', null, 'field goals attempted'],
   ['tpa', '3PT att', '3PA', null, 'three pointers attempted'],
+  ['fg2', '2PT made', '2PM', null, 'two pointers made'],
+  ['fg2a', '2PT att', '2PA', null, 'two pointers attempted'],
   ['q1p', '1Q Pts', '1Q PTS', null, '1st quarter points'],
   ['q1r', '1Q Reb', '1Q REB', null, '1st quarter rebounds'],
   ['q1a', '1Q Ast', '1Q AST', null, '1st quarter assists'],
 ];
-const EST = new Set(['fga', 'tpa', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
+const EST = new Set(['fga', 'tpa', 'fg2', 'fg2a', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
 const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map(), books: new Map() };
 // your last market, side and sort come back next time
 try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar, odds: v.odds || null }); } catch (e) {}
@@ -73,7 +75,7 @@ const saveView = () => lsSet('fc-bd-view', JSON.stringify({ mk: BD.mk, side: BD.
 const readStars = () => { try { return JSON.parse(lsGet('fc-bd-stars') || '{}') || {}; } catch (e) { return {}; } };
 const writeStars = o => lsSet('fc-bd-stars', Object.keys(o).length ? JSON.stringify(o) : null);
 const MILES = { 'Points Milestones': 'pts', 'Rebounds Milestones': 'reb', 'Assists Milestones': 'ast', '3-Point Field Goals Milestones': 'tpm', 'Points + Assists + Rebounds Milestones': 'pra', 'Points + Rebounds Milestones': 'pr', 'Points + Assists Milestones': 'pa', 'Rebounds + Assists Milestones': 'ra', 'Steals Milestones': 'stl', 'Blocks Milestones': 'blk' };
-const bdVal = (g, k) => Q1.has(k) ? BD.q1.get(String(g.id))?.get(String(g._pid))?.[k] : k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'sb' ? g.stl + g.blk : k === 'tpm' ? g.tp[0] : g[k];
+const bdVal = (g, k) => Q1.has(k) ? BD.q1.get(String(g.id))?.get(String(g._pid))?.[k] : k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'fg2' ? g.fg[0] - g.tp[0] : k === 'fg2a' ? g.fg[1] - g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'sb' ? g.stl + g.blk : k === 'tpm' ? g.tp[0] : g[k];
 const amer = v => { const n = +v; return Number.isFinite(n) ? (n > 0 ? '+' + n : String(n)) : '–'; };
 
 async function bdSlate(offset) {
@@ -223,7 +225,7 @@ function radarOf(x) {
 }
 // live props: his stat right now and where he's pacing, from the game's box score
 BD.live = new Map(); BD.liveFin = new Set();
-const liveVal = (b, k) => ({ pts: b.pts, reb: b.reb, ast: b.ast, tpm: b.tpm, tpa: b.tpa, fga: b.fga, pra: b.pts + b.reb + b.ast, pr: b.pts + b.reb, pa: b.pts + b.ast, ra: b.reb + b.ast })[k];
+const liveVal = (b, k) => ({ pts: b.pts, reb: b.reb, ast: b.ast, tpm: b.tpm, tpa: b.tpa, fga: b.fga, fg2: b.fgm - b.tpm, fg2a: b.fga - b.tpa, pra: b.pts + b.reb + b.ast, pr: b.pts + b.reb, pa: b.pts + b.ast, ra: b.reb + b.ast })[k];
 async function refreshLive() {
   const ids = [...new Set((BD.all || []).filter(x => Date.parse(x.g.date) <= Date.now() + 60e3 && !BD.liveFin.has(x.g.id)).map(x => x.g.id))];
   if (!ids.length) return false;
@@ -808,7 +810,7 @@ function bdWire(body) {
 
 /* ---------------- parlay builder ---------------- */
 const SLIP_KEY = 'fc-slip';
-const STATS_OF = { pts: ['pts'], reb: ['reb'], ast: ['ast'], tpm: ['tpm'], pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'], fga: ['fga'], tpa: ['tpa'], stl: ['stl'], blk: ['blk'], sb: ['stl', 'blk'] };
+const STATS_OF = { pts: ['pts'], reb: ['reb'], ast: ['ast'], tpm: ['tpm'], pra: ['pts', 'reb', 'ast'], pr: ['pts', 'reb'], pa: ['pts', 'ast'], ra: ['reb', 'ast'], fga: ['fga'], tpa: ['tpa'], fg2: ['fg2'], fg2a: ['fg2a'], stl: ['stl'], blk: ['blk'], sb: ['stl', 'blk'] };
 const SLIP = (() => { try { const v = JSON.parse(sessionStorage.getItem(SLIP_KEY) || 'null'); if (v && Array.isArray(v.legs)) return v; } catch (e) {} return { legs: [], stake: 10, open: false }; })();
 const saveSlip = () => { try { sessionStorage.setItem(SLIP_KEY, JSON.stringify(SLIP)); } catch (e) {} };
 const legKey = (pid, k) => `${pid}|${k}`;

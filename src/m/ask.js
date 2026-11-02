@@ -709,7 +709,7 @@ const BET_STATS = [
   [['blk'], /\b(blocks?|blks?|blocked shots)\b/],
   [['tov'], /\b(turnovers?|tovs?)\b/],
 ];
-const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM', fpts: 'FPTS', oreb: 'OREB', dreb: 'DREB', fg2: '2PM', pf: 'PF' };
+const STAT_SHORT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM', fpts: 'FPTS', oreb: 'OREB', dreb: 'DREB', fg2: '2PM', fg2a: '2PA', pf: 'PF' };
 const statsShort = st => st.map(k => STAT_SHORT[k]).join('+');
 const BET_STOP = new Set('wager wagered stake risk payout pay paid potential returns return win wins winning to cash out cashout sgp sgpx parlay parlays leg legs alt alternate spread moneyline ml total totals game line lines odds bet bets placed place boost boosted profit fanduel draftkings dk fd betmgm mgm caesars espnbet espn bet365 fanatics hard rock fliff prizepicks underdog same id receipt share pending open settled live player props prop over under o u yes no any time anytime first half quarter q1 1h 1q reg regulation incl ot overtime str more or less at least'.split(' '));
 
@@ -930,7 +930,7 @@ const legLabel = l => {
 const legTyped = (l, dfs) => {
   const side = dfs ? (l.side === 'u' ? 'less' : 'more') : l.side === 'u' ? 'under' : 'over';
   const o = l.odds ? ` ${l.odds > 0 ? '+' : ''}${l.odds}` : '';
-  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers', tpa: 'three pointers attempted', fga: 'field goals attempted', fgm: 'field goals made', fta: 'free throws attempted', ftm: 'free throws made', fpts: 'fantasy score', oreb: 'offensive rebounds', dreb: 'defensive rebounds', fg2: 'two pointers made', pf: 'fouls' })[k]).join(' + ')}${o}`;
+  if (l.k === 'prop') return `${l.name} ${side} ${l.line} ${l.stats.map(k => ({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tov: 'turnovers', tpa: 'three pointers attempted', fga: 'field goals attempted', fgm: 'field goals made', fta: 'free throws attempted', ftm: 'free throws made', fpts: 'fantasy score', oreb: 'offensive rebounds', dreb: 'defensive rebounds', fg2: 'two pointers made', fg2a: 'two pointers attempted', pf: 'fouls' })[k]).join(' + ')}${o}`;
   if (l.k === 'dd' || l.k === 'td') return `${l.name} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double${o}`;
   if (l.k === 'spread') return `${l.abbr} ${l.line > 0 ? '+' + l.line : l.line}${o}`;
   if (l.k === 'ml') return `${l.abbr} moneyline${o}`;
@@ -953,7 +953,7 @@ async function readSlip(text, fromImage) {
     if (seen.has(key)) continue; seen.add(key);
     if (l.k === 'prop') {
       const r = rows.find(x => String(x.id) === String(l.pid));
-      const avg = r && l.stats.reduce((s, k) => s + (({ pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl, blk: r.blk, tpm: r.tpm, tov: r.tov, tpa: r.tpa, fga: r.fga, fta: r.fta, ftm: r.ftm, fgm: r.fga * r.fgp / 100 })[k] || 0), 0);
+      const avg = r && l.stats.reduce((s, k) => s + (({ pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl, blk: r.blk, tpm: r.tpm, tov: r.tov, tpa: r.tpa, fga: r.fga, fta: r.fta, ftm: r.ftm, fgm: r.fga * r.fgp / 100, fg2: r.fga * r.fgp / 100 - r.tpm, fg2a: r.fga - r.tpa })[k] || 0), 0);
       if (avg && Number.isFinite(avg) && avg >= 3 && (l.line < avg * 0.3 || l.line > avg * 3)) l.odd = `averages ${avg.toFixed(1)}, so double-check this line`;
     }
     const found = l.teamId ? await gameFor(l.teamId) : null;
@@ -1060,11 +1060,13 @@ const PROP_MORE = [
   ['ra', 'R+A', 'rebounds + assists', [6, 8, 10, 12, 15, 20]],
   ['fga', 'FGA', 'field goals attempted', [8, 10, 12, 15, 18, 20, 25]],
   ['tpa', '3PA', 'three pointers attempted', [3, 4, 5, 6, 8, 10, 12]],
+  ['fg2', '2PM', 'two pointers made', [2, 3, 4, 5, 6, 8, 10]],
+  ['fg2a', '2PA', 'two pointers attempted', [4, 6, 8, 10, 12, 15]],
   ['stl', 'STL', 'steals', [1, 2, 3, 4]],
   ['blk', 'BLK', 'blocks', [1, 2, 3, 4]],
   ['sb', 'STL+BLK', 'steals + blocks', [1, 2, 3, 4, 5]],
 ];
-const propVal = (g, k) => k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'sb' ? g.stl + g.blk : k === 'tpm' ? g.tp[0] : g[k];
+const propVal = (g, k) => k === 'fga' ? g.fg[1] : k === 'tpa' ? g.tp[1] : k === 'fg2' ? g.fg[0] - g.tp[0] : k === 'fg2a' ? g.fg[1] - g.tp[1] : k === 'pra' ? g.pts + g.reb + g.ast : k === 'pr' ? g.pts + g.reb : k === 'pa' ? g.pts + g.ast : k === 'ra' ? g.reb + g.ast : k === 'sb' ? g.stl + g.blk : k === 'tpm' ? g.tp[0] : g[k];
 async function poolMap(items, n, fn) {
   const out = new Array(items.length); let i = 0;
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; } } }));
@@ -1443,7 +1445,7 @@ async function openPropDetail(pid, k, m0, extra) {
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
           <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}</small>
-          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa', 'stl', 'blk', 'sb'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
+          ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa', 'fg2', 'fg2a', 'stl', 'blk', 'sb'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
         </div>
       </div>
       ${(() => {
