@@ -35,3 +35,7 @@
   .cmp-row.big { grid-template-columns: 54px 1fr 54px; }
   .cmp-row.big .l, .cmp-row.big .r { font-size: 18px; }
 }
+.cmp-share { display: inline-flex; gap: 6px; margin-left: auto; margin-right: 12px; }
+.cmp-share .btn { height: 30px; padding: 0 10px; gap: 6px; font-size: 12.5px; }
+.cmp-share svg { width: 14px; height: 14px; }
+@media (max-width: 760px) { .cmp-share { order: 3; width: 100%; margin: 6px 0 0; } .cmp-share .btn { flex: 1; justify-content: center; } }
