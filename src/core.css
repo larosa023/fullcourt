@@ -329,6 +329,7 @@ table.odds-t { width: 100%; border-collapse: collapse; font-size: 13.5px; table-
 /* ---------- standings ---------- */
 .std-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .std-head .page-title { margin: 0; }
+@media (max-width: 760px) { #stdSeg { width: 100%; } #stdSeg button { flex: 1 1 0; min-width: 0; padding-left: 4px; padding-right: 4px; font-size: 12.5px; white-space: nowrap; } }
 .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
 table.std { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 860px; font-size: 14px; }
 .std th { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; padding: 12px 12px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; white-space: nowrap; }
@@ -852,6 +853,13 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 @media (min-width: 761px) { .cg-switch .cg-l { display: none; } .cg-switch .cg-s { display: inline; } .cg-switch button { padding: 5px 9px; } }
 @media (min-width: 761px) and (max-width: 1340px) { :root[data-league^="ncaa"] .mast .lg-switch button { padding: 5px 8px; } :root[data-league^="ncaa"] .cg-switch button { padding: 5px 7px; } }
 select.count.cs-scope { appearance: none; -webkit-appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%; background-size: 4px 4px; background-repeat: no-repeat; cursor: pointer; font: inherit; color: var(--ink); border: 1px solid var(--line); }
+.g-tag { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: color-mix(in oklab, var(--accent) 14%, transparent); color: var(--accent); white-space: nowrap; }
+.g-tag.cup { background: color-mix(in oklab, #C9A227 18%, transparent); color: #B8901A; }
+:root[data-theme="dark"] .g-tag.cup { color: #E6C35C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .g-tag.cup { color: #E6C35C; } }
+:root:not([data-league="nba"]) .cup-btn { display: none; }
+.g-tag.up { background: color-mix(in oklab, var(--loss) 16%, transparent); color: var(--loss); }
+.tk-up { font-style: normal; color: var(--loss); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .9em; }
 .rk { font-style: normal; font-family: var(--mono); font-size: .72em; font-weight: 600; color: var(--muted); margin-right: 5px; vertical-align: 1px; }
 .lg-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-3); flex: none; }
 .lg-switch button { padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .03em; color: var(--muted); transition: background .2s, color .2s; }

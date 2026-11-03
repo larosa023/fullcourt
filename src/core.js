@@ -406,6 +406,22 @@ function parseGame(e) {
   };
 }
 
+// college: a ranked team losing to an unranked one (or to a team 8+ spots lower). In the NCAA Tournament the ranks are
+// seeds, so it's a win by a seed 5+ lines lower (a 12 over a 5).
+const isTourney = g => /NCAA (Men's|Women's) Basketball Championship/i.test(g.note || '');
+function upsetOf(g) {
+  if (!IS_C || g.state !== 'post' || g.home.score == null) return false;
+  const hw = +g.home.score > +g.away.score, w = hw ? g.home : g.away, l = hw ? g.away : g.home;
+  if (!l.rank) return false;
+  if (isTourney(g)) return !!w.rank && w.rank - l.rank >= 5;
+  return !w.rank || w.rank - l.rank >= 8;
+}
+// NBA Cup (2026): groups, so game cards can say which group a Cup game belongs to
+const CUP_GROUPS = { 'East A': ['DET', 'TOR', 'ORL', 'MIL', 'BKN'], 'East B': ['NY', 'CLE', 'PHI', 'MIA', 'IND'], 'East C': ['BOS', 'ATL', 'CHA', 'CHI', 'WSH'],
+  'West A': ['DEN', 'HOU', 'PHX', 'DAL', 'UTAH'], 'West B': ['OKC', 'MIN', 'LAC', 'NO', 'MEM'], 'West C': ['SA', 'LAL', 'POR', 'GS', 'SAC'] };
+const cupGroupOf = abbr => Object.keys(CUP_GROUPS).find(k => CUP_GROUPS[k].includes(abbr)) || '';
+const cupTag = g => { if (LGK !== 'nba' || !/NBA Cup/i.test(g.note || '')) return ''; const r = /Quarter/i.test(g.note) ? 'Quarterfinal' : /Semi/i.test(g.note) ? 'Semifinal' : /Championship|Final/i.test(g.note) ? 'Final' : cupGroupOf(g.home.abbr); return `NBA Cup${r ? ' · ' + r : ''}`; };
+const isClash = g => !!(g.home.rank && g.away.rank) && !isTourney(g);
 function statusText(g) {
   if (g.state === 'pre') {
     if (/postponed|canceled|delayed/i.test(g.desc)) return g.desc;
@@ -678,7 +694,7 @@ function gameCard(g, i, animate) {
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
       <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}</span>
-      ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : `<span class="tv">${esc(g.note || g.tv)}</span>`}
+      ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : upsetOf(g) ? `<span class="g-tag up">Upset</span>` : IS_C && isClash(g) ? `<span class="g-tag">Top 25 clash</span>` : cupTag(g) ? `<span class="g-tag cup">${esc(cupTag(g))}</span>` : `<span class="tv">${esc(g.note || g.tv)}</span>`}
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
     ${pre ? oddsLine(g.odds) : live ? liveLine(g) : ''}
@@ -698,11 +714,12 @@ function renderGames(animate) {
   let base = S.games, scopeHTML = '';
   if (IS_C && S.games.length) {
     const top = S.games.filter(g => g.home.rank || g.away.rank || isFavGame(g));
+    const clash = S.games.filter(isClash);
     const scope = cScope ?? (top.length ? 'top' : 'all');
     const confN = new Map(); S.games.forEach(g => new Set([g.home.conf, g.away.conf].filter(Boolean)).forEach(c => confN.set(c, (confN.get(c) || 0) + 1)));
     const confs = (S.standings?.confs || []).filter(c => confN.has(c.id));
-    base = scope === 'top' ? top : scope === 'all' ? S.games : S.games.filter(g => g.home.conf === scope || g.away.conf === scope);
-    scopeHTML = `<select class="count cs-scope" data-cscope aria-label="Which games"><option value="top"${scope === 'top' ? ' selected' : ''}>Top 25 · ${top.length}</option><option value="all"${scope === 'all' ? ' selected' : ''}>All games · ${S.games.length}</option>${confs.map(c => `<option value="${c.id}"${scope === c.id ? ' selected' : ''}>${esc(c.short)} · ${confN.get(c.id)}</option>`).join('')}</select>`;
+    base = scope === 'top' ? top : scope === 'clash' ? clash : scope === 'all' ? S.games : S.games.filter(g => g.home.conf === scope || g.away.conf === scope);
+    scopeHTML = `<select class="count cs-scope" data-cscope aria-label="Which games"><option value="top"${scope === 'top' ? ' selected' : ''}>Top 25 · ${top.length}</option>${clash.length || scope === 'clash' ? `<option value="clash"${scope === 'clash' ? ' selected' : ''}>Top 25 clashes · ${clash.length}</option>` : ''}<option value="all"${scope === 'all' ? ' selected' : ''}>All games · ${S.games.length}</option>${confs.map(c => `<option value="${c.id}"${scope === c.id ? ' selected' : ''}>${esc(c.short)} · ${confN.get(c.id)}</option>`).join('')}</select>`;
   }
   const live = base.filter(g => g.state === 'in'), pre = base.filter(g => g.state === 'pre'), post = base.filter(g => g.state === 'post');
   const cnt = [['all', `${base.length} games`], ['in', `${live.length} live`], ['post', `${post.length} final`], ['pre', `${pre.length} upcoming`]]
@@ -713,7 +730,7 @@ function renderGames(animate) {
   if (favId) list.sort((a, b) => isFavGame(b) - isFavGame(a));
   if (gamesFilter !== 'all') list = list.filter(g => g.state === gamesFilter);
   if (IS_C && S.games.length && !base.length) {
-    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${cScope === 'top' || cScope == null ? 'Top 25' : 'conference'} games on this date</b>${S.games.length} other game${S.games.length === 1 ? ' is' : 's are'} on the slate.<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn ghost" data-cscopeall>Show all games</button></div></div>`;
+    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${cScope === 'clash' ? 'ranked-vs-ranked' : cScope === 'top' || cScope == null ? 'Top 25' : 'conference'} games on this date</b>${S.games.length} other game${S.games.length === 1 ? ' is' : 's are'} on the slate.<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn ghost" data-cscopeall>Show all games</button></div></div>`;
   } else if (!S.games.length) {
     const cal = S.calendar || [];
     const next = cal.find(x => x > d), prev = [...cal].reverse().find(x => x < d);
@@ -845,8 +862,10 @@ function renderStandings() {
   // WNBA offseason: ESPN already calls it next year's season while the table still holds this year's final records
   const yr = new Date().getFullYear(), wOff = IS_W && +S.standings.season > yr;
   $('#stdSeason').textContent = wOff ? `${yr} season · final` : `${S.standings.season || 'Current'} season`;
-  $('#v-standings .legend').hidden = S.stdConf === 3;
+  $('#v-standings .legend').hidden = S.stdConf >= 3;
   if (IS_W) $('#stdLegend').innerHTML = '<span><i class="zone po"></i>Playoff spot (top 8 in the league)</span><span>Tap a team for roster and schedule</span>';
+  if (S.stdConf !== 4 && !wrap.classList.contains('tbl-wrap')) { wrap.classList.add('tbl-wrap', 'drag-x'); wrap.dataset.drag = ''; }
+  if (S.stdConf === 4) { if (!wrap.querySelector('.cup')) wrap.innerHTML = '<div class="sk" style="height:420px"></div>'; lazy('cup').then(m => m.renderCup(wrap)).catch(() => { wrap.innerHTML = '<div class="empty" style="border:0"><b>The NBA Cup didn\'t load</b><button class="btn" data-retry="standings">Try again</button></div>'; }); return; }
   if (S.stdConf === 3) { wrap.innerHTML = '<div class="sk" style="height:420px"></div>'; lazy('playoff').then(m => { if (S.stdConf === 3) { wrap.innerHTML = m.playoffBracket(); dragScroll(wrap); } }).catch(() => { wrap.innerHTML = '<div class="empty"><b>Couldn\'t load the bracket</b>Check your connection.</div>'; }); return; }
   let rows, league = S.stdConf === 2;
   if (league) {
@@ -1720,7 +1739,7 @@ function tickerItem(g) {
   const live = g.state === 'in', pre = g.state === 'pre';
   const side = s => `<span class="tk-t${g.state === 'post' && !s.winner ? ' lose' : ''}">${logo(s.abbr, 32)}${esc(s.abbr)}${pre ? '' : `<b>${esc(s.score)}</b>`}</span>`;
   return `<button class="tk${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}" data-game="${g.id}">
-    <span class="tk-st">${live ? '<i class="dot on"></i>' : ''}${esc(pre ? fmtTime(g.date) : statusText(g))}</span>${side(g.away)}${side(g.home)}</button>`;
+    <span class="tk-st">${live ? '<i class="dot on"></i>' : ''}${esc(pre ? fmtTime(g.date) : statusText(g))}${upsetOf(g) ? ' <em class="tk-up">Upset</em>' : ''}</span>${side(g.away)}${side(g.home)}</button>`;
 }
 function renderTicker() {
   const bar = $('#ticker'), tr = $('#tickerTrack');
@@ -2093,7 +2112,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-03b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-03c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2732,10 +2751,10 @@ function alertCheck(games) {
     if (g.state === 'in') {
       const clk = clockSecs(g.clock);
       send('start', `${me.name} game is on`, `${g.away.abbr} @ ${g.home.abbr} just tipped off`, g.period === 1 && clk > QP - 240);
-      if (g.period >= 5) send('ot', 'Overtime', `${line} · heading to ${perLabel(g.period)}`);
+      if (g.period > REG_PERIODS) send('ot', 'Overtime', `${line} · heading to ${perLabel(g.period)}`);
       if (g.period >= REG_PERIODS && clk <= 300 && clk > 0 && Math.abs((+g.home.score || 0) - (+g.away.score || 0)) <= 5) send(`close${g.period}`, 'Close game', `${line} · ${perLabel(g.period)} ${g.clock} left`);
     }
-    if (g.state === 'post' && f.start) send('final', `Final: ${+me.score > +op.score ? me.name + ' win' : me.name + ' lose'}`, line);
+    if (g.state === 'post' && f.start) send('final', `${upsetOf(g) ? 'Upset! ' : ''}Final: ${+me.score > +op.score ? me.name + ' win' : me.name + ' lose'}`, line);
     try { sessionStorage.setItem(k, JSON.stringify(f)); } catch (e) {}
   }
 }

@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03c', date: 'Nov 3', items: [
+    ['NBA Cup', 'Standings has an NBA Cup tab: all six groups with the official tiebreakers (head-to-head, point differential with overtime games counting as zero, points scored), wild cards marked, and the knockout bracket, projected during group play and filled in with real games in December. Cup games on the Scores page are tagged with their group.'],
+    ['College bracket', 'Rankings has a Bracket tab for men\'s and women\'s: the NCAA Tournament by region plus the Final Four, and every conference tournament round by round, with live scores. Last season\'s brackets are there until this season\'s start.'],
+    ['Top 25 clashes and upsets', 'College scores have a Top 25 clashes filter for ranked-vs-ranked games, and Upset tags (on cards, the ticker and alerts) when a ranked team loses to an unranked one, or to a much lower seed in March.'],
+  ] },
   { id: '2026-11-03b', date: 'Nov 3', items: [
     ['Faster loading', 'Fonts now come from Fullcourt itself instead of Google, today\'s scores and standings start downloading the moment the page opens, and team logos are fetched once and reused everywhere (about half as many image downloads on a full night).'],
     ['College polish', 'Ask understands "Top 25" and polls, uses college-style answers ("The Gamecocks play next…", "leads Division I"), and has college example questions. College days only load the Top 25 games in the Pick\'em and injury panels, and saved scores work offline for college too.'],
