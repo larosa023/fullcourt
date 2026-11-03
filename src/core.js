@@ -2278,9 +2278,9 @@ function qualified(rows, k) {
 
 /* ================= league switch ================= */
 $$('[data-lg]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lg === LGK || (b.dataset.lg === 'ncaa' && IS_C)));
-{ const bd = $('#lgBadge'); if (bd) bd.textContent = LGB; }
+// (the league badge text comes from CSS, so it's right from the first paint)
 // college: "Standings" is the polls plus conference tables
-if (IS_C) $$('[data-view="standings"]').forEach(b => { const w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT); for (let n; (n = w.nextNode());) if (n.textContent.includes('Standings')) n.textContent = n.textContent.replace('Standings', 'Rankings'); });
+// (the Standings / Rankings label follows the league in CSS, so it's right from the first paint)
 function switchLeague(lg) {
   // "NCAA" goes to whichever college side you used last (women's to start)
   if (lg === 'ncaa') { if (IS_C) return; try { lg = localStorage.getItem('fc-college') === 'ncaam' ? 'ncaam' : 'ncaaw'; } catch (e) { lg = 'ncaaw'; } }
@@ -2291,6 +2291,9 @@ function switchLeague(lg) {
   try { sessionStorage.setItem('fc-swap', '1'); } catch (e) {}
   const root = document.documentElement;
   root.dataset.league = lg;
+  // hold the team-chip space the new league will need, and drop the old chip now, so the header changes once
+  try { root.classList.toggle('has-fav', !!localStorage.getItem(lg === 'nba' ? 'fc-fav' : 'fc-fav-' + lg)); } catch (e) {}
+  const fl = $('#favLink'); if (fl) fl.hidden = true;
   root.classList.add('switching');
   setTimeout(() => location.reload(), 230);
 }

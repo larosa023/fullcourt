@@ -78,7 +78,7 @@
         <circle cx="16" cy="16" r="5.5" stroke="var(--accent-ink)" stroke-width="1.6"/>
         <path d="M1.5 9.5a10 10 0 0 1 0 13M30.5 9.5a10 10 0 0 0 0 13" stroke="var(--accent-ink)" stroke-width="1.6"/>
       </svg>
-      <b>Full<i>court</i></b><span class="lg-badge" id="lgBadge">WNBA</span>
+      <b>Full<i>court</i></b><span class="lg-badge" id="lgBadge"></span>
     </a>
     <div class="lg-switch" role="group" aria-label="League">
       <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button><button data-lg="ncaa" aria-pressed="false" title="College basketball">NCAA</button>
@@ -87,7 +87,7 @@
     <nav class="nav" id="nav" aria-label="Sections">
       <span class="pill" id="navPill"></span>
       <button data-view="scores">Scores</button>
-      <button data-view="standings">Standings</button>
+      <button data-view="standings"><span class="lb-std">Standings</span><span class="lb-rk">Rankings</span></button>
       <button data-view="teams">Teams</button>
       <button data-view="leaders">Leaders</button>
       <button data-view="compare">Compare</button>
@@ -214,7 +214,7 @@
 
 <nav class="tabbar" id="tabbar" aria-label="Sections">
   <button data-view="scores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg>Scores</button>
-  <button data-view="standings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>Standings</button>
+  <button data-view="standings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span class="lb-std">Standings</span><span class="lb-rk">Rankings</span></button>
   <button data-view="teams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg>Teams</button>
   <button data-view="leaders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>Leaders</button>
   <button data-view="bets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z"/><path d="M14 5v2M14 11v2M14 17v2"/></svg>Bets</button>
@@ -237,7 +237,7 @@
     <div class="cg-switch" role="group" aria-label="College: women's or men's"><button data-lg="ncaaw" aria-pressed="false" title="Women's college basketball"><span class="cg-l">Women</span><span class="cg-s">W</span></button><button data-lg="ncaam" aria-pressed="false" title="Men's college basketball"><span class="cg-l">Men</span><span class="cg-s">M</span></button></div></div>
   <nav class="drawer-nav" aria-label="Sections">
     <button data-view="scores" style="--i:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg><span>Scores</span><em class="dlive" id="drawerLive" hidden></em></button>
-    <button data-view="standings" style="--i:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span>Standings</span></button>
+    <button data-view="standings" style="--i:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span><span class="lb-std">Standings</span><span class="lb-rk">Rankings</span></span></button>
     <button data-view="teams" style="--i:2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/></svg><span>Teams</span></button>
     <button data-view="leaders" style="--i:3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg><span>Leaders</span></button>
     <button data-view="compare" style="--i:4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.2"/><circle cx="16" cy="8" r="3.2"/><path d="M3 20c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 20c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5"/></svg><span>Compare</span></button>
