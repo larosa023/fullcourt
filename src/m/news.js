@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03b', date: 'Nov 3', items: [
+    ['Faster loading', 'Fonts now come from Fullcourt itself instead of Google, today\'s scores and standings start downloading the moment the page opens, and team logos are fetched once and reused everywhere (about half as many image downloads on a full night).'],
+    ['College polish', 'Ask understands "Top 25" and polls, uses college-style answers ("The Gamecocks play next…", "leads Division I"), and has college example questions. College days only load the Top 25 games in the Pick\'em and injury panels, and saved scores work offline for college too.'],
+    ['Header fit', 'The top bar now lines up with the page edges at every screen size, with or without a favorite team chip.'],
+  ] },
   { id: '2026-11-03a', date: 'Nov 3', items: [
     ['College basketball', 'Tap NCAA in the league switch (or the menu on your phone) for women\'s and men\'s college hoops, with a Women | Men toggle beside it. Scores open on games with a ranked team, with every Division I game and each conference a pick away. Rankings has the AP and Coaches polls plus all 32 conference standings, Teams lists every school by conference, and games, box scores, play-by-play, win probability and team pages all work like they do for the pros.'],
   ] },

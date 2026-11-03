@@ -4,7 +4,9 @@
 const ASK = { ctx: {}, log: [], busy: false };
 const lastNight = () => etNow().hour < ROLLOVER_HOUR ? S.today : addDays(S.today, -1);
 const dayLabel = d => d === S.today ? 'tonight' : d === lastNight() || d === addDays(S.today, -1) ? 'last night' : 'on ' + fmtDay(d, { weekday: 'long', month: 'short', day: 'numeric' });
-const teamNick = id => S.teams[id]?.short || S.teams[id]?.abbr || 'Team';
+// "the Knicks" in the NBA; in college the mascot reads the same way ("the Gamecocks"), where the school name ("the South Carolina") wouldn't
+const teamNick = id => { const t = S.teams[id]; if (IS_C && t?.name && t?.loc && t.name.startsWith(t.loc) && t.name.length > t.loc.length) return t.name.slice(t.loc.length).trim(); return t?.short || t?.abbr || 'Team'; };
+const LGTHE = IS_C ? 'Division I' : `the ${LGN}`; // "leads the NBA" / "leads Division I"
 const STAT = {
   pts: { label: 'points', short: 'PTS', unit: 'points' },
   reb: { label: 'rebounds', short: 'REB', unit: 'rebounds' },
@@ -190,7 +192,7 @@ async function aPlayerSeason(p, stat, rows) {
     else if (S1.pct) text = `${esc(r.name)} is shooting <b>${fpct(r[stat])}</b> ${stat === 'fgp' ? 'from the field' : stat === 'tpp' ? 'from three' : 'from the free-throw line'} this season (${g}).`;
     else text = `${esc(r.name)} is averaging <b>${f1(r[stat])} ${S1.unit}</b> per game this season (${g}).`;
     const rk = rankOf(rows, r, stat, stat === 'tov');
-    if (rk && !S1.total && rk.rank <= 50) text += ` That ranks ${ordinal(rk.rank)} in the ${LGN} among regular players.`;
+    if (rk && !S1.total && rk.rank <= 50) text += ` That ranks ${ordinal(rk.rank)} in ${LGTHE} among regular players.`;
   } else {
     text = `${esc(r.name)} is averaging <b>${f1(r.pts)} points, ${f1(r.reb)} rebounds and ${f1(r.ast)} assists</b> in ${g} this season, shooting ${fpct(r.fgp)} from the field and ${fpct(r.tpp)} from three.`;
   }
@@ -301,31 +303,31 @@ async function aTeamNext(t) {
   const s = await scheduleOf(t.id);
   const evs = (s.events || []).map(e => { const c = e.competitions?.[0]; const me = c?.competitors.find(x => x.team?.id === t.id), op = c?.competitors.find(x => x.team?.id !== t.id); return c && me && op ? { id: e.id, date: e.date, state: c.status?.type?.state, home: me.homeAway === 'home', op: op.team, tv: (c.broadcasts || []).map(b => b.media?.shortName).filter(Boolean).join(' · ') } : null; }).filter(Boolean);
   const up = evs.filter(e => e.state !== 'post').slice(0, 4);
-  if (!up.length) return { text: `The ${esc(t.short || t.name)} have no upcoming games on the schedule.` };
+  if (!up.length) return { text: `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} have no upcoming games on the schedule.` };
   const n = up[0];
   const when = n.state === 'in' ? 'right now' : `${fmtLocal(n.date, { weekday: 'long', month: 'short', day: 'numeric' })} at ${fmtTime(n.date)}`;
-  const text = `The ${esc(t.short || t.name)} ${n.state === 'in' ? 'are playing' : 'play next'} ${n.home ? 'at home against' : 'on the road at'} the ${esc(n.op.displayName || n.op.shortDisplayName)} ${esc(when)}${n.tv ? ` (${esc(n.tv)})` : ''}.`;
+  const text = `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} ${n.state === 'in' ? 'are playing' : 'play next'} ${n.home ? 'at home against' : 'on the road at'} the ${esc(n.op.displayName || n.op.shortDisplayName)} ${esc(when)}${n.tv ? ` (${esc(n.tv)})` : ''}.`;
   const html = card(up.map(e => `<button class="ask-li" data-game="${e.id}">${logo(e.op.abbreviation, 64)}<span class="nm"><b>${e.home ? 'vs' : '@'} ${esc(e.op.displayName || e.op.abbreviation)}</b><small>${esc(e.tv || '')}</small></span><span class="v small">${esc(e.state === 'in' ? 'Live now' : fmtET(e.date, { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + fmtTime(e.date))}</span></button>`).join(''));
   return { text, html, ctx: { teamId: t.id } };
 }
 async function aTeamGame(t, date) {
   let g;
-  if (date) { g = (await scoreboardOn(date)).find(x => x.home.id === t.id || x.away.id === t.id); if (!g) return { text: `The ${esc(t.short || t.name)} didn't play ${dayLabel(date)}.`, ctx: { teamId: t.id } }; }
+  if (date) { g = (await scoreboardOn(date)).find(x => x.home.id === t.id || x.away.id === t.id); if (!g) return { text: `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} didn't play ${dayLabel(date)}.`, ctx: { teamId: t.id } }; }
   else {
     const s = await scheduleOf(t.id);
     const last = (s.events || []).filter(e => e.competitions?.[0]?.status?.type?.state === 'post').at(-1)
       || (s.events || []).find(e => e.competitions?.[0]?.status?.type?.state === 'in');
-    if (!last) return { text: `The ${esc(t.short || t.name)} haven't played yet this season.` };
+    if (!last) return { text: `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} haven't played yet this season.` };
     g = (await scoreboardOn(fmtET(last.date, { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/(\d+)\/(\d+)\/(\d+)/, '$3$1$2'))).find(x => x.id === last.id);
-    if (!g) return { text: `I couldn't load the ${esc(t.short || t.name)}' last game.` };
+    if (!g) return { text: `I couldn't load the ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))}' last game.` };
   }
   const me = g.home.id === t.id ? g.home : g.away, opp = me === g.home ? g.away : g.home;
-  if (g.state === 'pre') return { text: `The ${esc(t.short || t.name)} play the ${esc(opp.full)} ${dayLabel(date || S.today)} at ${esc(fmtTime(g.date))}.`, html: card(gRow(g)), ctx: { teamId: t.id } };
+  if (g.state === 'pre') return { text: `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} play the ${esc(opp.full)} ${dayLabel(date || S.today)} at ${esc(fmtTime(g.date))}.`, html: card(gRow(g)), ctx: { teamId: t.id } };
   const d = await summaryOf(g.id);
   const top = boxRows(d).filter(r => r.teamId === t.id && !r.dnp).sort((a, b) => b.pts - a.pts)[0];
   const live = g.state === 'in';
-  const text = live ? `The ${esc(t.short || t.name)} ${+me.score >= +opp.score ? 'lead' : 'trail'} the ${esc(opp.full)} <b>${me.score}–${opp.score}</b> (${esc(statusText(g))}).`
-    : `The ${esc(t.short || t.name)} <b>${me.winner ? 'beat' : 'lost to'}</b> the ${esc(opp.full)} <b>${me.score}–${opp.score}</b> on ${esc(fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }))}.`;
+  const text = live ? `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} ${+me.score >= +opp.score ? 'lead' : 'trail'} the ${esc(opp.full)} <b>${me.score}–${opp.score}</b> (${esc(statusText(g))}).`
+    : `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} <b>${me.winner ? 'beat' : 'lost to'}</b> the ${esc(opp.full)} <b>${me.score}–${opp.score}</b> on ${esc(fmtET(g.date, { weekday: 'long', month: 'short', day: 'numeric' }))}.`;
   return { text: text + (top ? ` ${esc(top.name)} led them with ${top.pts} points.` : ''), html: card(gRow(g) + (top ? pRow({ id: top.id, name: top.name, abbr: top.abbr }, top.pts + ' PTS', `${top.reb} reb · ${top.ast} ast · ${top.fg.join('/')} FG`) : '')), ctx: { teamId: t.id } };
 }
 async function aOdds(t) {
@@ -335,23 +337,23 @@ async function aOdds(t) {
     const list = t ? games.filter(g => g.home.id === t.id || g.away.id === t.id) : games.filter(g => g.state !== 'post');
     if (!list.length) continue;
     const withOdds = list.filter(g => g.odds);
-    if (!withOdds.length) return { text: t ? `There's no betting line posted for the ${esc(t.short || t.name)}' next game yet.` : 'No lines are posted right now.', html: card(list.map(gRow).join('')) };
+    if (!withOdds.length) return { text: t ? `There's no betting line posted for the ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))}' next game yet.` : 'No lines are posted right now.', html: card(list.map(gRow).join('')) };
     const html = card(withOdds.map(g => gRow(g) + `<div class="ask-odds">${['away', 'home'].map(k => `<span>${esc(g[k].abbr)} ${mlChip(g.odds, k)}</span>`).join('')}${g.odds.details ? `<span>Spread <b>${esc(g.odds.details)}</b></span>` : ''}${g.odds.ou != null ? `<span>O/U <b>${esc(g.odds.ou)}</b></span>` : ''}</div>`).join('') + `<p class="ask-note">Odds via ${esc(withOdds[0].odds.provider || 'the sportsbook')} on ESPN. For reference only.</p>`);
     if (t) {
       const g = withOdds[0], o = g.odds, side = g.home.id === t.id ? 'home' : 'away', opp = side === 'home' ? g.away : g.home;
       const fav = o.fav === side;
       const sp = String(o.details || '').match(/-?\d+(\.\d+)?/)?.[0];
-      const text = `The ${esc(t.short || t.name)} are <b>${fav ? `${sp ? Math.abs(+sp) + '-point ' : ''}favorites` : `${sp ? Math.abs(+sp) + '-point ' : ''}underdogs`}</b> against the ${esc(opp.name)} ${dayLabel(day)} (moneyline ${esc(o[side].ml || '–')}; ${esc(opp.abbr)} ${esc(o[side === 'home' ? 'away' : 'home'].ml || '–')}).${o.ou != null ? ` The over/under is ${esc(o.ou)}.` : ''}`;
+      const text = `The ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} are <b>${fav ? `${sp ? Math.abs(+sp) + '-point ' : ''}favorites` : `${sp ? Math.abs(+sp) + '-point ' : ''}underdogs`}</b> against the ${esc(opp.name)} ${dayLabel(day)} (moneyline ${esc(o[side].ml || '–')}; ${esc(opp.abbr)} ${esc(o[side === 'home' ? 'away' : 'home'].ml || '–')}).${o.ou != null ? ` The over/under is ${esc(o.ou)}.` : ''}`;
       return { text, html, ctx: { teamId: t.id } };
     }
     return { text: `Here are the lines for ${dayLabel(day)}'s games.`, html };
   }
-  return { text: t ? `I couldn't find an upcoming game with odds for the ${esc(t.short || t.name)} in the next two days.` : 'There are no games with lines in the next two days.' };
+  return { text: t ? `I couldn't find an upcoming game with odds for the ${esc(IS_C ? teamNick(t.id) : (t.short || t.name))} in the next two days.` : 'There are no games with lines in the next two days.' };
 }
 async function aDayGames(date) {
   const games = await scoreboardOn(date);
   const when = dayLabel(date);
-  if (!games.length) return { text: `There are no ${LGN} games ${when}.` };
+  if (!games.length) return { text: `There are no ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games ${when}.` };
   const live = games.filter(g => g.state === 'in').length, post = games.filter(g => g.state === 'post').length;
   const first = games.filter(g => g.state === 'pre').sort((a, b) => new Date(a.date) - new Date(b.date))[0];
   let text = `There ${games.length === 1 ? 'is' : 'are'} <b>${plural(games.length, 'game')}</b> ${when}.`;
@@ -361,7 +363,9 @@ async function aDayGames(date) {
   return { text, html: card(games.map(gRow).join('')) };
 }
 async function nightRows(date) {
-  const games = (await scoreboardOn(date)).filter(g => g.state !== 'pre');
+  let games = (await scoreboardOn(date)).filter(g => g.state !== 'pre'), top25 = false;
+  // college nights can have 150 games: read the box scores of the Top 25 games instead of all of them
+  if (IS_C && games.length > 30) { const t = games.filter(g => g.home.rank || g.away.rank); if (t.length) { games = t; top25 = true; } }
   const ds = await Promise.all(games.map(g => summaryOf(g.id).catch(() => null)));
   const rows = [];
   ds.forEach((d, i) => {
@@ -369,10 +373,10 @@ async function nightRows(date) {
     const g = games[i];
     boxRows(d).filter(r => !r.dnp).forEach(r => rows.push({ ...r, game: g, opp: r.teamId === g.home.id ? g.away.abbr : g.home.abbr }));
   });
-  return { rows, games, anyLive: games.some(g => g.state === 'in') };
+  return { rows, games, top25, anyLive: games.some(g => g.state === 'in') };
 }
 async function aNightLeaders(date, stat, opts) {
-  const { rows, games, anyLive } = await nightRows(date);
+  const { rows, games, anyLive, top25 } = await nightRows(date);
   const when = dayLabel(date);
   if (!games.length) {
     const all = await scoreboardOn(date);
@@ -380,7 +384,7 @@ async function aNightLeaders(date, stat, opts) {
   }
   let list = rows, text;
   const k = stat || 'pts';
-  const suffix = anyLive ? ' (games still in progress)' : '';
+  const suffix = (top25 ? ' in Top 25 games' : '') + (anyLive ? ' (games still in progress)' : '');
   const verb1 = anyLive || date === S.today ? 'has' : 'had', verbN = anyLive || date === S.today ? 'have' : 'had';
   if (opts.td || opts.dd) {
     const need = opts.td ? 3 : 2;
@@ -396,7 +400,7 @@ async function aNightLeaders(date, stat, opts) {
   } else {
     list = rows.filter(r => Number.isFinite(valOf(r, k))).sort((a, b) => (opts.asc ? 1 : -1) * (valOf(a, k) - valOf(b, k)));
     const top = list[0];
-    text = top ? `<b>${esc(top.name)}</b> ${anyLive ? 'leads' : 'led'} everyone ${when} with <b>${statWord(k, valOf(top, k))}</b> against the ${esc(S.teams[Object.values(S.teams).find(t => t.abbr === top.opp)?.id]?.short || top.opp)}${suffix}.` : `No stats yet for ${when}.`;
+    text = top ? `<b>${esc(top.name)}</b> ${anyLive ? 'leads' : 'led'} everyone ${when} with <b>${statWord(k, valOf(top, k))}</b> against ${IS_C ? '' : 'the '}${esc(S.teams[Object.values(S.teams).find(t => t.abbr === top.opp)?.id]?.[IS_C ? 'loc' : 'short'] || top.opp)}${suffix}.` : `No stats yet for ${when}.`;
   }
   const n = opts.n || 10;
   return { text, html: list.length ? card(list.slice(0, n).map((r, i) => pRow(r, `${valOf(r, k)} ${STAT[k].short}`, `vs ${r.opp} · ${r.pts} pts ${r.reb} reb ${r.ast} ast`).replace('<button class="ask-li"', `<button class="ask-li" data-rank="${i + 1}"`)).join('')) : '' };
@@ -415,7 +419,7 @@ async function aLeaders(stat, opts, rows) {
   const list = pool.slice(0, n);
   if (!list.length) return { text: 'No one qualifies for that yet. Check back after a few more games.' };
   const top = list[0];
-  const scope = opts.teamId ? `the ${esc(teamNick(opts.teamId))}` : opts.conf != null ? `the ${opts.conf ? 'West' : 'East'}` : `the ${LGN}`;
+  const scope = opts.teamId ? `the ${esc(teamNick(opts.teamId))}` : opts.conf != null && !IS_C ? `the ${opts.conf ? 'West' : 'East'}` : LGTHE;
   const fmtV = r => S1.pct ? fpct(val(r)) : useTot ? String(Math.round(val(r))) : f1(val(r));
   const unit = S1.pct ? '' : useTot ? ` ${S1.label}` : ` ${S1.unit} per game`;
   const where = S1.pct ? ` ${k === 'fgp' ? 'from the field' : k === 'tpp' ? 'from three' : 'from the line'}` : '';
@@ -484,6 +488,11 @@ async function answer(raw) {
   if (has(/ (props?|prop bets?|player props|best bets?|locks?|good bets?|bets? (for |to make )?(tonight|today|tomorrow)|what should i bet|who should i bet|what to bet|parlay ideas?|sgp ideas?|suggest\w*|recommend\w*|picks?|leans?|best overs?|best unders?) /) && !has(/ (draft|lottery|first|1st|no 1|number one|top \d+) picks? /) && !has(/ over under /))
     return aProps({ pid: players[0]?.id, teamId: !players.length ? teams[0]?.id : null });
 
+  // college: the polls
+  if (IS_C && !players.length && has(/ (top 25|top twenty[- ]five|ap poll|coaches poll|poll|rankings?|ranked|number one|no\.? ?1|#1) /) && !st) {
+    if (teams.length) return aTeamRecord(teams[0]);
+    return aStandings(null);
+  }
   // standings / records
   if (!players.length && has(/ (standings?|seeds?|seeded|first place|1st place|playoff picture|games back|gb|ranked|ranking|record|place|where (are|do|is) the|best team|worst team|top team) /) && !st) {
     if (teams.length) return aTeamRecord(teams[0]);
@@ -537,7 +546,17 @@ async function answer(raw) {
 }
 
 /* ---------------- chat UI ---------------- */
-const ASK_EXAMPLES = IS_W ? [
+const ASK_EXAMPLES = IS_C ? [
+  'Who scored the most points last night?',
+  'Top 25',
+  LGK === 'ncaaw' ? 'UConn record' : 'Duke record',
+  LGK === 'ncaaw' ? 'When does South Carolina play next?' : 'When does Kentucky play next?',
+  LGK === 'ncaaw' ? 'JuJu Watkins last 5 games' : 'Florida leading scorer',
+  'Who had a double-double last night?',
+  'Most threes per game',
+  'Points leaders',
+  LGK === 'ncaaw' ? 'LSU leading scorer' : 'Kansas record',
+] : IS_W ? [
   'Who scored the most points last night?',
   "A'ja Wilson last 5 games",
   'Assist leaders in the West',

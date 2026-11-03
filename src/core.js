@@ -72,7 +72,9 @@ async function getJSON(url, { timeout = 12000, retries = 1 } = {}) {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
     try {
-      const r = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
+      // the page's first lines may already have started this download (today's scores, standings): use it once
+      const early = a === 0 && window.__pf?.[url]; if (early) delete window.__pf[url];
+      const r = (early && await early.then(x => x?.ok ? x : null)) || await fetch(url, { signal: ctl.signal, cache: 'no-store' });
       clearTimeout(t);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       // the home-screen app's service worker hands back saved data when there's no signal
@@ -93,7 +95,10 @@ const isDark = () => {
 // college logos are filed by team id, not abbreviation, so keep an abbreviation -> id map (saved, so a cold start has it)
 const C_IDS = (() => { if (!IS_C) return {}; try { return JSON.parse(localStorage.getItem(lsKey('fc-cids')) || '{}'); } catch (e) { return {}; } })();
 let cidsT = 0; const saveCids = () => { clearTimeout(cidsT); cidsT = setTimeout(() => { try { localStorage.setItem(lsKey('fc-cids'), JSON.stringify(C_IDS)); } catch (e) {} }, 1500); };
-const logoSrc = (abbr, size = 80, dark = isDark()) => {
+// logos are fetched at a few fixed sizes (not one per spot on the page), so the browser downloads each team's logo once and reuses it
+const imgBucket = n => n <= 96 ? 96 : n <= 240 ? 240 : 500;
+const logoSrc = (abbr, sizeIn = 80, dark = isDark()) => {
+  const size = imgBucket(sizeIn);
   if (IS_C) { const id = /^\d+$/.test(abbr) ? abbr : C_IDS[abbr]; return id ? CDN(`/i/teamlogos/ncaa/${dark ? '500-dark' : '500'}/${id}.png`, size, size) : CDN('/i/teamlogos/default-team-logo-500.png', size, size); }
   return CDN(`/i/teamlogos/${LG}/${dark && !IS_W ? '500-dark/scoreboard' : '500'}/${String(abbr || '').toLowerCase()}.png`, size, size);
 };
@@ -101,7 +106,7 @@ const logoSrc = (abbr, size = 80, dark = isDark()) => {
 const NOLOGO = "this.onerror=null;this.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 40 40&quot;><circle cx=&quot;20&quot; cy=&quot;20&quot; r=&quot;19&quot; fill=&quot;#888&quot; fill-opacity=&quot;.22&quot;/><text x=&quot;20&quot; y=&quot;25&quot; text-anchor=&quot;middle&quot; font-family=&quot;sans-serif&quot; font-weight=&quot;700&quot; font-size=&quot;13&quot; fill=&quot;#888&quot;>'+(this.dataset.ab||'').slice(0,4)+'</text></svg>')";
 const logo = (abbr, size = 80, cls = 'lg') =>
   `<img class="${cls}" data-ab="${esc(abbr)}" data-s="${size}" src="${logoSrc(abbr, size)}" alt="" loading="lazy" draggable="false" onerror="${IS_C ? `this.onerror=function(){${NOLOGO}};this.src='${logoSrc(abbr, size, false)}'` : `this.onerror=null;this.src='${logoSrc(abbr, size, false)}'`}">`;
-const headSrc = (id, w = 350) => CDN(`/i/headshots/${LG}/players/full/${id}.png`, w, Math.round(w * 254 / 350));
+const headSrc = (id, wIn = 350) => { const w = wIn <= 200 ? 200 : wIn <= 400 ? 400 : 700; return CDN(`/i/headshots/${LG}/players/full/${id}.png`, w, Math.round(w * 254 / 350)); };
 const initials = n => String(n || '').split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 const face = (id, name, cls = 'face', w = 160) => id
   ? `<img class="${cls}" src="${headSrc(id, w)}" alt="${esc(name)}" loading="lazy" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls} avatar',textContent:'${esc(initials(name))}'}))">`
@@ -713,7 +718,7 @@ function renderGames(animate) {
     const cal = S.calendar || [];
     const next = cal.find(x => x > d), prev = [...cal].reverse().find(x => x < d);
     const btn = (x, label) => `<button class="btn ghost" data-date="${x}">${label}</button>`;
-    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${LGN} games on this date</b>${next ? 'Pick another day, or jump to the nearest games.' : prev ? `No more ${LGN} games are scheduled this season.` : 'Pick another day on the rail above.'}
+    $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games on this date</b>${next ? 'Pick another day, or jump to the nearest games.' : prev ? `No more ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games are scheduled this season.` : 'Pick another day on the rail above.'}
       ${prev || next ? `<div class="btn-row" style="justify-content:center;margin-top:12px">${prev ? btn(prev, '← ' + fmtDay(prev, { month: 'short', day: 'numeric' })) : ''}${next ? btn(next, fmtDay(next, { weekday: 'short', month: 'short', day: 'numeric' }) + ' →') : ''}</div>` : ''}</div>`;
   } else {
     $('#games').innerHTML = list.map((g, i) => gameCard(g, i, animate)).join('');
@@ -837,7 +842,9 @@ function renderStandings() {
     loadStandings().catch(() => { wrap.innerHTML = `<div class="empty" style="border:0"><b>Standings didn't load</b>The feed may be busy.<br><button class="btn" data-retry="standings">Try again</button></div>`; });
     return;
   }
-  $('#stdSeason').textContent = `${S.standings.season || 'Current'} season`;
+  // WNBA offseason: ESPN already calls it next year's season while the table still holds this year's final records
+  const yr = new Date().getFullYear(), wOff = IS_W && +S.standings.season > yr;
+  $('#stdSeason').textContent = wOff ? `${yr} season · final` : `${S.standings.season || 'Current'} season`;
   $('#v-standings .legend').hidden = S.stdConf === 3;
   if (IS_W) $('#stdLegend').innerHTML = '<span><i class="zone po"></i>Playoff spot (top 8 in the league)</span><span>Tap a team for roster and schedule</span>';
   if (S.stdConf === 3) { wrap.innerHTML = '<div class="sk" style="height:420px"></div>'; lazy('playoff').then(m => { if (S.stdConf === 3) { wrap.innerHTML = m.playoffBracket(); dragScroll(wrap); } }).catch(() => { wrap.innerHTML = '<div class="empty"><b>Couldn\'t load the bracket</b>Check your connection.</div>'; }); return; }
@@ -2086,7 +2093,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-03a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-03b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2254,7 +2261,7 @@ function qualified(rows, k) {
 $$('[data-lg]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lg === LGK || (b.dataset.lg === 'ncaa' && IS_C)));
 { const bd = $('#lgBadge'); if (bd) bd.textContent = LGB; }
 // college: "Standings" is the polls plus conference tables
-if (IS_C) $$('[data-view="standings"]').forEach(b => { const t = [...b.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim()); if (t) t.textContent = t.textContent.replace('Standings', 'Rankings'); else if (b.textContent.trim() === 'Standings') b.textContent = 'Rankings'; });
+if (IS_C) $$('[data-view="standings"]').forEach(b => { const w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT); for (let n; (n = w.nextNode());) if (n.textContent.includes('Standings')) n.textContent = n.textContent.replace('Standings', 'Rankings'); });
 function switchLeague(lg) {
   // "NCAA" goes to whichever college side you used last (women's to start)
   if (lg === 'ncaa') { if (IS_C) return; try { lg = localStorage.getItem('fc-college') === 'ncaam' ? 'ncaam' : 'ncaaw'; } catch (e) { lg = 'ncaaw'; } }
@@ -3017,7 +3024,8 @@ async function renderOut() {
     .filter(n => /out|doubt|question|day/i.test(n.status));
   const order = s => /^out/i.test(s) ? 0 : /doubt/i.test(s) ? 1 : /question/i.test(s) ? 2 : 3;
   const cls = s => /^out/i.test(s) ? 'out' : /doubt/i.test(s) ? 'doubt' : 'q';
-  const list = (favId ? [...games].sort((a, b) => isFavGame(b) - isFavGame(a)) : games);
+  let list = (favId ? [...games].sort((a, b) => isFavGame(b) - isFavGame(a)) : games);
+  if (IS_C) { const top = list.filter(g => g.home.rank || g.away.rank || isFavGame(g)); if (!top.length) { box.hidden = true; return; } list = top.slice(0, 12); }
   const rows = list.map(g => {
     const teams = [g.away, g.home].map(s => ({ s, l: forTeam(s).sort((a, b) => order(a.status) - order(b.status)) }));
     const n = teams.reduce((k, t) => k + t.l.length, 0);
@@ -3065,7 +3073,9 @@ function renderPicks() {
   const day = S.games.filter(g => picks[g.id]);
   const dayW = day.filter(g => picks[g.id].res === 'W').length, dayDone = day.filter(g => picks[g.id].res).length;
   $('#pickRec').innerHTML = rec.w + rec.l ? `<b>${rec.w}-${rec.l}</b>${rec.streak ? ` · ${rec.streak}` : ''}` : 'No picks yet';
-  const list = [...S.games].sort((a, b) => new Date(a.date) - new Date(b.date));
+  let list = [...S.games].sort((a, b) => new Date(a.date) - new Date(b.date));
+  // college: just the Top 25 games (plus yours and any you've already picked), not all 100+
+  if (IS_C) { const top = list.filter(g => g.home.rank || g.away.rank || isFavGame(g) || picks[g.id]); list = (top.length ? top : list).slice(0, 16); }
   $('#pickBody').innerHTML = list.map(g => {
     const p = picks[g.id], open = g.state === 'pre' && new Date(g.date) > Date.now();
     const side = s => {

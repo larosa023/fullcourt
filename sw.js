@@ -13,7 +13,7 @@ self.addEventListener('activate', e => {
 });
 
 // scores and standings: network first, fall back to the last saved copy
-const SAVE = /site\.api\.espn\.com\/apis\/(site\/v2|v2)\/sports\/basketball\/(nba|wnba)\/(scoreboard|standings)/;
+const SAVE = /site\.api\.espn\.com\/apis\/(site\/v2|v2)\/sports\/basketball\/(nba|wnba|womens-college-basketball|mens-college-basketball)\/(scoreboard|standings|rankings)/;
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -27,7 +27,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   // site code and styles: names change with every update, so a saved copy is always right
-  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+  if (url.origin === self.location.origin && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/'))) {
     e.respondWith(caches.open(ASSETS).then(async c => {
       const hit = await c.match(req.url); if (hit) return hit;
       const r = await fetch(req);
@@ -48,7 +48,7 @@ self.addEventListener('fetch', e => {
 });
 
 async function trimAssets(c) {
-  try { const keys = await c.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 40))) await c.delete(k); } catch (e) {}
+  try { const keys = await c.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 70))) await c.delete(k); } catch (e) {}
 }
 let trimming = false;
 async function trimData() {
