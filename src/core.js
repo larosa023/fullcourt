@@ -1678,6 +1678,7 @@ function favBtnHTML(id) {
 }
 function renderFavLink() {
   const t = favId && S.teams[favId];
+  document.documentElement.classList.toggle('has-fav', !!favId);
   for (const el of [$('#favLink'), $('#drawerFav')]) {
     if (!el) continue;
     el.hidden = !t;

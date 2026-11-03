@@ -650,6 +650,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 @media (min-width: 1001px) { html.has-fav #favLink[hidden] { display: inline-flex !important; visibility: hidden; } }
 @media (min-width: 761px) and (max-width: 1340px) { .fav-link { min-width: 66px; justify-content: center; } }
 @media (min-width: 1341px) { .fav-link { min-width: 104px; justify-content: center; } .mast-right { gap: 8px; } .mast-in { gap: 12px; } }
+/* with your team's chip in the header there isn't room for everything: Search goes icon-only (/ still opens it) so the header stays inside the page edges */
+@media (min-width: 761px) { html.has-fav .mast .search-btn .lbl, html.has-fav .mast .search-btn kbd { display: none; } html.has-fav .mast .search-btn { padding-left: 10px; padding-right: 10px; } html.has-fav .fav-link { min-width: 0; } }
+@media (min-width: 761px) and (max-width: 1300px) { html.has-fav .mast .ask-btn .lbl { display: none; } html.has-fav .mast .ask-btn { padding-left: 10px; padding-right: 10px; } }
+@media (min-width: 761px) and (max-width: 1100px) { .mast .fav-link, html.has-fav #favLink[hidden] { display: none !important; } }
 @media (min-width: 1201px) and (max-width: 1340px) { .mast-in { gap: 16px; } }
 .fav-link .lg { width: 22px; height: 22px; }
 .fav-link .star { color: var(--accent); font-size: 13px; }
@@ -831,7 +835,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .cg-switch .cg-s { display: none; }
 /* desktop: compact W | M so the header never runs past the page's right edge; the phone menu keeps the full words */
 @media (min-width: 761px) { .cg-switch .cg-l { display: none; } .cg-switch .cg-s { display: inline; } .cg-switch button { padding: 5px 9px; } }
-@media (min-width: 761px) and (max-width: 1240px) { :root[data-league^="ncaa"] .mast .lg-switch button { padding: 5px 8px; } :root[data-league^="ncaa"] .cg-switch button { padding: 5px 7px; } }
+@media (min-width: 761px) and (max-width: 1340px) { :root[data-league^="ncaa"] .mast .lg-switch button { padding: 5px 8px; } :root[data-league^="ncaa"] .cg-switch button { padding: 5px 7px; } }
 select.count.cs-scope { appearance: none; -webkit-appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%; background-size: 4px 4px; background-repeat: no-repeat; cursor: pointer; font: inherit; color: var(--ink); border: 1px solid var(--line); }
 .rk { font-style: normal; font-family: var(--mono); font-size: .72em; font-weight: 600; color: var(--muted); margin-right: 5px; vertical-align: 1px; }
 .lg-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-3); flex: none; }
