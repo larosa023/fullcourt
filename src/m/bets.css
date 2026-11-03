@@ -11,6 +11,16 @@
   .bt-strip > .bt-card { width: min(300px, calc(100vw - 72px)); scroll-snap-align: start; }
 }
 .bt-card { flex: none; width: 300px; display: grid; gap: 2px; padding: 10px 12px 10px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); position: relative; overflow: hidden; }
+/* inner tracks never grow past the card: long live text ellipsizes instead of pushing the numbers and buttons off the edge */
+.bt-card, .bt-legs { grid-template-columns: minmax(0, 1fr); }
+.bt-card > * { min-width: 0; }
+.bt-h b { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bt-h > span:first-child > * { flex: none; } .bt-h > span:first-child > b { flex: 0 1 auto; }
+.bt-h > :not(:first-child) { flex: none; }
+.bt-h { gap: 6px; }
+/* narrow cards: the status pill shrinks to just its dot (the card's colored edge and leg dots still say live/won/lost) */
+.bt-card { container: btc / inline-size; }
+@container btc (max-width: 330px) { .bt-pill.live .bt-pt { display: none; } .bt-pill.live { padding: 4px 6px; } }
 .bt-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
 .bt-card.live::before { background: var(--live); } .bt-card.won::before { background: var(--win); } .bt-card.lost::before { background: var(--loss); }
 .bt-card.live { border-color: color-mix(in oklab, var(--live) 40%, var(--line)); }

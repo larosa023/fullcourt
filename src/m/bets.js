@@ -233,7 +233,7 @@ function betCard(b, res) {
   const mini = readMin().has(b.id);
   return `<div class="bt-card ${st}${mini ? ' mini' : ''}" data-bid="${esc(b.id)}">
     <div class="bt-h"><span><b>${head}</b>${b.legs.length > 1 ? `<small title="${done} of ${b.legs.length - voids} legs hit${voids ? `, ${voids} void` : ''}">${done}/${b.legs.length - voids}${voids ? ` · ${voids}v` : ''}</small>` : ''}</span>
-      <span class="bt-pill ${st}">${st === 'live' ? '<i class="dot on"></i>' : ''}${pill}</span>
+      <span class="bt-pill ${st}" title="${esc(pill)}">${st === 'live' ? '<i class="dot on"></i>' : ''}<span class="bt-pt">${pill}</span></span>
       <button class="bt-sh" data-bteopen="${esc(b.id)}" title="${b.result ? 'Fix this bet (payout, stake, boost…)' : 'Edit this bet'}" aria-label="Edit this bet">${PEN}</button>
       <button class="bt-sh" data-betshare="${esc(b.id)}" title="Share as an image" aria-label="Share this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
