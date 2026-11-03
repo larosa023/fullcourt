@@ -278,13 +278,17 @@ async function aTeamRecord(t) {
   await loadStandings();
   const r = S.standings.confs.flatMap(c => c.rows).find(x => x.id === t.id);
   if (!r) return { text: `I couldn't find the ${esc(t.name)} in the standings.` };
+  if (IS_C) { const cs = S.teams[r.id]?.confShort || 'conference', rk = S.apRank?.get(String(r.id));
+    return { text: `${rk ? `No. ${rk} ` : ''}${esc(r.loc)} is <b>${r.w}-${r.l}</b> (${esc(r.conf)} in the ${esc(cs)}), ${esc(r.home)} at home and ${esc(r.road)} on the road${r.strk && r.strk !== '–' ? `, on a ${esc(r.strk)} streak` : ''}.`, html: card(tRow({ id: r.id, abbr: r.abbr, name: r.name }, `${r.w}-${r.l}`, `${esc(cs)} ${esc(r.conf)} · vs AP ${esc(r.vsAP)} · ${r.ppg} PPG`)), ctx: { teamId: r.id } }; }
   const conf = r.conf ? 'West' : 'East';
   const gb = r.gb === '-' || r.gb === '0' ? `leading the ${conf}` : `${r.gb} ${+r.gb === 1 ? 'game' : 'games'} back`;
   const text = `The ${esc(r.short)} are <b>${r.w}-${r.l}</b>, ${ordinal(r.seed)} in the ${conf} (${gb}). They're ${esc(r.home)} at home and ${esc(r.road)} on the road, on a ${esc(r.strk)} streak.`;
-  return { text, html: card(tRow({ id: r.id, abbr: r.abbr, name: r.name }, `${r.w}-${r.l}`, `${ordinal(r.seed)} ${conf} · L10 ${r.l10} · ${r.ppg} PPG · ${r.diff > 0 ? '+' : ''}${r.diffD} diff`)), ctx: { teamId: r.id } };
+  return { text, html: card(tRow({ id: r.id, abbr: r.abbr, name: r.name }, `${r.w}-${r.l}`, `${ordinal(r.seed)} ${conf} · L10 ${r.l10} · ${r.ppg} PPG · ${r.diff > 0 && !String(r.diffD).startsWith('+') ? '+' : ''}${r.diffD} diff`)), ctx: { teamId: r.id } };
 }
 async function aStandings(conf) {
   await loadStandings();
+  if (IS_C) { const p = (await lazy('college').then(m => m.loadPolls()).catch(() => null))?.[0];
+    return p ? { text: `The ${esc(p.name)} (${esc(p.when)}) has ${esc(p.ranks[0].name)} at No. 1.`, html: card(p.ranks.slice(0, 10).map(r => tRow({ id: r.id, abbr: r.abbr, name: r.name }, `#${r.rank}`, `${esc(r.rec || '')} · ${r.pts} pts`)).join('') + `<button class="btn ghost" data-view="standings">Full rankings</button>`) } : { text: 'The poll isn\'t available right now.' }; }
   const confs = conf == null ? [0, 1] : [conf];
   const parts = confs.map(c => {
     const rows = S.standings.confs[c].rows.slice(0, conf == null ? 6 : 15);

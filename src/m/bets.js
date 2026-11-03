@@ -48,7 +48,7 @@ function gameState(d) {
 const gameFrac = g => {
   if (!g || g.state === 'pre') return 0;
   if (g.state === 'post') return 1;
-  const per = IS_W ? 10 : 12, regs = 4;
+  const per = RULES.per / 60, regs = REG_PERIODS;
   const [mm, ss] = String(g.clock || '0:0').split(':').map(Number);
   const left = (mm || 0) + (ss || 0) / 60;
   const p = Math.min(g.period || 1, regs);

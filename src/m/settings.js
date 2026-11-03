@@ -26,7 +26,7 @@ function openSettings() {
       <section><h3 class="set-h">Appearance</h3><div class="set-list">
         <button class="set-row" data-settheme><span><b>Theme</b><small>Colors for the whole site</small></span><em class="set-val">${esc((THEMES.find(t => t[0] === themeId()) || THEMES[0])[1])}</em></button>
       </div></section>
-      <section><h3 class="set-h">Your data</h3><p class="set-note">Saved only in this browser, separately for ${LGN} and ${IS_W ? 'NBA' : 'WNBA'} mode.</p><div class="set-list">
+      <section><h3 class="set-h">Your data</h3><p class="set-note">Saved only in this browser, separately for each league (NBA, WNBA and college).</p><div class="set-list">
         <button class="set-row" data-clearpicks><span><b>Reset Pick'em</b><small>Clear your picks, record and streak</small></span><em class="set-val danger">Reset</em></button>
         <button class="set-row" data-clearwatch><span><b>Clear your players</b><small>Remove everyone from the strip on Scores</small></span><em class="set-val danger">Clear</em></button>
       </div></section>

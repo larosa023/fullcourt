@@ -810,22 +810,41 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 :root[data-league="wnba"] { --accent: #5B3FC4; --accent-ink: #FFFFFF; }
 @media (prefers-color-scheme: dark) { :root[data-league="wnba"]:not([data-theme="light"]) { --accent: #A48CFF; --accent-ink: #140C33; } }
 :root[data-league="wnba"][data-theme="dark"] { --accent: #A48CFF; --accent-ink: #140C33; }
+/* college: a deep court blue */
+:root[data-league^="ncaa"] { --accent: #1F5BD6; --accent-ink: #FFFFFF; }
+@media (prefers-color-scheme: dark) { :root[data-league^="ncaa"]:not([data-theme="light"]) { --accent: #7FA8FF; --accent-ink: #0A1633; } }
+:root[data-league^="ncaa"][data-theme="dark"] { --accent: #7FA8FF; --accent-ink: #0A1633; }
+:root[data-league^="ncaa"][data-skin="clean"], :root[data-league^="ncaa"][data-skin="ice"] { --accent: #1F5BD6; }
+/* no Bet desk in college (the books don't post college player props to our feeds) */
+:root[data-league^="ncaa"] [data-view="bets"] { display: none !important; }
+/* women's / men's toggle, only in college */
+.cg-switch { display: none; padding: 3px; border-radius: 999px; background: var(--surface-3); flex: none; margin-left: -4px; }
+:root[data-league^="ncaa"] .cg-switch { display: inline-flex; }
+.cg-switch button { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--muted); transition: background .25s, color .25s; }
+.cg-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
+.cg-switch button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+.cg-switch .cg-s { display: none; }
+@media (max-width: 1599px) and (min-width: 761px) { .cg-switch .cg-l { display: none; } .cg-switch .cg-s { display: inline; } .cg-switch button { padding: 5px 9px; } }
+select.count.cs-scope { appearance: none; -webkit-appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%; background-size: 4px 4px; background-repeat: no-repeat; cursor: pointer; font: inherit; color: var(--ink); border: 1px solid var(--line); }
+.rk { font-style: normal; font-family: var(--mono); font-size: .72em; font-weight: 600; color: var(--muted); margin-right: 5px; vertical-align: 1px; }
 .lg-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--surface-3); flex: none; }
 .lg-switch button { padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .03em; color: var(--muted); transition: background .2s, color .2s; }
 .lg-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .lg-switch button:hover:not([aria-pressed="true"]) { color: var(--ink); }
 .lg-badge { display: none; margin-left: 2px; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); align-self: center; }
-:root[data-league="wnba"] .lg-badge { display: inline-block; }
+:root:not([data-league="nba"]) .lg-badge { display: inline-block; }
 .drawer-lg { display: none; }
 @media (min-width: 761px) { .lg-badge { display: none !important; } }
 @media (max-width: 760px) {
-  .mast .lg-switch { display: none; }
+  .mast .lg-switch, .mast .cg-switch { display: none !important; }
+  .drawer-lg .cg-switch button { padding: 8px 14px; font-size: 14px; }
+  :root[data-league^="ncaa"] .drawer-lg { flex-wrap: wrap; }
   .drawer-lg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 0; }
   .drawer-lg .lg-switch button { padding: 8px 18px; font-size: 14px; }
 }
 @media (max-width: 400px) { .brand b { font-size: 21px; } }
-@media (max-width: 440px) { :root[data-league="wnba"] .brand { gap: 6px; } :root[data-league="wnba"] .lg-badge { padding: 2px 4px; font-size: 9.5px; margin-left: 0; } :root[data-league="wnba"] .mast-in { gap: 8px; } :root[data-league="wnba"] .mast-right { gap: 7px; } }
-@media (max-width: 385px) { :root[data-league="wnba"] .brand b { font-size: 19px; } }
+@media (max-width: 440px) { :root:not([data-league="nba"]) .brand { gap: 6px; } :root:not([data-league="nba"]) .lg-badge { padding: 2px 4px; font-size: 9.5px; margin-left: 0; } :root:not([data-league="nba"]) .mast-in { gap: 8px; } :root:not([data-league="nba"]) .mast-right { gap: 7px; } }
+@media (max-width: 385px) { :root:not([data-league="nba"]) .brand b { font-size: 19px; } }
 /* league switch: the header stays put; only the page content softly fades out, and back in once the new league has loaded */
 html { scrollbar-gutter: stable; }
 main, #ticker, #favLink { transition: opacity .22s ease; }

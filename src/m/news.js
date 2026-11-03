@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03a', date: 'Nov 3', items: [
+    ['College basketball', 'Tap NCAA in the league switch (or the menu on your phone) for women\'s and men\'s college hoops, with a Women | Men toggle beside it. Scores open on games with a ranked team, with every Division I game and each conference a pick away. Rankings has the AP and Coaches polls plus all 32 conference standings, Teams lists every school by conference, and games, box scores, play-by-play, win probability and team pages all work like they do for the pros.'],
+  ] },
   { id: '2026-11-01d', date: 'Nov 1', items: [
     ['More sportsbooks', 'The Bet desk now pulls lines from FanDuel, ESPN BET and other books a few times a day. A new Best column shows the friendliest line and price across books, and when DraftKings hasn\'t posted a prop yet you get the real FanDuel (or other book) line instead of an estimate. The prop breakdown has a By book card to compare every book at a glance.'],
   ] },

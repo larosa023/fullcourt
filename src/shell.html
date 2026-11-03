@@ -50,9 +50,9 @@
   try { const t = localStorage.getItem('fc-theme'), k = localStorage.getItem('fc-skin'); if (t) document.documentElement.dataset.theme = t; if (k) document.documentElement.dataset.skin = k; } catch (e) {}
   // settings: parts you've switched off stay hidden from the first paint
   try { const p = JSON.parse(localStorage.getItem('fc-prefs') || '{}'); Object.keys(p).forEach(k => { if (p[k] === false) document.documentElement.classList.add('no-' + k); }); } catch (e) {}
-  try { document.documentElement.dataset.league = localStorage.getItem('fc-league') === 'wnba' ? 'wnba' : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
+  try { const l = localStorage.getItem('fc-league'); document.documentElement.dataset.league = ['wnba', 'ncaaw', 'ncaam'].includes(l) ? l : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
   // a favourite team chip is coming: hold its space from the first paint so the buttons beside it don't hop when it appears
-  try { const w = document.documentElement.dataset.league === 'wnba'; if (localStorage.getItem(w ? 'fc-fav-wnba' : 'fc-fav')) document.documentElement.classList.add('has-fav'); } catch (e) {}
+  try { const l = document.documentElement.dataset.league; if (localStorage.getItem(l === 'nba' ? 'fc-fav' : 'fc-fav-' + l)) document.documentElement.classList.add('has-fav'); } catch (e) {}
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
@@ -72,11 +72,12 @@
         <circle cx="16" cy="16" r="5.5" stroke="var(--accent-ink)" stroke-width="1.6"/>
         <path d="M1.5 9.5a10 10 0 0 1 0 13M30.5 9.5a10 10 0 0 0 0 13" stroke="var(--accent-ink)" stroke-width="1.6"/>
       </svg>
-      <b>Full<i>court</i></b><span class="lg-badge">WNBA</span>
+      <b>Full<i>court</i></b><span class="lg-badge" id="lgBadge">WNBA</span>
     </a>
     <div class="lg-switch" role="group" aria-label="League">
-      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button>
+      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button><button data-lg="ncaa" aria-pressed="false" title="College basketball">NCAA</button>
     </div>
+    <div class="cg-switch" role="group" aria-label="College: women's or men's"><button data-lg="ncaaw" aria-pressed="false" title="Women's college basketball"><span class="cg-l">Women</span><span class="cg-s">W</span></button><button data-lg="ncaam" aria-pressed="false" title="Men's college basketball"><span class="cg-l">Men</span><span class="cg-s">M</span></button></div>
     <nav class="nav" id="nav" aria-label="Sections">
       <span class="pill" id="navPill"></span>
       <button data-view="scores">Scores</button>
@@ -225,8 +226,9 @@
     <button class="icon-btn" id="drawerClose" aria-label="Close menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="drawer-lg"><span class="eyebrow">League</span><div class="lg-switch" role="group" aria-label="League">
-      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button>
-    </div></div>
+      <button data-lg="nba" aria-pressed="false">NBA</button><button data-lg="wnba" aria-pressed="false">WNBA</button><button data-lg="ncaa" aria-pressed="false" title="College basketball">NCAA</button>
+    </div>
+    <div class="cg-switch" role="group" aria-label="College: women's or men's"><button data-lg="ncaaw" aria-pressed="false" title="Women's college basketball"><span class="cg-l">Women</span><span class="cg-s">W</span></button><button data-lg="ncaam" aria-pressed="false" title="Men's college basketball"><span class="cg-l">Men</span><span class="cg-s">M</span></button></div></div>
   <nav class="drawer-nav" aria-label="Sections">
     <button data-view="scores" style="--i:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 5v14M3 12h4M17 12h4"/></svg><span>Scores</span><em class="dlive" id="drawerLive" hidden></em></button>
     <button data-view="standings" style="--i:1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg><span>Standings</span></button>
