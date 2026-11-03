@@ -40,12 +40,22 @@ async function cmpData(id) {
   const st = ov?.statistics;
   const split = re => st?.splits?.find(s => re.test(s.displayName));
   const pack = sp => sp ? Object.fromEntries((st.labels || []).map((l, i) => [l, sp.stats[i]])) : null;
+  // college pages list seasons by year instead of "Regular Season" / "Career": read the per-game rows straight from the stats table,
+  // and before a player's first game of the year, show last season (and say so)
+  let cSeason = null, cCareer = null, seasonOf = '';
+  if (IS_C && avg) {
+    const byLab = row => row ? Object.fromEntries(avg.labels.map((l, i) => [l, row[i]])) : null;
+    const rows = avg.statistics || [];
+    const cur = curRow || null, last = cur ? null : rows[rows.length - 1];
+    cSeason = byLab((cur || last)?.stats); cCareer = byLab(avg.totals);
+    if (!cur && last) seasonOf = last.season?.displayName || 'last season';
+  }
   return (S.cmpCache[id] = {
     id, name: a.displayName || S.players[id]?.name || 'Player', first: a.firstName, last: a.lastName,
     teamId: a.team?.id || S.players[id]?.teamId, pos: a.position?.abbreviation || '', jersey: a.jersey || '',
     age: a.age, ht: a.displayHeight, exp: a.displayExperience,
-    season: pack(split(/regular/i)), career: pack(split(/career/i)),
-    adv: { season: avg ? advFrom(curRow?.stats, avg.labels, ddOf(curMisc?.stats)) : null, career: avg ? advFrom(avg.totals, avg.labels, misc ? ddOf(misc.totals) : null) : null },
+    season: IS_C ? cSeason : pack(split(/regular/i)), career: IS_C ? cCareer : pack(split(/career/i)), seasonOf,
+    adv: { season: avg ? advFrom((curRow || (IS_C ? avg.statistics?.at(-1) : null))?.stats, avg.labels, ddOf(curMisc?.stats || (IS_C ? misc?.statistics?.at(-1)?.stats : null))) : null, career: avg ? advFrom(avg.totals, avg.labels, misc ? ddOf(misc.totals) : null) : null },
   });
 }
 async function ensureCmpDefaults() {
@@ -95,6 +105,7 @@ async function renderCompare() {
         <span class="cmp-share"><button class="btn ghost sm" data-cmpshare title="Share this comparison as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg><span>Share</span></button><button class="btn ghost sm" data-cmplink title="Copy a link to this comparison"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg><span>Link</span></button></span>
         <span class="cmp-score"><b style="color:var(--sideA)">${esc(A.last || A.name)} ${winsA}</b> – <b style="color:var(--sideB)">${winsB} ${esc(B.last || B.name)}</b> <span class="eyebrow">categories won</span></span></div>
       <div class="cmp">${rows}</div>
+      ${S.cmpSplit === 'season' && (A.seasonOf || B.seasonOf) ? `<p class="odds-note">${[A, B].filter(P => P.seasonOf).map(P => `${esc(P.name)} hasn't played yet this season, so ${HIS === 'her' ? 'her' : 'his'} ${esc(P.seasonOf)} numbers are shown.`).join(' ')}</p>` : ''}
       ${missing ? `<p class="odds-note">${!sa && !sb ? 'Neither player has' : `${esc((!sa ? A : B).name)} hasn't`} played ${S.cmpSplit === 'season' ? 'this season' : 'yet'}, so some numbers are missing.</p>` : ''}
     </div>`;
   S.cmpShown = { A, B, sa, sb, winsA, winsB, stats: STATS, adv: ADV };
