@@ -364,3 +364,15 @@ button.pb:hover { background: var(--surface-2); }
 .pd-mc.sug small { font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--loss); margin-left: 4px; }
 .pd-mnote2 { margin: -2px 2px 6px !important; }
 @media (max-width: 760px) { .pd-mates .bd-sel { flex: 1 1 100%; max-width: none; height: 36px; font-size: 16px; } }
+
+/* prop detail: minutes projection */
+.pd-proj { color: var(--ink); font-weight: 600; }
+.pm-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.pm-top > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.pm-top b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 30px; line-height: 1; }
+.pm-top span { font-size: 12px; color: var(--muted); }
+.pm-top em { font-style: normal; font-weight: 600; } .pm-top em.up { color: var(--win); } .pm-top em.dn { color: var(--loss); }
+.pm-f { list-style: none; margin: 0; padding: 0; display: grid; }
+.pm-f li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 13.5px; }
+.pm-f li small { display: block; font-size: 11.5px; color: var(--muted); }
+.pm-f b { font-family: var(--mono); font-size: 13px; } .pm-f b.up { color: var(--win); } .pm-f b.dn { color: var(--loss); }

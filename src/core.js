@@ -2118,7 +2118,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-04a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-04b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2819,13 +2819,16 @@ async function playerTrends(id, box, seasonAvg) {
   }
   if (IS_C) html += '<div class="card splits-card csplits"></div>'; // college: splits built from the game logs (conference, ranked opponents, months, career highs)
   else if (sp?.splitCategories) { box._sp = sp; html += '<div class="card splits-card"></div>'; }
+  if (!IS_C && log.length) html += '<div class="card splits-card mates-card"></div>'; // with / without teammates, loaded when it scrolls into view
   if (!html) { box.remove(); return; }
   box.innerHTML = html;
   box.classList.add('in');
   wireDrag(box);
   const seg = $('[data-trseg]', box);
   if (seg) { placeKnob(seg); drawTrend(box, 'pts'); seg.addEventListener('click', e => { const b = e.target.closest('[data-tr]'); if (!b) return; $$('button', seg).forEach(x => x.setAttribute('aria-pressed', x === b)); placeKnob(seg); drawTrend(box, b.dataset.tr); }); }
-  const sc = $('.splits-card', box);
+  const mc = $('.mates-card', box);
+  if (mc) { const io = new IntersectionObserver(es => { if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('mates').then(m => m.drawMates(mc, id)).catch(() => mc.remove()); }, { rootMargin: '300px' }); io.observe(mc); }
+  const sc = $('.splits-card:not(.mates-card)', box);
   const slot = box.parentElement?.querySelector('.splits-slot');
   if (sc && slot) { slot.replaceWith(sc); if (!box.children.length) box.remove(); }
   if (sc && IS_C) lazy('csplits').then(m => m.drawCollegeSplits(sc, id)).catch(() => sc.remove());

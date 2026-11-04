@@ -1376,7 +1376,7 @@ async function openPropDetail(pid, k, m0, extra) {
   if (!IS_W) {
     pbpTeams().then(d => { pT = d; if (d) draw(); });
     if (g) restOf(r.teamId, etYmd(g.date).replace(/-/g, '')).then(x => { rest = x; draw(); });
-    matesOut(r).then(async ms => { if (!mates?.length && ms.length) mates = ms; if (!ms.length) return; wo = ms.map(x => ({ mate: x, loading: true })); draw(); wo = (await Promise.all(ms.map(x => wowy(r, x, k).catch(() => null)))).map((w, i) => w || { mate: ms[i], none: true }); draw(); });
+    matesOut(r).then(async ms => { if (!mates?.length && ms.length) mates = ms; if (!ms.length) return; ms.forEach(x => loadMate(String(x.id))); wo = ms.map(x => ({ mate: x, loading: true })); draw(); wo = (await Promise.all(ms.map(x => wowy(r, x, k).catch(() => null)))).map((w, i) => w || { mate: ms[i], none: true }); draw(); });
   }
   if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
   // teammate on/off filter: which games each picked teammate played (same game, same side, any minutes)
@@ -1394,6 +1394,32 @@ async function openPropDetail(pid, k, m0, extra) {
   const onTeam = (M, isPrev) => (isPrev ? prev : log).some(x => M.get(String(x.id)) === x.opp);
   const mateOk = g => { for (const [id, want] of mf) { const M = mlog.get(id); if (!M) return false; const played = M.get(String(g.id)) === g.opp; if (want === 'in' ? !played : played || !onTeam(M, !!g.prev)) return false; } return true; };
   const mateName = id => { const x = mateList.find(y => String(y.id) === id) || (mates || []).find(y => String(y.id) === id); return x ? (x.short || x.name) : 'Teammate'; };
+  // tonight's minutes: weighted recent minutes, then rest, blowout risk and teammates ruled out
+  const projMin = () => {
+    if (!g || g.state === 'post') return null;
+    const games = [...log, ...prev].filter(x => x.min > 0).sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (games.length < 3) return null;
+    const am = a => a.reduce((t, x) => t + x.min, 0) / a.length;
+    const L5 = games.slice(0, 5), L10 = games.slice(0, 10), seas = log.length >= 5 ? log : games.slice(0, 20);
+    const base = am(L5) * 0.5 + am(L10) * 0.3 + am(seas) * 0.2, f = [['Recent minutes', base, `${am(L5).toFixed(1)} last 5 · ${am(L10).toFixed(1)} last 10`]];
+    let adj = 0;
+    if (rest?.b2b && base >= 22) { f.push(['Back-to-back', -1.5]); adj -= 1.5; }
+    else if (rest?.three4 && base >= 22) { f.push(['3 games in 4 nights', -0.5]); adj -= 0.5; }
+    const sp = Math.abs(parseFloat(g.odds?.home?.spread));
+    if (sp >= 10 && base >= 26) { const v = sp >= 14 ? -2.5 : -1.5; f.push([`Blowout risk (${sp}-pt spread)`, v]); adj += v; }
+    let mateAdj = 0;
+    for (const x of mates || []) {
+      const M = mlog.get(String(x.id)); if (!M) continue;
+      const shared = y => M.get(String(y.id)) === y.opp, seasons = new Set(games.filter(shared).map(y => !!y.prev));
+      const w = games.filter(shared), wo = games.filter(y => !shared(y) && seasons.has(!!y.prev));
+      if (wo.length >= 3 && w.length >= 3) { const d = (am(wo) - am(w)) * 0.7; if (Math.abs(d) >= 0.3) { f.push([`${x.short || x.name} out`, d, `${am(wo).toFixed(1)} min in ${wo.length} games without him`]); mateAdj += d; } }
+    }
+    adj += Math.max(-5, Math.min(5, mateAdj));
+    const cap = RULES.per * REG_PERIODS / 60 - 2, min = Math.max(0, Math.min(cap, base + adj));
+    const sd = Math.sqrt(L10.reduce((t, x) => t + (x.min - am(L10)) ** 2, 0) / L10.length);
+    const P = L10.filter(x => propVal(x, k) != null), rate = P.reduce((t, x) => t + propVal(x, k), 0) / (P.reduce((t, x) => t + x.min, 0) || 1);
+    return { min, lo: Math.max(0, min - sd), hi: Math.min(cap + 2, min + sd), f, stat: rate * min, loading: (mates || []).some(x => mlog.get(String(x.id)) === null) };
+  };
   const keepDraw = () => { const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; };
   // last season's games, so L10 / L15 still mean ten and fifteen games early in a new season
   let prev = [];
@@ -1461,6 +1487,15 @@ async function openPropDetail(pid, k, m0, extra) {
     return `<div class="card pd-card"><div class="card-h"><h4>Matchup</h4><span class="eyebrow">PBPStats · ESPN</span></div>
       ${wrows.length ? `<ul class="pd-mu">${wrows.join('')}</ul>` : ''}${rows.length ? `<ul class="pd-mu">${rows.join('')}</ul>` : ''}${zones}</div>`;
   };
+  const minCard = () => {
+    const p = projMin(); if (!p) return '';
+    const d = p.stat - (m - 0.5), sgn = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1);
+    return `<div class="card pd-card pd-min"><div class="card-h"><h4>Minutes tonight</h4><span class="eyebrow">Projection</span></div>
+      <div class="pm-top"><div><b>${p.min.toFixed(1)}</b><span>min · likely ${Math.round(p.lo)}–${Math.round(p.hi)}</span></div>
+        <div><b>${p.stat.toFixed(1)}</b><span>${short} at his last-10 rate · <em class="${d >= 0 ? 'up' : 'dn'}">${sgn(d)} vs ${m - 0.5}</em></span></div></div>
+      <ul class="pm-f">${p.f.map(([l, v, sub], i) => `<li><span>${esc(l)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><b class="${i === 0 ? '' : v >= 0 ? 'up' : 'dn'}">${i === 0 ? v.toFixed(1) : sgn(v)}</b></li>`).join('')}${p.loading ? '<li><span>Checking teammates ruled out tonight</span><b><span class="bd-ld"></span></b></li>' : ''}</ul>
+      <p class="pp-note">A simple estimate: half his last 5 games, 30% his last 10, 20% the season, then adjusted for rest, the spread and anyone ruled out tonight. Not a guarantee.</p></div>`;
+  };
   const draw = () => {
     const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);
     const home = log.filter(x => x.atVs !== '@').map(x => propVal(x, k)), away = log.filter(x => x.atVs === '@').map(x => propVal(x, k));
@@ -1485,7 +1520,7 @@ async function openPropDetail(pid, k, m0, extra) {
         <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtLocal(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
-          <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}</small>
+          <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}${(() => { const p = projMin(); return p ? ` · <span class="pd-proj">Proj ${p.stat.toFixed(1)} in ${Math.round(p.min)} min</span>` : ''; })()}</small>
           ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa', 'fg2', 'fg2a', 'stl', 'blk', 'sb'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
         </div>
       </div>
@@ -1525,7 +1560,7 @@ async function openPropDetail(pid, k, m0, extra) {
         ${mLoading ? '<div class="sk" style="height:200px;border-radius:12px;margin-top:10px"></div>' : barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin, side)}
         ${showMin ? '<p class="pp-note pd-mnote"><i></i> Minutes played (0–48 scale)</p>' : ''}
         ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.${prev.length ? ' Faded bars are from last season.' : ''}</p>` : ''}
-      </div>${matchupCard()}`;
+      </div>${minCard()}${matchupCard()}`;
       })()}
       <div class="pd-stats"><div><span>Avg (L10)</span><b>${avg(L10)}</b></div><div><span>Median (L10)</span><b>${med(L10)}</b></div><div><span>Per 36 (L10)</span><b>${per36}</b></div><div><span>Minutes (L5)</span><b>${min5.toFixed(1)}</b></div><div><span>High</span><b>${all.length ? Math.max(...all) : '–'}</b></div><div><span>Low</span><b>${all.length ? Math.min(...all) : '–'}</b></div></div>
       <div class="card pd-card"><div class="card-h"><h4>What to know</h4></div><ul class="pd-notes">${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>

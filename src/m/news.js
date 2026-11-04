@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-04b', date: 'Nov 4', items: [
+    ['With / without on player pages', 'Every NBA and WNBA player page has a With / without card: his points, rebounds, assists and minutes in games each of his main teammates missed, and how that compares with games they played together. Biggest swings first; tap a teammate to open his page.'],
+    ['Minutes projection on props', 'Prop detail now projects his minutes tonight from his last 5, last 10 and season, adjusted for a back-to-back, a lopsided spread and any teammates ruled out (using how his minutes changed when they sat before). It shows the likely range, every adjustment, and the stat he\'d get at his recent per-minute rate, which also appears under the line at the top.'],
+  ] },
   { id: '2026-11-04a', date: 'Nov 4', items: [
     ['Teammate in / out on props', 'In a prop\'s detail view, pick any teammate under Game by game to see only the games he missed, then tap his chip to flip to games he played. The chart and the L5, L10, L15 and season hit rates all update. Stack more than one teammate, and anyone ruled out tonight shows up as a one-tap suggestion.'],
     ['All-Star games left out', 'All-Star games no longer show up in player game logs, prop charts or season highs.'],
