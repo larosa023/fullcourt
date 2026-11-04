@@ -2,7 +2,7 @@
 async function fillCareer(card, id) {
   const box = $('.career-in', card);
   let reg, post;
-  try { [reg, post] = await Promise.all([getJSON(`${WEB}/athletes/${id}/stats`), getJSON(`${WEB}/athletes/${id}/stats?seasontype=3`).catch(() => null)]); }
+  try { [reg, post] = await Promise.all([getJSON(`${WEB}/athletes/${id}/stats`), IS_C ? null : getJSON(`${WEB}/athletes/${id}/stats?seasontype=3`).catch(() => null)]); }
   catch (e) { card._loaded = false; box.innerHTML = '<p class="car-none">Career stats didn\'t load. Close and reopen to try again.</p>'; return; }
   const sets = [['reg', 'Regular season', parseCareer(reg)], ['post', 'Playoffs', parseCareer(post)]].filter(([, , d]) => d?.rows.length);
   if (!sets.length) { box.innerHTML = '<p class="car-none">No career stats yet.</p>'; return; }
