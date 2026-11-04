@@ -238,7 +238,7 @@ function betCard(b, res) {
       <button class="bt-sh" data-betshare="${esc(b.id)}" title="Share as an image" aria-label="Share this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="bt-min" data-betmin="${esc(b.id)}" aria-expanded="${!mini}" title="${mini ? 'Show details' : 'Minimize'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
       <button class="bt-x" data-betdel="${esc(b.id)}" title="Remove this bet" aria-label="Remove this bet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></button></div>
-    ${EDIT?.id === b.id ? editForm(b) : `<div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}>
+    ${EDIT?.id === b.id ? editForm(b) : `<div class="bt-legs">${b.legs.map((l, i) => { const r = res[i] || {}; return `<button class="bt-leg ${r.st || 'pending'}" ${l.gid ? `data-game="${esc(l.gid)}"` : ''}${l.gid && l.pid && (l.k === 'prop' || l.k === 'dd' || l.k === 'td') ? ` data-legpid="${esc(l.pid)}" title="Open the game at ${esc(l.name || 'this player')}'s line"` : ''}>
       <span class="bt-ic">${ICON[r.st] || (r.st === 'void' ? ICON.push : '')}</span>
       <span class="bt-fc">${l.pid && (l.k === 'prop' || l.k === 'dd' || l.k === 'td') ? face(l.pid, l.name || '', 'bt-face', 80) : l.abbr ? logo(l.abbr, 40) : ''}</span>
       <span class="bt-t"><b>${esc(legName(l))}</b><small>${esc(r.text || '')}${r.g && r.st !== 'pending' ? ` · ${esc(r.g.label)}` : ''}</small>
@@ -314,7 +314,7 @@ async function renderBets(force) {
     if (b.result && S.betRes[b.id] && b.legs.every(l => sums[l.gid]?.fin)) continue;
     const res = await gradeBet(b);
     const prev = S.betRes[b.id];
-    if (prev && !b.result) res.forEach((r, i) => { const p = prev[i]?.st; if ((r.st === 'won' || r.st === 'lost') && (p === 'live' || p === 'pending')) legAlert(b, b.legs[i], r); });
+    if (prev && !b.result) res.forEach((r, i) => { const p = prev[i]?.st; if ((r.st === 'won' || r.st === 'lost') && (p === 'live' || p === 'pending')) legAlert(b, b.legs[i], r); else milestoneAlert(b, i, r, prev[i]); });
     S.betRes[b.id] = res;
     const st = betStatus(res);
     const gamesOver = b.legs.every(l => sums[l.gid]?.fin);
@@ -331,6 +331,35 @@ function legAlert(b, l, r) {
   const won = r.st === 'won', left = (S.betRes[b.id] || []).filter((x, i) => x.st !== 'won' && x.st !== 'push' && x.st !== 'void' && i !== b.legs.indexOf(l)).length;
   const msg = `${won ? '✓' : '✗'} ${legName(l)} ${won ? 'hit' : 'missed'}${b.legs.length > 1 ? won ? left ? ` · ${left} to go` : ' · parlay cashed' : ' · parlay down' : ''}`;
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify(won ? 'Leg hit' : 'Leg missed', msg, l.gid || 'bets');
+  else toast(msg);
+}
+
+// a live player prop getting close: one bucket away, late in the game and still short, or an under nearly used up.
+// Each kind fires once per leg (remembered for the day so a reload doesn't repeat it).
+const MS_KEY = 'fc-legms';
+const msSeen = (() => { try { const v = JSON.parse(sessionStorage.getItem(MS_KEY) || '[]'); return new Set(v); } catch (e) { return new Set(); } })();
+const msMark = k => { msSeen.add(k); try { sessionStorage.setItem(MS_KEY, JSON.stringify([...msSeen].slice(-200))); } catch (e) {} };
+function milestoneAlert(b, i, r, prevR) {
+  const l = b.legs[i];
+  if (l.k !== 'prop' || r.st !== 'live' || r.now == null || !r.g || r.g.state !== 'in') return;
+  const over = l.side !== 'u', need = Math.floor(l.line) + 1 - r.now, room = Math.floor(l.line) - r.now;
+  // "close" = one more basket for points-type props, one more for counting stats like rebounds or steals
+  const scoring = l.stats.some(k => k === 'pts' || k === 'fg2' || k === 'fga' || k === 'fg2a' || k === 'tpa') || l.stats.length > 1;
+  const close = scoring ? 3 : 1;
+  const [mm, ss] = String(r.g.clock || '0:0').split(':').map(Number), secs = (mm || 0) * 60 + (ss || 0);
+  const late = r.g.period >= REG_PERIODS && secs <= 300;
+  const who = (l.name || 'Your player').split(' ').slice(-1)[0], what = l.stats.map(k => BSTAT[k]).join('+');
+  const when = `${r.g.clock} left in the ${r.g.period > REG_PERIODS ? 'OT' : RULES.halves ? '2nd half' : '4th'}`;
+  const base = `${b.id}:${i}:`;
+  let kind = null, msg = '';
+  if (over && need > 0 && need <= close && !msSeen.has(base + 'close')) { kind = 'close'; msg = `${who} needs ${need} more ${what} (${r.now} of ${Math.floor(l.line) + 1}) · ${r.g.label}`; }
+  else if (over && need > 0 && late && !msSeen.has(base + 'late')) { kind = 'late'; msg = `${who} needs ${need} more ${what} · ${when}`; }
+  else if (!over && room >= 0 && room < close && !msSeen.has(base + 'room')) { kind = 'room'; msg = `${who} is at ${r.now} ${what} · only ${room} to spare on the under (${l.line})`; }
+  if (!kind) return;
+  // only when it just became true (not on first load mid-game for something that was already the case)
+  if (prevR && prevR.now === r.now && kind !== 'late') { msMark(base + kind); return; }
+  msMark(base + kind);
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify(kind === 'room' ? 'Under in danger' : 'Leg is close', msg, l.gid || 'bets');
   else toast(msg);
 }
 

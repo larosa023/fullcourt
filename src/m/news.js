@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03f', date: 'Nov 3', items: [
+    ['Bet milestone alerts', 'Tracked bets now give you a heads-up while games are live: when a player is one basket (or one rebound, steal and so on) away from hitting an over, when an over still needs more in the last five minutes, and when an under is about to be blown. Each alert fires once per leg. With notifications on and the site in the background, they come as notifications.'],
+    ['Tap a leg for the box score', 'Tap any player leg on a tracked bet to open that game straight to his team\'s box score, with his row highlighted.'],
+  ] },
   { id: '2026-11-03e', date: 'Nov 3', items: [
     ['Share a stat line', 'Every player in a box score (and every game in a player\'s season game log) has a small share icon. It makes a clean image of that game: photo over the team colours, the matchup and final score, points, rebounds and assists up big, then steals, blocks, turnovers, minutes, shooting and +/-, with a badge for a double-double, triple-double or season high. On a computer it\'s copied, ready to paste; on a phone it opens the share sheet.'],
     ['Sharper share images', 'All share images (bets, comparisons, games) now use the condensed headline font like the rest of the site.'],

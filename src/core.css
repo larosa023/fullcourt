@@ -1423,3 +1423,6 @@ tr:hover .pl-sh, .pl-sh:focus-visible { opacity: 1; }
 @keyframes plsh { 50% { opacity: .35; } }
 @media (hover: none) { .pl-sh { opacity: .7; } }
 .log-d { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* opened from a bet leg: that player's row stands out */
+.box tr.focus td { background: color-mix(in oklab, var(--accent) 13%, var(--surface)); }
+.box tr.focus td:first-child { box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--line); }

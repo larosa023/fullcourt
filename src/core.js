@@ -1168,8 +1168,10 @@ function swipeToClose(el, sheet) {
 }
 
 /* ================= game flyout ================= */
-async function openGame(id) {
+async function openGame(id, opts = {}) {
   const sheet = openSheet('Game');
+  // opened from a bet leg: start on that player's team in the box score, scroll to his row and keep it highlighted
+  const focusPid = opts.focus ? String(opts.focus) : null; let focusDone = false;
   let tab = 'box', boxSide = 1, lastPlayId = null, first = true, clipCard = null, cur = null;
   const shotF = { team: 'all', pid: '' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
@@ -1244,7 +1246,9 @@ async function openGame(id) {
 
     const renderPane = () => {
       const pane = $('#gpane', sheet.body); if (!pane) return;
+      if (tab === 'box' && focusPid && !focusDone) { const T = (d.boxscore?.players || []).find(t => (t.statistics?.[0]?.athletes || []).some(a => String(a.athlete?.id) === focusPid)); const i = T ? sides.findIndex(s => String(s.id) === String(T.team?.id)) : -1; if (i >= 0) boxSide = i; }
       if (tab === 'box') pane.innerHTML = boxScore(d, sides, boxSide);
+      if (tab === 'box' && focusPid) { const row = $(`tr[data-player="${focusPid}"]`, pane); if (row) { row.classList.add('focus'); if (!focusDone) { focusDone = true; requestAnimationFrame(() => row.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' })); } } }
       if (tab === 'shots') pane.innerHTML = shotChart(d, sides, shotF);
       if (tab === 'team') pane.innerHTML = teamCompare(d, sides);
       if (tab === 'plays') pane.innerHTML = playsList(d, sides, lastPlayId, plF);
@@ -2114,7 +2118,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-03e'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-03f'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3232,7 +3236,7 @@ document.addEventListener('click', e => {
   if (cs) { S.cmpSplit = cs.dataset.cmpsplit; $$('#cmpSeg button').forEach(b => b.setAttribute('aria-pressed', b === cs)); placeKnob($('#cmpSeg')); renderCompare(); return; }
   const ex = el.closest('[data-expand]'); if (ex) { toggleFull(ex.closest('.sheet')); return; }
   const psh = el.closest('[data-pgshare]'); if (psh) { e.stopPropagation(); const [gid, pid] = psh.dataset.pgshare.split(':'); runShare(() => sharePlayerGame(gid, pid), psh); return; }
-  const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game); return; }
+  const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game, g.dataset.legpid ? { focus: g.dataset.legpid } : {}); return; }
   const tm = el.closest('[data-team]'); if (tm) { openTeam(tm.dataset.team); return; }
   const p = el.closest('[data-player]'); if (p) { openPlayer(p.dataset.player); return; }
   const d = el.closest('[data-date]'); if (d) { pickDate(d.dataset.date); return; }
