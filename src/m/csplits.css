@@ -1,0 +1,19 @@
+/* college player splits */
+.csp-yrs { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.csp-yrs .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.csp-tbl td:first-child { white-space: nowrap; }
+.csp-tbl .csp-h td { font-family: var(--mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding-top: 12px; }
+.csp-tbl .csp-sub td:first-child b { font-weight: 600; color: var(--ink-2); }
+.csp-note { margin: 8px 2px 0; font-size: 12px; color: var(--muted); }
+.csp-highs { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.csp-hh { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.csp-hh b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 15px; text-transform: uppercase; }
+.csp-hh span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.csp-hg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.csp-hi { display: grid; gap: 1px; text-align: left; padding: 9px 11px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); min-width: 0; }
+.csp-hi:hover { border-color: color-mix(in oklab, var(--accent) 50%, var(--line)); }
+.csp-hi span { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.csp-hi b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 26px; line-height: 1.05; }
+.csp-hi small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.csp-hi small i { font-style: normal; color: var(--accent); font-weight: 600; }
+@media (max-width: 560px) { .csp-hg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

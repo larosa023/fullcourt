@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03d', date: 'Nov 3', items: [
+    ['College player splits', 'College player pages have new Splits: pick any season to see home and away, wins and losses, conference vs non-conference games, games against AP Top 25 teams (ranked on the day they played), and month by month, with an Advanced view. Below it, career highs (points, rebounds, assists, threes, steals, blocks) from every college season, each a tap away from the box score.'],
+  ] },
   { id: '2026-11-03c', date: 'Nov 3', items: [
     ['NBA Cup', 'Standings has an NBA Cup tab: all six groups with the official tiebreakers (head-to-head, point differential with overtime games counting as zero, points scored), wild cards marked, and the knockout bracket, projected during group play and filled in with real games in December. Cup games on the Scores page are tagged with their group.'],
     ['College bracket', 'Rankings has a Bracket tab for men\'s and women\'s: the NCAA Tournament by region plus the Final Four, and every conference tournament round by round, with live scores. Last season\'s brackets are there until this season\'s start.'],
