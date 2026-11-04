@@ -2118,7 +2118,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-03f'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-04a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2227,7 +2227,7 @@ function paceOf(P, a, b) { const x = P?.pace?.[pbpAbbr(a)], y = P?.pace?.[pbpAbb
 // in memory, and in sessionStorage for 2 hours (last season's for a day) so a reload doesn't refetch them all
 const glMemo = new Map();
 function gameLog(pid, season) {
-  const k = `fc-gl2:${LG}:${pid}:${season || ''}`, ttl = season ? 864e5 : 2 * 3600e3;
+  const k = `fc-gl3:${LG}:${pid}:${season || ''}`, ttl = season ? 864e5 : 2 * 3600e3;
   const m = glMemo.get(k); if (m && Date.now() - m.t < ttl) return m.p;
   try { const c = JSON.parse(sessionStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < ttl) { const p = Promise.resolve(c.d); glMemo.set(k, { t: c.t, p }); return p; } } catch (e) {}
   const p = gameLogFetch(pid, season).then(d => { try { sessionStorage.setItem(k, JSON.stringify({ t: Date.now(), d })); } catch (e) {} return d; });
@@ -2243,6 +2243,8 @@ async function gameLogFetch(pid, season) {
     if (/preseason/i.test(st.displayName || '')) continue;
     for (const c of st.categories || []) for (const e of c.events || []) {
       const m = d.events?.[e.eventId] || {};
+      // All-Star games sit in the regular season list; their "opponents" (Team Stars, World...) aren't franchises
+      if ((LGK === 'nba' && +m.opponent?.id > 30) || /^(team |world$|usa|rising|all-?star)/i.test(m.opponent?.displayName || '')) continue;
       const v = k => e.stats[lab.indexOf(k)];
       const split = s => { const [a, b] = String(s || '0-0').split('-').map(Number); return [a || 0, b || 0]; };
       evs.push({ id: e.eventId, date: m.gameDate, opp: m.opponent?.abbreviation || '', oppId: m.opponent?.id, oppRank: +m.opponent?.rank || null, atVs: m.atVs || '', res: m.gameResult || '', score: m.score || '',

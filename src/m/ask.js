@@ -1376,9 +1376,25 @@ async function openPropDetail(pid, k, m0, extra) {
   if (!IS_W) {
     pbpTeams().then(d => { pT = d; if (d) draw(); });
     if (g) restOf(r.teamId, etYmd(g.date).replace(/-/g, '')).then(x => { rest = x; draw(); });
-    matesOut(r).then(async ms => { if (!ms.length) return; wo = ms.map(x => ({ mate: x, loading: true })); draw(); wo = (await Promise.all(ms.map(x => wowy(r, x, k).catch(() => null)))).map((w, i) => w || { mate: ms[i], none: true }); draw(); });
+    matesOut(r).then(async ms => { if (!mates?.length && ms.length) mates = ms; if (!ms.length) return; wo = ms.map(x => ({ mate: x, loading: true })); draw(); wo = (await Promise.all(ms.map(x => wowy(r, x, k).catch(() => null)))).map((w, i) => w || { mate: ms[i], none: true }); draw(); });
   }
   if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
+  // teammate on/off filter: which games each picked teammate played (same game, same side, any minutes)
+  const mf = new Map(), mlog = new Map(); let mateList = [];
+  leagueTable().then(rows => { mateList = rows.filter(x => String(x.teamId) === String(r.teamId) && String(x.id) !== String(r.id) && x.gp >= 1).sort((a, b) => (b.min || 0) * (b.gp || 0) - (a.min || 0) * (a.gp || 0)).slice(0, 12); draw(); }).catch(() => {});
+  const loadMate = id => {
+    if (mlog.has(id)) return; mlog.set(id, null);
+    const now = new Date(), cur = IS_W ? now.getFullYear() : now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0);
+    Promise.all([gameLog(id).catch(() => []), prev.length ? gameLog(id, cur - 1).catch(() => []) : []]).then(([a, b]) => {
+      const M = new Map(); for (const x of [...a, ...b]) if (x.min > 0) M.set(String(x.id), x.opp); mlog.set(id, M); keepDraw();
+    });
+  };
+  // a game passes when every picked teammate is in (played for his team) or out (didn't), as asked
+  // "without" only counts seasons he played at least one game for this team, so a newcomer's old team doesn't count
+  const onTeam = (M, isPrev) => (isPrev ? prev : log).some(x => M.get(String(x.id)) === x.opp);
+  const mateOk = g => { for (const [id, want] of mf) { const M = mlog.get(id); if (!M) return false; const played = M.get(String(g.id)) === g.opp; if (want === 'in' ? !played : played || !onTeam(M, !!g.prev)) return false; } return true; };
+  const mateName = id => { const x = mateList.find(y => String(y.id) === id) || (mates || []).find(y => String(y.id) === id); return x ? (x.short || x.name) : 'Teammate'; };
+  const keepDraw = () => { const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; };
   // last season's games, so L10 / L15 still mean ten and fifteen games early in a new season
   let prev = [];
   if (log.length < 15) { const now = new Date(), cur = IS_W ? now.getFullYear() : now.getFullYear() + (now.getMonth() >= 7 ? 1 : 0); gameLog(pid, cur - 1).then(l => { const have = new Set(log.map(g => String(g.id))); prev = l.filter(g => g.min > 0 && !have.has(String(g.id))).map(g => ({ ...g, prev: true })); if (prev.length) draw(); }).catch(() => {}); }
@@ -1475,7 +1491,14 @@ async function openPropDetail(pid, k, m0, extra) {
       </div>
       ${(() => {
         // filters first, then the range strip and the chart both read from the filtered games
-        const pool = [...log, ...dnps, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)).filter(g => (ha === 'all' || (ha === 'home' ? g.atVs !== '@' : g.atVs === '@')) && (oppF === 'all' || g.opp === oppF));
+        const pool = [...log, ...dnps, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date)).filter(g => (ha === 'all' || (ha === 'home' ? g.atVs !== '@' : g.atVs === '@')) && (oppF === 'all' || g.opp === oppF) && (!mf.size || mateOk(g)));
+        const mLoading = [...mf.keys()].some(id => !mlog.get(id));
+        const outTonight = (mates || []).filter(x => !mf.has(String(x.id)));
+        const mateRow = mateList.length || mf.size ? `<div class="pd-mates">
+          <select class="bd-sel" data-pdmate aria-label="Filter by a teammate in or out"><option value="">+ Teammate in / out</option>${mateList.filter(x => !mf.has(String(x.id))).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+          ${[...mf].map(([id, w]) => `<span class="pd-mc ${w}"><button data-pdmt="${id}" title="Switch between games he played and games he missed"><em>${w === 'out' ? 'Without' : 'With'}</em> ${esc(mateName(id))}</button><button data-pdmx="${id}" aria-label="Remove">×</button></span>`).join('')}
+          ${outTonight.map(x => `<button class="pd-mc sug" data-pdmsug="${x.id}" title="He's out tonight. See only games he missed">+ Without ${esc(x.short || x.name)} <small>out tonight</small></button>`).join('')}
+        </div>${mf.size && !mLoading ? `<p class="pp-note pd-mnote2">${pool.filter(g => !g.dnp).length} game${pool.filter(g => !g.dnp).length === 1 ? '' : 's'} ${[...mf].map(([id, w]) => `${w === 'out' ? 'without' : 'with'} ${esc(mateName(id))}`).join(' and ')}${prev.length ? ', this season and last' : ''}. Hit rates above use only these games.</p>` : ''}` : '';
         const played = pool.filter(g => !g.dnp), vv = a => a.map(g => propVal(g, k));
         const H2H = opp ? played.filter(g => String(g.oppId) === String(opp.id) || g.opp === opp.abbr) : [];
         const cur = played.filter(g => !g.prev);
@@ -1498,7 +1521,8 @@ async function openPropDetail(pid, k, m0, extra) {
           <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </div></div>
-        ${barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin, side)}
+        ${mateRow}
+        ${mLoading ? '<div class="sk" style="height:200px;border-radius:12px;margin-top:10px"></div>' : barChart([...shown].reverse(), k, m, k === 'reb' ? pbp : null, showMin, side)}
         ${showMin ? '<p class="pp-note pd-mnote"><i></i> Minutes played (0–48 scale)</p>' : ''}
         ${extra ? `<div class="pd-stats pd-pbp">${extra}</div><p class="pp-note">${k === 'reb' ? 'Bars split offensive (bottom) and defensive boards. Reb share is the % of rebounds available while he was on the floor that he grabbed; hover a bar for each game. ' : ''}Rebound and assist detail from PBPStats play-by-play.${prev.length ? ' Faded bars are from last season.' : ''}</p>` : ''}
       </div>${matchupCard()}`;
@@ -1517,6 +1541,9 @@ async function openPropDetail(pid, k, m0, extra) {
       m = Math.max(1, m + +st.dataset.pdstep);
       draw(); return;
     }
+    const mt = e.target.closest('[data-pdmt]'); if (mt) { const id = mt.dataset.pdmt; mf.set(id, mf.get(id) === 'out' ? 'in' : 'out'); keepDraw(); return; }
+    const mx = e.target.closest('[data-pdmx]'); if (mx) { mf.delete(mx.dataset.pdmx); keepDraw(); return; }
+    const ms = e.target.closest('[data-pdmsug]'); if (ms) { const id = ms.dataset.pdmsug; mf.set(id, 'out'); loadMate(id); keepDraw(); return; }
     const rg = e.target.closest('[data-pdrng]'); if (rg) { rng = rg.dataset.pdrng; draw(); return; }
     if (e.target.closest('[data-pdmin]')) { showMin = !showMin; lsSet('fc-pd-min', showMin ? '1' : null); draw(); return; }
     const sd = e.target.closest('[data-pdside]'); if (sd) { side = sd.dataset.pdside; draw(); return; }
@@ -1528,6 +1555,7 @@ async function openPropDetail(pid, k, m0, extra) {
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }
   });
   sheet.body.addEventListener('change', e => {
+    const mp = e.target.closest('[data-pdmate]'); if (mp) { if (mp.value) { mf.set(mp.value, 'out'); loadMate(mp.value); } keepDraw(); return; }
     const h = e.target.closest('[data-pdha]'), o = e.target.closest('[data-pdopp]');
     if (h || o) { if (h) ha = h.value; if (o) oppF = o.value; const y = sheet.body.scrollTop; draw(); sheet.body.scrollTop = y; return; }
   });

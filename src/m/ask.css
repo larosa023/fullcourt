@@ -347,3 +347,20 @@ button.pd-alt:hover { background: var(--surface-2); }
 button.pb:hover { background: var(--surface-2); }
 .pb.on { background: color-mix(in oklab, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent); }
 .pb .best { color: var(--win); }
+
+/* prop detail: teammate in/out filter */
+.pd-mates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 8px; }
+.pd-mates .bd-sel { height: 32px; font-size: 13px; padding: 0 8px; max-width: 210px; }
+.pd-mc { display: inline-flex; align-items: center; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; }
+.pd-mc button { height: 100%; padding: 0 9px; color: inherit; font: inherit; }
+.pd-mc button + button { padding: 0 9px 0 4px; color: var(--muted); font-size: 15px; }
+.pd-mc em { font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; margin-right: 3px; }
+.pd-mc.out { border-color: color-mix(in oklab, var(--loss) 45%, var(--line)); background: color-mix(in oklab, var(--loss) 9%, var(--surface)); }
+.pd-mc.out em { color: var(--loss); }
+.pd-mc.in { border-color: color-mix(in oklab, var(--win) 45%, var(--line)); background: color-mix(in oklab, var(--win) 9%, var(--surface)); }
+.pd-mc.in em { color: var(--win); }
+.pd-mc.sug { padding: 0 10px; border-style: dashed; color: var(--muted); font-weight: 500; }
+.pd-mc.sug:hover { color: var(--ink); }
+.pd-mc.sug small { font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--loss); margin-left: 4px; }
+.pd-mnote2 { margin: -2px 2px 6px !important; }
+@media (max-width: 760px) { .pd-mates .bd-sel { flex: 1 1 100%; max-width: none; height: 36px; font-size: 16px; } }

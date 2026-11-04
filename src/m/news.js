@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-04a', date: 'Nov 4', items: [
+    ['Teammate in / out on props', 'In a prop\'s detail view, pick any teammate under Game by game to see only the games he missed, then tap his chip to flip to games he played. The chart and the L5, L10, L15 and season hit rates all update. Stack more than one teammate, and anyone ruled out tonight shows up as a one-tap suggestion.'],
+    ['All-Star games left out', 'All-Star games no longer show up in player game logs, prop charts or season highs.'],
+  ] },
   { id: '2026-11-03f', date: 'Nov 3', items: [
     ['Bet milestone alerts', 'Tracked bets now give you a heads-up while games are live: when a player is one basket (or one rebound, steal and so on) away from hitting an over, when an over still needs more in the last five minutes, and when an under is about to be blown. Each alert fires once per leg. With notifications on and the site in the background, they come as notifications.'],
     ['Tap a leg for the box score', 'Tap any player leg on a tracked bet to open that game straight to his team\'s box score, with his row highlighted.'],
