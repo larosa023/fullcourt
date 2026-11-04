@@ -473,6 +473,8 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .box tr.dnp td { color: var(--muted); }
 .box tr.tot td { font-weight: 700; border-bottom: 0; }
 .box .pl { display: flex; align-items: center; gap: 8px; text-align: left; min-width: 170px; max-width: 230px; }
+.box .pl:has(.pl-sh) { min-width: 196px; max-width: 256px; }
+.box .pl .pl-sh { margin-left: auto; }
 .box .pl b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .box .pl .jno, .box .pl span { flex: none; }
 .box .pl .jno { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 0; }
@@ -1411,3 +1413,13 @@ table.box.adv { min-width: 560px; }
   .mast { position: fixed; top: 0; left: 0; right: 0; padding-top: env(safe-area-inset-top, 0px); }
   body { padding-top: calc(55px + env(safe-area-inset-top, 0px)); }
 }
+
+/* box score: share one player's line as an image */
+.pl-sh { width: 24px; height: 24px; flex: none; display: inline-grid; place-items: center; margin-left: 2px; border-radius: 7px; color: var(--muted); opacity: .45; transition: opacity .15s, background .15s, color .15s; }
+.pl-sh svg { width: 13px; height: 13px; }
+tr:hover .pl-sh, .pl-sh:focus-visible { opacity: 1; }
+.pl-sh:hover { background: var(--hl-bg); color: var(--ink); }
+.pl-sh.busy { opacity: 1; animation: plsh 1s linear infinite; }
+@keyframes plsh { 50% { opacity: .35; } }
+@media (hover: none) { .pl-sh { opacity: .7; } }
+.log-d { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }

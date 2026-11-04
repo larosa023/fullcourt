@@ -1329,7 +1329,7 @@ function boxScore(d, sides, bi) {
       <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b>${a.athlete.jersey ? `<span class="jno">#${esc(a.athlete.jersey)}</span>` : ''}<span>${esc(a.athlete.position?.abbreviation || '')}</span></span><div class="inj-line inj-red">${injuryText(inj)}</div></td>
       <td colspan="${labels.length}"></td></tr>`;
     return `<tr class="${dnp ? 'dnp' : ''}" data-player="${a.athlete.id}" style="cursor:pointer">
-      <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b>${a.athlete.jersey ? `<span class="jno">#${esc(a.athlete.jersey)}</span>` : ''}<span>${esc(a.athlete.position?.abbreviation || '')}</span></span></td>
+      <td><span class="pl">${face(a.athlete.id, a.athlete.displayName, '', 80)}<b>${esc(a.athlete.shortName || a.athlete.displayName)}</b>${a.athlete.jersey ? `<span class="jno">#${esc(a.athlete.jersey)}</span>` : ''}<span>${esc(a.athlete.position?.abbreviation || '')}</span>${dnp || !d.header?.id ? '' : `<button class="pl-sh" data-pgshare="${esc(d.header.id)}:${esc(a.athlete.id)}" title="Share ${esc(a.athlete.shortName || a.athlete.displayName)}'s stat line as an image" aria-label="Share stat line">${SHARE_ICON}</button>`}</span></td>
       ${dnp ? `<td colspan="${labels.length}" style="text-align:left">${esc((a.reason || 'DNP').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}</td>` : cols(a.stats).map(([v, i]) => `<td class="${i === ptsIdx ? 'pts' : ''}${shotIdx.has(i) ? ' sc' : ''}">${cellOf(v, i)}</td>`).join('')}
     </tr>`;
   };
@@ -2063,6 +2063,25 @@ const nameKey = s => deaccent(s).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').repla
 const card = inner => `<div class="ask-card">${inner}</div>`;
 /* ---------------- share as an image ---------------- */
 const SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+// make an image and hand it over: copied to the clipboard on a computer, the share sheet on a phone
+async function runShare(fn, b) {
+  if (b?.classList.contains('busy')) return;
+  b?.classList.add('busy');
+  const copyMode = !isTouch && !!navigator.clipboard?.write && 'ClipboardItem' in window;
+  // start drawing right away; the clipboard gets the finished picture as soon as it's ready
+  const job = Promise.resolve().then(fn).then(async o => { if (!o) throw new Error('nothing to share'); o.blob = await canvasBlob(o.canvas); return o; });
+  try {
+    if (copyMode) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': job.then(o => o.blob) })]);
+        toast('Image copied. Paste it anywhere');
+      } catch (err) { saveImage(await job); }
+    } else {
+      await shareImage(await job);
+    }
+  } catch (err) { toast("Couldn't make the image"); }
+  b?.classList.remove('busy');
+}
 function addShareBtn(sheet, fn) {
   const bar = $('.sheet-bar', sheet.el); if (!bar || $('[data-share]', bar)) return;
   const b = document.createElement('button');
@@ -2070,24 +2089,7 @@ function addShareBtn(sheet, fn) {
   const label = copyMode ? 'Copy as image' : 'Share as image';
   b.className = 'icon-btn share-btn'; b.dataset.share = ''; b.setAttribute('aria-label', label); b.title = label;
   b.innerHTML = SHARE_ICON;
-  b.addEventListener('click', async e => {
-    e.stopPropagation();
-    if (b.classList.contains('busy')) return;
-    b.classList.add('busy');
-    // start drawing right away; the clipboard gets the finished picture as soon as it's ready
-    const job = Promise.resolve().then(fn).then(async o => { if (!o) throw new Error('nothing to share'); o.blob = await canvasBlob(o.canvas); return o; });
-    try {
-      if (copyMode) {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': job.then(o => o.blob) })]);
-          toast('Image copied. Paste it anywhere');
-        } catch (err) { saveImage(await job); }
-      } else {
-        await shareImage(await job);
-      }
-    } catch (err) { toast("Couldn't make the image"); }
-    b.classList.remove('busy');
-  });
+  b.addEventListener('click', e => { e.stopPropagation(); runShare(fn, b); });
   bar.insertBefore(b, $('[data-expand]', bar));
 }
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -2112,7 +2114,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-03d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-03e'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2139,6 +2141,7 @@ const openMulti = stub('multi', 'openMulti');
 const renderAward = stub('awards', 'renderAward');
 const shareGame = stub('share', 'shareGame');
 const sharePlayer = stub('share', 'sharePlayer');
+const sharePlayerGame = stub('share', 'sharePlayerGame');
 const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
@@ -3228,6 +3231,7 @@ document.addEventListener('click', e => {
   const cs = el.closest('[data-cmpsplit]');
   if (cs) { S.cmpSplit = cs.dataset.cmpsplit; $$('#cmpSeg button').forEach(b => b.setAttribute('aria-pressed', b === cs)); placeKnob($('#cmpSeg')); renderCompare(); return; }
   const ex = el.closest('[data-expand]'); if (ex) { toggleFull(ex.closest('.sheet')); return; }
+  const psh = el.closest('[data-pgshare]'); if (psh) { e.stopPropagation(); const [gid, pid] = psh.dataset.pgshare.split(':'); runShare(() => sharePlayerGame(gid, pid), psh); return; }
   const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game); return; }
   const tm = el.closest('[data-team]'); if (tm) { openTeam(tm.dataset.team); return; }
   const p = el.closest('[data-player]'); if (p) { openPlayer(p.dataset.player); return; }

@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-03e', date: 'Nov 3', items: [
+    ['Share a stat line', 'Every player in a box score (and every game in a player\'s season game log) has a small share icon. It makes a clean image of that game: photo over the team colours, the matchup and final score, points, rebounds and assists up big, then steals, blocks, turnovers, minutes, shooting and +/-, with a badge for a double-double, triple-double or season high. On a computer it\'s copied, ready to paste; on a phone it opens the share sheet.'],
+    ['Sharper share images', 'All share images (bets, comparisons, games) now use the condensed headline font like the rest of the site.'],
+  ] },
   { id: '2026-11-03d', date: 'Nov 3', items: [
     ['College player splits', 'College player pages have new Splits: pick any season to see home and away, wins and losses, conference vs non-conference games, games against AP Top 25 teams (ranked on the day they played), and month by month, with an Advanced view. Below it, career highs (points, rebounds, assists, threes, steals, blocks) from every college season, each a tap away from the box score.'],
   ] },
