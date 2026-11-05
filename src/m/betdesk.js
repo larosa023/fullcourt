@@ -446,7 +446,8 @@ function bdTable(main, keepScroll, final, soft) {
     // only lines priced inside the range; overs also bring in DraftKings' alt lines at those prices
     const sd = BD.odds.side, alts = [];
     if (sd !== 'u' && BD.side === 'o') for (const x of list) { if (x.est || Q1.has(x.k)) continue; for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
-    list = list.filter(x => !x.est && (sd === 'o' ? inOdds(x.over) : sd === 'u' ? inOdds(x.under) : inOdds(x.over) || inOdds(x.under))).concat(alts);
+    // Fullcourt-estimated lines have no price to judge, so they stay (otherwise FGA, 3PA and 2PT markets vanish)
+    list = list.filter(x => x.est || (sd === 'o' ? inOdds(x.over) : sd === 'u' ? inOdds(x.under) : inOdds(x.over) || inOdds(x.under))).concat(alts);
   }
   BD.shown = list;
   const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
@@ -514,7 +515,7 @@ function bdTable(main, keepScroll, final, soft) {
           <td class="tr">${Q1.has(x.k) ? '' : (() => { const on = inSlip(x); return `<button class="bd-add${on ? ' on' : ''}" data-bdslip="${x.pid}|${x.k}|${x.line}" title="${on ? 'Remove from parlay' : 'Add to parlay'}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(x.p.name)} ${BD.side === 'u' ? 'under' : 'over'} ${x.line} ${on ? 'from' : 'to'} the parlay">${on ? '✓' : '+'}</button>`; })()}</td>
 
         </tr>`;
-      }).join('')}</tbody></table></div>${full.length > list.length ? `<button class="btn bd-more" data-bdmore>Show ${Math.min(100, full.length - list.length)} more <small>${list.length} of ${full.length}</small></button>` : ''}` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : 'Try another market or game.'}</div>`}
+      }).join('')}</tbody></table></div>${full.length > list.length ? `<button class="btn bd-more" data-bdmore>Show ${Math.min(100, full.length - list.length)} more <small>${list.length} of ${full.length}</small></button>` : ''}` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : BD.odds ? `Your odds filter (${esc(oddsTxt(BD.odds.min) || 'any')} to ${esc(oddsTxt(BD.odds.max) || 'any')}) may be hiding them. <button class="link-btn" data-bdoclear>Clear it</button>` : 'Try another market or game.'}</div>`}
     ${(SEL || []).some(k => EST.has(k)) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(SEL.filter(k => EST.has(k)).map(k => MARKETS.find(q => q[0] === k)[1]).join(', '))} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${mkQ1() ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">DraftKings hasn't posted props yet for ${esc(BD.missing.join(', '))}. Lines tagged with another book (FD, ESPN…) are that book's real line; <em class="est">est</em> lines are Fullcourt's, set at each player's recent average, until a book posts.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}</div>
