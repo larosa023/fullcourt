@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 const KEY = process.env.SGO_KEY;
 if (!KEY) { console.error('SGO_KEY missing'); process.exit(1); }
 const H = { 'X-Api-Key': KEY };
-const STAT = { points: 'pts', rebounds: 'reb', assists: 'ast', threePointersMade: 'tpm', 'points+rebounds+assists': 'pra', 'points+rebounds': 'pr', 'points+assists': 'pa', 'rebounds+assists': 'ra', steals: 'stl', blocks: 'blk', 'blocks+steals': 'sb' };
+const STAT = { points: 'pts', rebounds: 'reb', assists: 'ast', threePointersMade: 'tpm', 'points+rebounds+assists': 'pra', 'points+rebounds': 'pr', 'points+assists': 'pa', 'rebounds+assists': 'ra', steals: 'stl', blocks: 'blk', 'blocks+steals': 'sb', fieldGoalsAttempted: 'fga', threePointersAttempted: 'tpa', twoPointersMade: 'fg2', twoPointersAttempted: 'fg2a' };
 const now = new Date(), until = new Date(now.getTime() + (+process.env.HOURS || 22) * 3600e3);
 const events = [];
 let cursor = '';
