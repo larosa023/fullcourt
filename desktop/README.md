@@ -5,8 +5,9 @@ It pulls the same live data as the site: scores and stats from ESPN, props from 
 
 * **Build a test copy:** push to the `desktop` branch, or run the *desktop* workflow from the Actions tab.
   The installer shows up as a download on that workflow run.
-* **Ship a version:** tag it, e.g. `git tag desktop-v1.0.1 && git push origin desktop-v1.0.1`.
-  GitHub builds it and publishes `Fullcourt-Setup.exe` on the Releases page. The app checks Releases and
-  offers the update to anyone running an older version.
+* **Ship a version:** change the number in `desktop/VERSION` (e.g. `1.0.1`) and push to main. GitHub builds it
+  and publishes `Fullcourt-Setup.exe` as release `desktop-v1.0.1`. (Pushing a `desktop-v…` tag works too.)
+  The app checks Releases and offers the update to anyone running an older version. Website changes reach the
+  app only when a new version ships. Changes inside `desktop/` don't trigger a Netlify deploy.
 
 Nothing in this folder is used by the website. The site code knows it's inside the app when `window.__TAURI__` exists.

@@ -1,10 +1,12 @@
-# Builds the Windows app (desktop/). Test builds: push to the desktop branch or run it by hand; the installer is
-# attached to the run. Releases: push a tag like desktop-v1.0.1 and it's published on the Releases page.
+# Builds the Windows app (desktop/).
+# Releases: change desktop/VERSION on main (e.g. 1.0.1). GitHub builds it and publishes desktop-v1.0.1 on the Releases page.
+# Test builds: push to the desktop branch or run it by hand; the installer is attached to the run.
 name: desktop
 on:
   push:
+    branches: [main, desktop]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
     tags: ['desktop-v*']
-    branches: [desktop]
   workflow_dispatch:
 permissions:
   contents: write
@@ -26,9 +28,13 @@ jobs:
           cp -r index.html assets fonts data ocr manifest.webmanifest favicon-32.png apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png desktop/dist/
       - name: Set the version
         shell: bash
+        env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then V="${GITHUB_REF_NAME#desktop-v}"; else V="0.0.${GITHUB_RUN_NUMBER}"; fi
-          echo "V=$V" >> "$GITHUB_ENV"
+          REL=0
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then V="${GITHUB_REF_NAME#desktop-v}"; REL=1
+          elif [[ "$GITHUB_REF" == refs/heads/main ]]; then V="$(tr -d ' \r\n' < desktop/VERSION)"; gh release view "desktop-v$V" >/dev/null 2>&1 || REL=1
+          else V="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "V=$V" >> "$GITHUB_ENV"; echo "REL=$REL" >> "$GITHUB_ENV"; echo "version $V, release $REL"
           V="$V" node -e "const f='desktop/src-tauri/tauri.conf.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=process.env.V;fs.writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Build
         working-directory: desktop
@@ -41,8 +47,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: 'Fullcourt-Setup-${{ env.V }}', path: Fullcourt-Setup.exe }
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        if: env.REL == '1'
         shell: bash
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          gh release create "$GITHUB_REF_NAME" Fullcourt-Setup.exe --title "Fullcourt for Windows $V" --notes "Download **Fullcourt-Setup.exe** below and run it. Windows may say it protected your PC the first time (the app isn't code-signed): click **More info**, then **Run anyway**. Installing a newer version over an older one keeps your bets and settings."
+          gh release create "desktop-v$V" Fullcourt-Setup.exe --target "$GITHUB_SHA" --title "Fullcourt for Windows $V" --notes "Download **Fullcourt-Setup.exe** below and run it. Windows may say it protected your PC the first time (the app isn't code-signed): click **More info**, then **Run anyway**. Installing a newer version over an older one keeps your bets and settings."
