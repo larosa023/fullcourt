@@ -25,7 +25,7 @@ const MARKETS = [
   ['q1a', '1Q Ast', '1Q AST', null, '1st quarter assists'],
 ];
 const EST = new Set(['fga', 'tpa', 'fg2', 'fg2a', 'q1p', 'q1r', 'q1a']), Q1 = new Set(['q1p', 'q1r', 'q1a']);
-const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map(), books: new Map() };
+const BD = { q1: new Map(), q1done: new Set(), mk: 'pts', side: 'o', game: 'all', q: '', sort: 'edge', dir: -1, day: 0, tab: 'props', logs: new Map(), lines: new Map(), slates: new Map(), alts: new Map(), books: new Map(), mkt: new Map() };
 // your last market, side and sort come back next time
 try { const v = JSON.parse(lsGet('fc-bd-view') || 'null'); if (v) Object.assign(BD, { mk: v.mk || BD.mk, side: v.side || BD.side, sort: v.sort || BD.sort, dir: v.dir || BD.dir, radar: !!v.radar, odds: v.odds || null }); } catch (e) {}
 // markets can be combined (pts,reb,...); 'all' is every book market
@@ -46,7 +46,10 @@ async function loadBooks(games) {
   for (const e of d.events) {
     const g = games.find(x => x.home.abbr === ab(e.home) && x.away.abbr === ab(e.away) && Math.abs(new Date(x.date) - new Date(e.starts)) < 18 * 3600e3);
     if (!g) continue;
-    for (const [name, st] of Object.entries(e.props || {})) for (const [k, v] of Object.entries(st)) BD.books.set(g.id + '|' + nameKey(name) + '|' + k, v.books);
+    for (const [name, st] of Object.entries(e.props || {})) for (const [k, v] of Object.entries(st)) {
+      const key = g.id + '|' + nameKey(name) + '|' + k;
+      if (v.books && Object.keys(v.books).length) BD.books.set(key, v.books); else if (Number.isFinite(v.mkt)) BD.mkt.set(key, v.mkt);
+    }
   }
 }
 const booksOf = x => BD.books.get(x.g.id + '|' + nameKey(x.p.name) + '|' + x.k) || null;
@@ -164,7 +167,8 @@ function rowStats(r, side = BD.side) {
   const pg = (r.prevLog || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
   const ext = [...vals, ...pg.map(g => bdVal(g, r.k))];
   const vsOpp = [...lg, ...pg].filter(g => g.opp === r.opp.abbr || String(g.oppId) === String(r.opp.id)).map(g => bdVal(g, r.k));
-  if (r.est) {
+  if (r.est && Number.isFinite(r.mkt)) r.line = r.mkt; // the market's consensus line, no price
+  else if (r.est) {
     // no book line: Fullcourt's. Early in a season a handful of games swing it, so lean on last season too:
     // his recent average blended with last season's, averaged with the median of his last 15 games
     if (!vals.length) return null;
@@ -182,7 +186,10 @@ function rowStats(r, side = BD.side) {
   // edge: mostly how often it's cashed lately, nudged by how far the average sits from the line
   const edge = h10 == null ? null : h10 * 0.55 + (h5 ?? h10) * 0.25 + (hs ?? h10) * 0.2 + Math.max(-0.15, Math.min(0.15, (diff || 0) / Math.max(2, r.line) * 0.6));
   let streak = 0; for (const v of ext) { if (s === 'u' ? v < r.line : v > r.line) streak++; else break; }
-  return { vals, L5, L10, h5, h10, hs, hv, nv: vsOpp.length, avg, diff, edge, streak };
+  // no price in the feed: a fair price from how often he's cleared this line in his last 20 (nudged toward 50/50 on small samples)
+  let fair = null;
+  if (r.est) { const L20 = ext.slice(0, 20); if (L20.length >= 5) { const hit = L20.filter(v => (s === 'u' ? v < r.line : v > r.line)).length, pr = Math.min(0.85, Math.max(0.15, (hit + 1.5) / (L20.length + 3))); fair = Math.round(pr >= 0.5 ? -100 * pr / (1 - pr) : 100 * (1 - pr) / pr); } }
+  return { vals, L5, L10, h5, h10, hs, hv, nv: vsOpp.length, avg, diff, edge, streak, fair };
 }
 // defense vs position, from the game logs already loaded: how far players at this position run above or below
 // their own average when they face this team, for this stat
@@ -359,7 +366,8 @@ async function bdDraw() {
   await booksP;
   for (const x of list) {
     if (!x.est || Q1.has(x.k)) continue;
-    const bk = booksOf(x); if (!bk) continue;
+    const bk = booksOf(x);
+    if (!bk) { const m = BD.mkt.get(x.g.id + '|' + nameKey(x.p.name) + '|' + x.k); if (Number.isFinite(m)) { x.mkt = m; x.line = m; } continue; }
     const b = ['fanduel', 'espnbet', 'betmgm', 'caesars', ...Object.keys(bk)].find(n => bk[n]); const v = bk[b];
     Object.assign(x, { est: false, fromBook: b, line: v.l, over: v.o, under: v.u, open: null });
   }
@@ -500,8 +508,8 @@ function bdTable(main, keepScroll, final, soft) {
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
           <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
-          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld st"></span>'}</td>
-          <td class="od dk">${x.est ? '<span class="bd-pill na">–</span>' : amer(BD.side === 'u' ? x.under : x.over)}</td>
+          <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est && Number.isFinite(x.mkt) ? '<em class="est mk" title="Market line: the consensus line from the pick\'em apps that set this market. No sportsbook on our feed prices it.">mkt</em>' : x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld st"></span>'}</td>
+          <td class="od dk">${x.est ? (x.st?.fair != null ? `<span class="bd-fair" title="Fair price from his hit rate at this line over his last 20 games. No sportsbook prices this market, so it's an estimate, not odds you can bet.">${amer(x.st.fair)}<i>fair</i></span>` : '<span class="bd-pill na">–</span>') : amer(BD.side === 'u' ? x.under : x.over)}</td>
           ${BD.books.size ? (() => { const bs = bestOf(x); return `<td class="od dk bd-best" title="${bs ? `Best ${BD.side === 'u' ? 'under' : 'over'} across books: ${esc(bookName(bs.b))} ${bs.l} at ${amer(bs.price)}` : 'Only one book has this line'}">${bs ? `${bs.l !== x.line ? `<small>${bs.l}</small> ` : ''}${amer(bs.price)}<i>${esc(bookAb(bs.b))}</i>` : '<span class="bd-pill na">–</span>'}</td>`; })() : ''}
           <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld st"></span>'}</td>
           <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld st"></span>'}</td>
@@ -516,7 +524,7 @@ function bdTable(main, keepScroll, final, soft) {
 
         </tr>`;
       }).join('')}</tbody></table></div>${full.length > list.length ? `<button class="btn bd-more" data-bdmore>Show ${Math.min(100, full.length - list.length)} more <small>${list.length} of ${full.length}</small></button>` : ''}` : `<div class="empty"><b>No ${esc(mk[1].toLowerCase())} props${BD.game !== 'all' ? ' for this game' : ''}${BD.q ? ' for that search' : ''}</b>${BD.radar ? 'Nobody fits Under the radar here yet: it shows role players whose minutes are up 2+ lately. Turn it off to see everyone.' : BD.odds ? `Your odds filter (${esc(oddsTxt(BD.odds.min) || 'any')} to ${esc(oddsTxt(BD.odds.max) || 'any')}) may be hiding them. <button class="link-btn" data-bdoclear>Clear it</button>` : 'Try another market or game.'}</div>`}
-    ${(SEL || []).some(k => EST.has(k)) ? `<p class="bd-note bd-miss">No sportsbook posts ${esc(SEL.filter(k => EST.has(k)).map(k => MARKETS.find(q => q[0] === k)[1]).join(', '))} lines to this feed, so the line marked <em class="est">est</em> is Fullcourt's, set at the half-point just above or below his average over the last 10 games, the way books usually set them. ${mkQ1() ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
+    ${(SEL || []).some(k => EST.has(k)) ? `<p class="bd-note bd-miss">No sportsbook on our feed prices ${esc(SEL.filter(k => EST.has(k)).map(k => MARKETS.find(q => q[0] === k)[1]).join(', '))}. Lines marked <em class="est mk">mkt</em> are the market's consensus line from the pick'em apps that set these; <em class="est">est</em> lines are Fullcourt's, near his last-10 average. The <span class="bd-fair">fair<i></i></span> price is how often he's cleared that line in his last 20 games, turned into odds: an estimate, not a price you can bet. ${mkQ1() ? 'First-quarter numbers come from play-by-play of each team\'s last 5 games.' : ''}</p>` : ''}
     ${BD.missing?.length ? `<p class="bd-note bd-miss">DraftKings hasn't posted props yet for ${esc(BD.missing.join(', '))}. Lines tagged with another book (FD, ESPN…) are that book's real line; <em class="est">est</em> lines are Fullcourt's, set at each player's recent average, until a book posts.</p>` : ''}
     ${loading ? '<p class="bd-note"><span class="bd-ld"></span> Loading each player\'s games…</p>' : ''}</div>
     <details class="bd-about"><summary>How to read this table</summary><p class="bd-note">Lines and odds from DraftKings via ESPN, refreshed every few minutes. Hit rates are how often he's gone ${BD.side === 'u' ? 'under' : 'over'} this exact line: last 5, last 10, the season, and against tonight's opponent (H2H). Opp D ranks points allowed (30th is the softest). DvP is how far players at his position have run above (+) or below (−) their own average against this team, from games loaded here. Score blends the hit rates and the gap to the line. ★ pins a prop to the top and alerts you if its line moves a point or the book posts it. Flags: MIN ↑/↓ when his minutes over the last 3 games are 4+ off his season, a key teammate out, B2B or 3 games in 4 nights, a fast or slow matchup (2+ possessions off the league pace, from PBPStats), and blowout risk for starters when the spread is 10 or more. Tap a row for the full breakdown, or + to add it to a parlay. Trends, not betting advice.</p></details>`;
@@ -834,7 +842,7 @@ function toggleSlip(x) {
   if (i >= 0 && SLIP.legs[i].line === x.line) SLIP.legs.splice(i, 1);
   else {
     if (i >= 0) SLIP.legs.splice(i, 1); // same player and stat at another line: swap it
-    const side = BD.side, odds = x.est ? -115 : +(side === 'u' ? x.under : x.over) || -110;
+    const side = BD.side, odds = x.est ? (x.st?.fair ?? -115) : +(side === 'u' ? x.under : x.over) || -110;
     SLIP.legs.push({ pid: String(x.pid), k: x.k, side, line: x.line, odds, est: !!x.est, name: x.p.name, teamId: x.p.teamId, abbr: x.p.abbr, gid: x.g.id, game: `${x.g.away.abbr} @ ${x.g.home.abbr}`, date: (x.g.date || '').slice(0, 10).replace(/-/g, ''), time: x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g) });
     if (SLIP.legs.length === 1 && !PHONE()) SLIP.open = true;
   }

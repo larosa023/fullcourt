@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-06b', date: 'Nov 6', items: [
+    ['Real lines and fair prices for FGA, 3PA and 2PT', 'Shot-attempt and 2-pointer props now use the market\'s consensus line (marked MKT) from the pick\'em apps that set them, instead of Fullcourt\'s estimate. No sportsbook on our feed prices them, so the Over/Under column shows a fair price instead: how often he\'s cleared that line in his last 20 games, turned into odds. Add one to a slip and it uses that fair price; you can still type your own.'],
+  ] },
   { id: '2026-11-06a', date: 'Nov 6', items: [
     ['Fullcourt for Windows', 'Fullcourt is now also a Windows app: the same site in its own window, with live scores, odds and props, and bet alerts as Windows notifications. Outside links open in your normal browser. Download Fullcourt-Setup.exe from the link below and run it (if Windows says it protected your PC, click More info, then Run anyway). The app lets you know when a new version is out. Your bets, stars and favorites live separately in the app and the browser.', ['Get it for Windows', 'https://github.com/larosa023/fullcourt/releases/latest']],
   ] },

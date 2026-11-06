@@ -37,16 +37,17 @@ for (const e of events) {
       // (book deeplinks skipped: a share of FanDuel's point at the wrong market)
       if (row.l != null) books[b] = row;
     }
-    if (!Object.keys(books).length) continue;
+    // no book on our plan prices it (FGA, 3PA, 2PT: pick'em apps set those), but the feed still has the consensus line
+    const mkt = num(o.fairOverUnder ?? o.bookOverUnder);
+    if (!Object.keys(books).length && mkt == null) continue;
     const p = (ev.props[name(o.playerID)] ||= {});
-    p[k] = { books, fair: num(o.fairOverUnder) };
+    p[k] = Object.keys(books).length ? { books, fair: mkt } : { books: {}, mkt };
   }
   out.events.push(ev);
 }
 if (!out.events.length) { console.log('no games with lines in the window; keeping the last file'); process.exit(1); }
 // which player-prop markets the feed actually had (mapped or not), to see what's on offer
 const seen = {}; for (const e of events) for (const o of Object.values(e.odds || {})) if (o.playerID && o.periodID === 'game' && o.betTypeID === 'ou' && o.sideID === 'over') { const s = (seen[o.statID] ||= { props: 0, books: new Set() }); s.props++; Object.keys(o.byBookmaker || {}).forEach(b => s.books.add(b)); }
-for (const sid of ['fieldGoalsAttempted', 'threePointersAttempted', 'twoPointersAttempted']) { const o = events.flatMap(e => Object.values(e.odds || {})).find(o => o.statID === sid && o.playerID && o.periodID === 'game' && o.sideID === 'over'); if (o) { const { byBookmaker, ...rest } = o; console.log('sample', sid, JSON.stringify(rest).slice(0, 700)); } }
 console.log('markets in feed:', Object.entries(seen).map(([k, v]) => `${k} ${v.props} (${[...v.books].join(',')})`).join(' | '));
 writeFileSync(process.argv[2] || 'odds.json', JSON.stringify(out));
 console.log(`${out.events.length} games, ${out.events.reduce((a, e) => a + Object.keys(e.props).length, 0)} players`);

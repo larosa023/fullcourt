@@ -404,3 +404,9 @@ em.est.bk { color: #2f86ff; border-color: color-mix(in oklab, #2f86ff 45%, var(-
 .bs-boost button { height: 30px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; font-weight: 650; color: var(--ink-2); }
 .bs-boost button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .bs-sum b s { opacity: .5; font-weight: 500; margin-right: 2px; }
+
+/* market consensus lines and fair prices (FGA, 3PA, 2PT) */
+.bd-t td.ln em.est.mk, .bd-note em.est.mk { color: var(--win); border-color: color-mix(in oklab, var(--win) 45%, var(--line)); }
+.bd-fair { font-style: italic; color: var(--ink-2); }
+.bd-fair i { font-style: normal; font-family: var(--mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-left: 4px; }
+.bd-note .bd-fair { font-style: normal; font-weight: 600; }
