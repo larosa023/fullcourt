@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-06c', date: 'Nov 6', items: [
+    ['Switch markets inside a prop', 'Prop detail has a market picker at the top of Game by game. Jump from P+R to points, rebounds, 3PA or any other stat without leaving the view: the line (tonight\'s real one when there is one), hit rates, chart and minutes projection all switch, and your Over/Under, range, home/away, opponent and teammate filters stay.'],
+  ] },
   { id: '2026-11-06b', date: 'Nov 6', items: [
     ['Real lines and fair prices for FGA, 3PA and 2PT', 'Shot-attempt and 2-pointer props now use the market\'s consensus line (marked MKT) from the pick\'em apps that set them, instead of Fullcourt\'s estimate. No sportsbook on our feed prices them, so the Over/Under column shows a fair price instead: how often he\'s cleared that line in his last 20 games, turned into odds. Add one to a slip and it uses that fair price; you can still type your own.'],
   ] },

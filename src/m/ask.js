@@ -1355,10 +1355,13 @@ function barChart(games, k, m, pbp, showMin, side = 'o') {
   <div class="pc-x">${games.map(g => `<span class="${g.prev ? 'prev' : ''}"><b>${g.atVs === '@' ? '@' : ''}${esc(g.opp)}</b><small>${esc(fmtET(g.date, { month: 'numeric', day: 'numeric' }))}</small></span>`).join('')}</div></div>`;
 }
 
-async function openPropDetail(pid, k, m0, extra) {
+// reuse: switching markets from inside the detail redraws the same sheet (fresh body, no stacked listeners)
+async function openPropDetail(pid, k, m0, extra, reuse) {
   if (extra) ASK.pctx[pid] = { ...(ASK.pctx[pid] || {}), ...extra };
-  const c = ASK.pctx[pid];
-  const sheet = openSheet('Prop detail');
+  const c = ASK.pctx[pid], keep = (reuse && extra?.keep) || null;
+  const sheet = reuse || openSheet('Prop detail');
+  if (reuse) { const nb = reuse.body.cloneNode(false); reuse.body.replaceWith(nb); reuse.body = nb; }
+  const tok = sheet.pdTok = (sheet.pdTok || 0) + 1; // late loads from a previous market's view stop drawing
   sheet.el.classList.add('pd-sheet');
   let log = c?.log, r = c?.r;
   try {
@@ -1370,8 +1373,8 @@ async function openPropDetail(pid, k, m0, extra) {
   let { g, opp, dr, mates } = ctx;
   if (!g) { const s = await propSlate(r.teamId); g = s.games[0]; if (g) { opp = g.home.id === r.teamId ? g.away : g.home; dr = defRank(opp.id); } mates = []; }
   const [, short, word] = [...PROP_STATS, ...PROP_MORE].find(s => s[0] === k);
-  let side = ctx.side === 'u' ? 'u' : 'o';
-  let m = m0, cmp = null, rng = 'L10', ha = 'all', oppF = 'all', dnps = [], pbp = null, showMin = lsGet('fc-pd-min') === '1', pT = null, rest = null, wo = [];
+  let side = (keep?.side || ctx.side) === 'u' ? 'u' : 'o';
+  let m = m0, cmp = null, rng = keep?.rng || 'L10', ha = keep?.ha || 'all', oppF = keep?.oppF || 'all', dnps = [], pbp = null, showMin = keep ? !!keep.showMin : lsGet('fc-pd-min') === '1', pT = null, rest = null, wo = [];
   // matchup extras: pace, rest, blowout risk, shot zones vs this defense, and with/without teammates who are out
   if (!IS_W) {
     pbpTeams().then(d => { pT = d; if (d) draw(); });
@@ -1380,7 +1383,7 @@ async function openPropDetail(pid, k, m0, extra) {
   }
   if (r.teamId) dnpGames(r.teamId, log).then(d => { dnps = d; draw(); });
   // teammate on/off filter: which games each picked teammate played (same game, same side, any minutes)
-  const mf = new Map(), mlog = new Map(); let mateList = [];
+  const mf = new Map(keep?.mf || []), mlog = keep?.mlog || new Map(); let mateList = [];
   leagueTable().then(rows => { mateList = rows.filter(x => String(x.teamId) === String(r.teamId) && String(x.id) !== String(r.id) && x.gp >= 1).sort((a, b) => (b.min || 0) * (b.gp || 0) - (a.min || 0) * (a.gp || 0)).slice(0, 12); draw(); }).catch(() => {});
   const loadMate = id => {
     if (mlog.has(id)) return; mlog.set(id, null);
@@ -1389,6 +1392,7 @@ async function openPropDetail(pid, k, m0, extra) {
       const M = new Map(); for (const x of [...a, ...b]) if (x.min > 0) M.set(String(x.id), x.opp); mlog.set(id, M); keepDraw();
     });
   };
+  for (const id of [...mf.keys()]) if (!mlog.get(id)) { mlog.delete(id); loadMate(id); } // carried over mid-load: fetch again for this view
   // a game passes when every picked teammate is in (played for his team) or out (didn't), as asked
   // "without" only counts seasons he played at least one game for this team, so a newcomer's old team doesn't count
   const onTeam = (M, isPrev) => (isPrev ? prev : log).some(x => M.get(String(x.id)) === x.opp);
@@ -1496,7 +1500,21 @@ async function openPropDetail(pid, k, m0, extra) {
       <ul class="pm-f">${p.f.map(([l, v, sub], i) => `<li><span>${esc(l)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><b class="${i === 0 ? '' : v >= 0 ? 'up' : 'dn'}">${i === 0 ? v.toFixed(1) : sgn(v)}</b></li>`).join('')}${p.loading ? '<li><span>Checking teammates ruled out tonight</span><b><span class="bd-ld"></span></b></li>' : ''}</ul>
       <p class="pp-note">A simple estimate: half his last 5 games, 30% his last 10, 20% the season, then adjusted for rest, the spread and anyone ruled out tonight. Not a guarantee.</p></div>`;
   };
+  // markets for the picker: the ones the bet desk has a line for first (with that line), then the rest
+  const MK_ALL = [...PROP_STATS, ...PROP_MORE].filter(s => s[0] !== 'pts1' && log.some(x => propVal(x, s[0]) != null));
+  const mkLine = k2 => { const f = ctx.forK?.(k2); return f ? `${f.m - 0.5}${f.tag ? ` ${f.tag}` : ''}` : null; };
+  const mkOpts = () => { const w = MK_ALL.map(s => ({ s, l: mkLine(s[0]) })); const a = w.filter(x => x.l != null || x.s[0] === k), b = w.filter(x => x.l == null && x.s[0] !== k);
+    const o = x => `<option value="${x.s[0]}"${x.s[0] === k ? ' selected' : ''}>${esc(x.s[1])}${x.l != null ? ` · ${x.l}` : ''}</option>`;
+    return a.length && b.length ? `<optgroup label="Lines tonight">${a.map(o).join('')}</optgroup><optgroup label="Other stats">${b.map(o).join('')}</optgroup>` : w.map(o).join(''); };
+  const switchMk = k2 => {
+    if (k2 === k) return;
+    const f = ctx.forK?.(k2), vals = [...log, ...prev].map(x => propVal(x, k2)).filter(v => v != null).slice(0, 10);
+    const m2 = f?.m ?? Math.max(1, Math.floor(vals.reduce((a, b) => a + b, 0) / (vals.length || 1)) + 1);
+    const y = sheet.body.scrollTop;
+    openPropDetail(pid, k2, m2, { ...(f?.extra || { book: null, alts: null, prices: null, peers: null }), keep: { side, rng, ha, oppF, showMin, mf: [...mf], mlog, scroll: y } }, sheet);
+  };
   const draw = () => {
+    if (sheet.pdTok !== tok) return;
     const all = log.map(x => propVal(x, k)), L5 = all.slice(0, 5), L10 = all.slice(0, 10);
     const home = log.filter(x => x.atVs !== '@').map(x => propVal(x, k)), away = log.filter(x => x.atVs === '@').map(x => propVal(x, k));
     const vsOpp = opp ? log.filter(x => String(x.oppId) === String(opp.id) || x.opp === opp.abbr).map(x => propVal(x, k)) : [];
@@ -1552,6 +1570,7 @@ async function openPropDetail(pid, k, m0, extra) {
         }
         return `<div class="pd-rng">${Object.entries(R).map(([key, g]) => cell(key, g)).join('')}</div>
       <div class="card pd-card"><div class="card-h"><h4>Game by game</h4><div class="pd-flt">
+          ${MK_ALL.length > 1 ? `<select class="bd-sel pd-mk" data-pdmk aria-label="Switch market" title="Switch to another market for this player">${mkOpts()}</select>` : ''}
           <button class="pd-mtg${showMin ? ' on' : ''}" data-pdmin aria-pressed="${showMin}" title="Overlay his minutes in each game">MIN</button>
           <select class="bd-sel" data-pdha aria-label="Home or away"><option value="all">Home/Away</option><option value="home" ${ha === 'home' ? 'selected' : ''}>Home</option><option value="away" ${ha === 'away' ? 'selected' : ''}>Away</option></select>
           <select class="bd-sel" data-pdopp aria-label="Opponent"><option value="all">All opponents</option>${opps.map(o => `<option ${oppF === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
@@ -1570,6 +1589,7 @@ async function openPropDetail(pid, k, m0, extra) {
     </div>`;
   };
   draw();
+  if (keep?.scroll) sheet.body.scrollTop = keep.scroll;
   sheet.body.addEventListener('click', e => {
     const st = e.target.closest('[data-pdstep]');
     if (st) {
@@ -1589,6 +1609,7 @@ async function openPropDetail(pid, k, m0, extra) {
     if (am) { m = +am.dataset.pdmark; draw(); return; }
     if (e.target.closest('[data-pdtrack]')) { closeTop(); ask(`Track: ${r.name} over ${m - 0.5} ${word}`); }
   });
+  sheet.body.addEventListener('change', e => { const mk = e.target.closest('[data-pdmk]'); if (mk) switchMk(mk.value); });
   sheet.body.addEventListener('change', e => {
     const mp = e.target.closest('[data-pdmate]'); if (mp) { if (mp.value) { mf.set(mp.value, 'out'); loadMate(mp.value); } keepDraw(); return; }
     const h = e.target.closest('[data-pdha]'), o = e.target.closest('[data-pdopp]');
