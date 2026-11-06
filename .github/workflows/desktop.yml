@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-concurrency: { group: desktop-${{ github.ref }}, cancel-in-progress: true }
+concurrency: { group: 'desktop-${{ github.ref }}', cancel-in-progress: true }
 jobs:
   windows:
     runs-on: windows-latest
