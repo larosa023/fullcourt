@@ -43,4 +43,19 @@ NODE_PATH=/tmp/fc-tools/node_modules node tools/build.mjs
 
 That writes `index.html` and `assets/`. Each module automatically imports what it uses from core. File names include a content hash, so browsers keep them until they change (see `_headers`).
 
+### Scores API
+
+`/api/scores` is a small JSON scoreboard (a Netlify Function in `netlify/functions/scores.mjs`), used by the [Mantel](https://github.com/larosa023/Mantel) desktop widget:
+
+```
+https://nbafullcourty.netlify.app/api/scores?league=nba
+```
+
+- `league`: `nba`, `wnba`, `ncaam` or `ncaaw`
+- `date`: `YYYYMMDD` (default: today in ET, rolling over at 4 AM)
+- `teams`: only these teams, e.g. `BOS,NY`
+- `scope`: college only; `top25` (default, games with a ranked team) or `all`
+
+Games come back live first, then upcoming, then finals, each with a `url` that opens it on the site in the right league (`?league=…&game=…`). Responses are cached at Netlify's edge for 15 seconds during games and longer otherwise, so it barely uses function runs.
+
 Data comes from ESPN's public feeds. Odds are for reference only.

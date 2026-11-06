@@ -3,7 +3,15 @@
 /* ================= config ================= */
 /* League mode: NBA, WNBA, or college (women's / men's). The whole site runs in one league at a time.
    LGK is Fullcourt's short key; LG is ESPN's name for the league (used in every feed URL). */
-const LGK = (() => { try { const v = localStorage.getItem('fc-league'); return ['wnba', 'ncaaw', 'ncaam'].includes(v) ? v : 'nba'; } catch (e) { return 'nba'; } })();
+// ?league=wnba (links from Mantel's scores widget) switches the site to that league and remembers it.
+const LGK = (() => {
+  const ok = ['nba', 'wnba', 'ncaaw', 'ncaam'];
+  try {
+    const q = new URLSearchParams(location.search).get('league');
+    if (ok.includes(q)) { localStorage.setItem('fc-league', q); return q; }
+  } catch (e) {}
+  try { const v = localStorage.getItem('fc-league'); return ['wnba', 'ncaaw', 'ncaam'].includes(v) ? v : 'nba'; } catch (e) { return 'nba'; }
+})();
 const LG = { ncaaw: 'womens-college-basketball', ncaam: 'mens-college-basketball' }[LGK] || LGK;
 const IS_W = LGK === 'wnba';               // the WNBA specifically
 const IS_C = LGK === 'ncaaw' || LGK === 'ncaam'; // college
@@ -3288,7 +3296,11 @@ Promise.resolve(loadScores()).finally(() => {
 markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick();
-try { const gq = new URLSearchParams(location.search).get('game'); if (gq) { history.replaceState(null, '', location.pathname + location.hash); setTimeout(() => openGame(gq), 300); } } catch (e) {}
+try {
+  const qs = new URLSearchParams(location.search), gq = qs.get('game');
+  if (gq || qs.has('league')) history.replaceState(null, '', location.pathname + location.hash);
+  if (gq) setTimeout(() => openGame(gq), 300);
+} catch (e) {}
 loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" style="padding:20px"><b>Standings unavailable</b><button class="btn" data-retry="standings">Retry</button></div>`; });
 // refresh "tips in" countdowns & time labels each minute
 setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) { const back = holdScroll(); renderGames(false); back(); } }, 60000);
