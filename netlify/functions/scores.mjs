@@ -35,11 +35,10 @@ export default async (req) => {
 
   let data;
   try {
-    const r = await fetch(espn, { headers: { 'User-Agent': 'Fullcourt/1.0 (+https://nbafullcourty.netlify.app)' } });
-    if (!r.ok) throw new Error(`ESPN ${r.status}`);
-    data = await r.json();
+    data = await getJson(espn);
   } catch (e) {
-    return json({ ok: false, error: "Can't reach the score feed right now." }, 502, 10);
+    console.error('scores: feed failed', espn, e);
+    return json({ ok: false, error: "Can't reach the score feed right now.", detail: String(e?.message || e) }, 502, 10);
   }
 
   let games = (data.events || []).map(e => parseGame(e, league)).filter(Boolean);
@@ -66,6 +65,27 @@ export default async (req) => {
     games,
   }, 200, live ? 15 : soon ? 30 : 300);
 };
+
+// Same request a browser makes (the site fetches this feed straight from the page). Retries once.
+async function getJson(url) {
+  let last;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) throw new Error(`feed returned HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
 
 function parseGame(e, league) {
   const c = e.competitions?.[0];
