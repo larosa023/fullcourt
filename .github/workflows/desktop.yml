@@ -1,0 +1,48 @@
+# Builds the Windows app (desktop/). Test builds: push to the desktop branch or run it by hand; the installer is
+# attached to the run. Releases: push a tag like desktop-v1.0.1 and it's published on the Releases page.
+name: desktop
+on:
+  push:
+    tags: ['desktop-v*']
+    branches: [desktop]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: desktop-${{ github.ref }}, cancel-in-progress: true }
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'desktop/src-tauri -> target' }
+      - name: Pack the site
+        shell: bash
+        run: |
+          mkdir -p desktop/dist
+          cp -r index.html assets fonts data ocr manifest.webmanifest favicon-32.png apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png desktop/dist/
+      - name: Set the version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then V="${GITHUB_REF_NAME#desktop-v}"; else V="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "V=$V" >> "$GITHUB_ENV"
+          node -e "const f='desktop/src-tauri/tauri.conf.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=process.env.V;fs.writeFileSync(f,JSON.stringify(j,null,2))"
+      - name: Build
+        working-directory: desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npx tauri icon ../icon-512.png
+          npx tauri build
+          cp src-tauri/target/release/bundle/nsis/*.exe ../Fullcourt-Setup.exe
+      - uses: actions/upload-artifact@v4
+        with: { name: 'Fullcourt-Setup-${{ env.V }}', path: Fullcourt-Setup.exe }
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release create "$GITHUB_REF_NAME" Fullcourt-Setup.exe --title "Fullcourt for Windows $V" --notes "Download **Fullcourt-Setup.exe** below and run it. Windows may say it protected your PC the first time (the app isn't code-signed): click **More info**, then **Run anyway**. Installing a newer version over an older one keeps your bets and settings."

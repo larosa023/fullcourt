@@ -1,5 +1,27 @@
 'use strict';
 
+/* ================= Windows app =================
+   The same site also ships as a Windows program (desktop/, built on GitHub). Inside it, window.__TAURI__ exists;
+   on the website it doesn't, so none of this runs there. In the app: outside links open in the normal browser,
+   alerts go to Windows notifications, and a banner offers new versions from GitHub Releases. */
+const IS_APP = !!window.__TAURI__;
+if (IS_APP) {
+  const T = window.__TAURI__;
+  document.documentElement.dataset.app = '1';
+  const ext = u => { try { const x = new URL(u, location.href); return (/^https?:$/.test(x.protocol) && x.host !== location.host) || /^(mailto|tel|sms):$/.test(x.protocol); } catch (e) { return false; } };
+  const openOut = u => { try { T.opener.openUrl(String(new URL(u, location.href))); } catch (e) {} };
+  document.addEventListener('click', e => { const a = e.target.closest?.('a[href]'); if (a && ext(a.href)) { e.preventDefault(); openOut(a.href); } }, true);
+  const wOpen = window.open.bind(window);
+  window.open = (u, ...r) => (u && ext(String(u)) ? (openOut(u), null) : wOpen(u, ...r));
+  class AppNote {
+    static permission = 'granted';
+    static requestPermission() { return Promise.resolve('granted'); }
+    constructor(title, o = {}) { try { T.notification.sendNotification({ title, body: o.body || '' }); } catch (e) {} }
+    close() {}
+  }
+  window.Notification = AppNote;
+}
+
 /* ================= config ================= */
 /* League mode: NBA, WNBA, or college (women's / men's). The whole site runs in one league at a time.
    LGK is Fullcourt's short key; LG is ESPN's name for the league (used in every feed URL). */
@@ -2926,7 +2948,7 @@ function calHTML(info, ym) {
 }
 
 /* ---------------- home-screen app: service worker + notification taps ---------------- */
-if ('serviceWorker' in navigator && /^https:$|^http:$/.test(location.protocol) && !location.pathname.startsWith('/__')) {
+if (!IS_APP && 'serviceWorker' in navigator && /^https:$|^http:$/.test(location.protocol) && !location.pathname.startsWith('/__')) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   navigator.serviceWorker.addEventListener('message', e => { if (e.data?.game && (!e.data.lg || e.data.lg === LG)) openGame(String(e.data.game)); });
 }
@@ -3306,3 +3328,22 @@ loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" styl
 setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(g => g.state === 'pre')) { const back = holdScroll(); renderGames(false); back(); } }, 60000);
 }
 try { const t = document.getElementById('tzNote'); if (t) t.textContent = TZ_AB === 'ET' ? 'ET' : TZ_AB + ' (your time zone)'; } catch (e) {}
+
+/* Windows app: once a launch (and every 6 hours), see if GitHub has a newer release and offer it */
+const APP_REL = 'https://github.com/larosa023/fullcourt/releases';
+async function appUpdateCheck() {
+  try {
+    const cur = await window.__TAURI__.app.getVersion();
+    const rels = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15').then(r => (r.ok ? r.json() : []));
+    const rel = rels.find(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease); if (!rel) return;
+    const v = rel.tag_name.replace('desktop-v', ''), num = x => x.split('.').map(n => +n || 0);
+    const a = num(v), b = num(cur), i = [0, 1, 2].find(k => (a[k] || 0) !== (b[k] || 0)), newer = i != null && (a[i] || 0) > (b[i] || 0);
+    if (!newer || lsGet('fc-app-skip') === v || $('#appUpd')) return;
+    const exe = rel.assets?.find(x => /\.exe$/i.test(x.name))?.browser_download_url || rel.html_url || APP_REL;
+    const el = document.createElement('div'); el.id = 'appUpd'; el.className = 'app-upd';
+    el.innerHTML = `<b>Fullcourt ${esc(v)} is out</b><span>You're on ${esc(cur)}. Run the new installer to update; your bets and settings stay.</span><a class="btn sm" href="${esc(exe)}">Download</a><button class="link-btn" data-appskip>Not now</button>`;
+    el.addEventListener('click', e => { if (e.target.closest('[data-appskip]')) { lsSet('fc-app-skip', v); el.remove(); } else if (e.target.closest('a')) setTimeout(() => el.remove(), 400); });
+    document.body.append(el);
+  } catch (e) {}
+}
+if (IS_APP) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }

@@ -43,7 +43,7 @@ async function startsMap() {
   return m;
 }
 let mediaP = null;
-const loadMedia = () => IS_W ? Promise.resolve(null) : (mediaP || (mediaP = fetch('/data/awards.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null)));
+const loadMedia = () => IS_W ? Promise.resolve(null) : (mediaP || (mediaP = fetch(IS_APP ? 'https://raw.githubusercontent.com/larosa023/fullcourt/main/data/awards.json' : '/data/awards.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null)));
 const implied = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
 
 // media share per player: sportsbook odds become an implied chance, panel points and staff picks a share of the vote
