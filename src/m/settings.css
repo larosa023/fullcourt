@@ -14,3 +14,4 @@
 .sw i { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .3); transition: transform .25s var(--ease); }
 .set-row[aria-checked="true"] .sw { background: var(--accent); }
 .set-row[aria-checked="true"] .sw i { transform: translateX(18px); }
+a.set-row { color: inherit; text-decoration: none; }

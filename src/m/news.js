@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-06d', date: 'Nov 6', items: [
+    ['Check for updates (Windows app)', 'In the Windows app, Settings has a Windows app section with your version and a Check for updates button. If a new version is out, the same row becomes Update now: it downloads, installs and reopens Fullcourt for you. Release notes for every version are one tap away.'],
+  ] },
   { id: '2026-11-06c', date: 'Nov 6', items: [
     ['Switch markets inside a prop', 'Prop detail has a market picker at the top of Game by game. Jump from P+R to points, rebounds, 3PA or any other stat without leaving the view: the line (tonight\'s real one when there is one), hit rates, chart and minutes projection all switch, and your Over/Under, range, home/away, opponent and teammate filters stay.'],
   ] },

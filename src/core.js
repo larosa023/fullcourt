@@ -2148,7 +2148,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-06c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-06d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3333,14 +3333,19 @@ try { const t = document.getElementById('tzNote'); if (t) t.textContent = TZ_AB 
    app download it, check it against GitHub's checksum, install it silently and reopen (main.rs, install_update).
    Older app versions without that command still get a download link. */
 const APP_REL = 'https://github.com/larosa023/fullcourt/releases';
-async function appUpdateCheck() {
+// manual: from Settings. Shows the banner even for a version you said "Not now" to, and reports what it found.
+async function appUpdateCheck(manual = false) {
   try {
     const T = window.__TAURI__, cur = await T.app.getVersion();
-    const rels = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15').then(r => (r.ok ? r.json() : []));
-    const rel = rels.find(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease); if (!rel) return;
+    const res = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15'); if (!res.ok) return { st: 'error', cur };
+    const rels = await res.json();
+    const rel = rels.find(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease); if (!rel) return { st: 'current', cur };
     const v = rel.tag_name.replace('desktop-v', ''), num = x => x.split('.').map(n => +n || 0);
     const a = num(v), b = num(cur), i = [0, 1, 2].find(k => (a[k] || 0) !== (b[k] || 0)), newer = i != null && (a[i] || 0) > (b[i] || 0);
-    if (!newer || lsGet('fc-app-skip') === v || $('#appUpd')) return;
+    if (!newer) return { st: 'current', cur };
+    if ($('#appUpd')) return { st: 'newer', cur, v };
+    if (!manual && lsGet('fc-app-skip') === v) return { st: 'skipped', cur, v };
+    if (manual) lsSet('fc-app-skip', null);
     const asset = rel.assets?.find(x => /\.exe$/i.test(x.name)), exe = asset?.browser_download_url || rel.html_url || APP_REL;
     const el = document.createElement('div'); el.id = 'appUpd'; el.className = 'app-upd';
     el.innerHTML = `<b>Fullcourt ${esc(v)} is out</b><span class="au-msg">You're on ${esc(cur)}. Updating takes a few seconds; your bets and settings stay.</span>
@@ -3360,6 +3365,7 @@ async function appUpdateCheck() {
       }
     });
     document.body.append(el);
-  } catch (e) {}
+    return { st: 'newer', cur, v };
+  } catch (e) { return { st: 'error' }; }
 }
 if (IS_APP) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }
