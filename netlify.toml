@@ -1,0 +1,4 @@
+# Skip the Netlify deploy when a push only touches things the website doesn't serve
+# (the Windows app, GitHub workflows, build tools, readmes). Saves deploy credits.
+[build]
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)desktop' ':(exclude).github' ':(exclude)tools' ':(exclude)README.md' ':(exclude)netlify.toml'"

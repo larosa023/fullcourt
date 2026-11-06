@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-06a', date: 'Nov 6', items: [
+    ['Fullcourt for Windows', 'Fullcourt is now also a Windows app: the same site in its own window, with live scores, odds and props, and bet alerts as Windows notifications. Outside links open in your normal browser. Download Fullcourt-Setup.exe from the link below and run it (if Windows says it protected your PC, click More info, then Run anyway). The app lets you know when a new version is out. Your bets, stars and favorites live separately in the app and the browser.', ['Get it for Windows', 'https://github.com/larosa023/fullcourt/releases/latest']],
+  ] },
   { id: '2026-11-04b', date: 'Nov 4', items: [
     ['With / without on player pages', 'Every NBA and WNBA player page has a With / without card: his points, rebounds, assists and minutes in games each of his main teammates missed, and how that compares with games they played together. Biggest swings first; tap a teammate to open his page.'],
     ['Minutes projection on props', 'Prop detail now projects his minutes tonight from his last 5, last 10 and season, adjusted for a back-to-back, a lopsided spread and any teammates ruled out (using how his minutes changed when they sat before). It shows the likely range, every adjustment, and the stat he\'d get at his recent per-minute rate, which also appears under the line at the top.'],
@@ -141,7 +144,7 @@ function openNews() {
   sheet.body.innerHTML = `<div class="news">${UPDATES.map((u, i) => `
     <section class="news-day enter" style="--i:${i}">
       <div class="news-date"><span>${esc(u.date)}</span>${i === 0 ? '<em>Latest</em>' : ''}</div>
-      <ul>${u.items.map(([t, d]) => `<li><b>${esc(t)}</b><span>${esc(d)}</span></li>`).join('')}</ul>
+      <ul>${u.items.map(([t, d, l]) => `<li><b>${esc(t)}</b><span>${esc(d)}${l ? ` <a href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])} →</a>` : ''}</span></li>`).join('')}</ul>
     </section>`).join('')}</div>`;
   lsSet(NEWS_KEY, UPDATES[0].id);
   markNews();

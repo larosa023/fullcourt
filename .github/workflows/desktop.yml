@@ -29,7 +29,7 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then V="${GITHUB_REF_NAME#desktop-v}"; else V="0.0.${GITHUB_RUN_NUMBER}"; fi
           echo "V=$V" >> "$GITHUB_ENV"
-          node -e "const f='desktop/src-tauri/tauri.conf.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=process.env.V;fs.writeFileSync(f,JSON.stringify(j,null,2))"
+          V="$V" node -e "const f='desktop/src-tauri/tauri.conf.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=process.env.V;fs.writeFileSync(f,JSON.stringify(j,null,2))"
       - name: Build
         working-directory: desktop
         shell: bash
