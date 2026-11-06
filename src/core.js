@@ -3329,20 +3329,36 @@ setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(
 }
 try { const t = document.getElementById('tzNote'); if (t) t.textContent = TZ_AB === 'ET' ? 'ET' : TZ_AB + ' (your time zone)'; } catch (e) {}
 
-/* Windows app: once a launch (and every 6 hours), see if GitHub has a newer release and offer it */
+/* Windows app updater: once a launch (and every 6 hours) see if GitHub has a newer release. "Update now" has the
+   app download it, check it against GitHub's checksum, install it silently and reopen (main.rs, install_update).
+   Older app versions without that command still get a download link. */
 const APP_REL = 'https://github.com/larosa023/fullcourt/releases';
 async function appUpdateCheck() {
   try {
-    const cur = await window.__TAURI__.app.getVersion();
+    const T = window.__TAURI__, cur = await T.app.getVersion();
     const rels = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15').then(r => (r.ok ? r.json() : []));
     const rel = rels.find(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease); if (!rel) return;
     const v = rel.tag_name.replace('desktop-v', ''), num = x => x.split('.').map(n => +n || 0);
     const a = num(v), b = num(cur), i = [0, 1, 2].find(k => (a[k] || 0) !== (b[k] || 0)), newer = i != null && (a[i] || 0) > (b[i] || 0);
     if (!newer || lsGet('fc-app-skip') === v || $('#appUpd')) return;
-    const exe = rel.assets?.find(x => /\.exe$/i.test(x.name))?.browser_download_url || rel.html_url || APP_REL;
+    const asset = rel.assets?.find(x => /\.exe$/i.test(x.name)), exe = asset?.browser_download_url || rel.html_url || APP_REL;
     const el = document.createElement('div'); el.id = 'appUpd'; el.className = 'app-upd';
-    el.innerHTML = `<b>Fullcourt ${esc(v)} is out</b><span>You're on ${esc(cur)}. Run the new installer to update; your bets and settings stay.</span><a class="btn sm" href="${esc(exe)}">Download</a><button class="link-btn" data-appskip>Not now</button>`;
-    el.addEventListener('click', e => { if (e.target.closest('[data-appskip]')) { lsSet('fc-app-skip', v); el.remove(); } else if (e.target.closest('a')) setTimeout(() => el.remove(), 400); });
+    el.innerHTML = `<b>Fullcourt ${esc(v)} is out</b><span class="au-msg">You're on ${esc(cur)}. Updating takes a few seconds; your bets and settings stay.</span>
+      <button class="btn sm" data-appupd>Update now</button><div class="au-bar" hidden><i></i></div>
+      <span class="au-act"><button class="link-btn" data-appskip>Not now</button>${rel.body ? `<a class="link-btn" href="${esc(rel.html_url)}">What's new</a>` : ''}</span>`;
+    const msg = $('.au-msg', el), bar = $('.au-bar', el);
+    el.addEventListener('click', async e => {
+      if (e.target.closest('[data-appskip]')) { lsSet('fc-app-skip', v); el.remove(); return; }
+      const go = e.target.closest('[data-appupd]'); if (!go || go.disabled) return;
+      if (!asset || !T.core?.invoke) { T.opener.openUrl(exe); msg.textContent = 'The download opened in your browser. Run it to update.'; return; }
+      go.disabled = true; go.textContent = 'Updating…'; bar.hidden = false; el.classList.add('busy');
+      let un = null; try { un = await T.event.listen('fc-update-progress', ev => { bar.firstElementChild.style.width = `${ev.payload}%`; msg.textContent = ev.payload >= 100 ? 'Installing. Fullcourt will reopen in a moment.' : `Downloading ${ev.payload}%`; }); } catch (x) {}
+      try { await T.core.invoke('install_update', { url: exe, sha256: asset.digest || null }); }
+      catch (x) {
+        un?.(); go.disabled = false; go.textContent = 'Try again'; bar.hidden = true; el.classList.remove('busy');
+        msg.innerHTML = `Couldn't update: ${esc(String(x?.message || x))} <a class="link-btn" href="${esc(exe)}">Download it instead</a>`;
+      }
+    });
     document.body.append(el);
   } catch (e) {}
 }
