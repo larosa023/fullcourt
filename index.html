@@ -49,9 +49,9 @@
     if (!location.search) { window.__pf = {}; u.forEach(x => { window.__pf[x] = fetch(x, { cache: 'no-store' }).catch(() => null); }); }
   } catch (e) {}
 </script>
-<link rel="preload" href="/fonts/is-400-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/is-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/is-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/is-600-latin.woff2" as="font" type="font/woff2" crossorigin>
 <script>
   try { const t = localStorage.getItem('fc-theme'), k = localStorage.getItem('fc-skin'); if (t) document.documentElement.dataset.theme = t; if (k) document.documentElement.dataset.skin = k; } catch (e) {}
   // settings: parts you've switched off stay hidden from the first paint
@@ -62,9 +62,9 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"/assets/core.85a040817e.js"}}</script>
-<link rel="modulepreload" href="/assets/core.85a040817e.js">
-<link rel="stylesheet" href="/assets/core.915d5e7fe1.css">
+<script type="importmap">{"imports":{"core":"./assets/core.d030dbefb1.js"}}</script>
+<link rel="modulepreload" href="./assets/core.d030dbefb1.js">
+<link rel="stylesheet" href="./assets/core.89bd9cd5cf.css">
 </head>
 <body>
 
@@ -287,6 +287,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="/assets/core.85a040817e.js"></script>
+<script type="module" src="./assets/core.d030dbefb1.js"></script>
 </body>
 </html>

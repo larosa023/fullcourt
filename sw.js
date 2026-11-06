@@ -3,6 +3,7 @@
 const SHELL = 'fc-shell-v2';
 const DATA = 'fc-data-v1';
 const ASSETS = 'fc-assets-v1';
+const BASE = new URL(self.registration.scope).pathname; // '/' on Netlify and Cloudflare, '/fullcourt/' on GitHub Pages
 const SHELL_FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -27,7 +28,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   // site code and styles: names change with every update, so a saved copy is always right
-  if (url.origin === self.location.origin && (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/'))) {
+  if (url.origin === self.location.origin && (url.pathname.startsWith(BASE + 'assets/') || url.pathname.startsWith(BASE + 'fonts/'))) {
     e.respondWith(caches.open(ASSETS).then(async c => {
       const hit = await c.match(req.url); if (hit) return hit;
       const r = await fetch(req);

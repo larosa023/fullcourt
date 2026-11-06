@@ -5,9 +5,13 @@
    on the website it doesn't, so none of this runs there. In the app: outside links open in the normal browser,
    alerts go to Windows notifications, and a banner offers new versions from GitHub Releases. */
 const IS_APP = !!window.__TAURI__;
+// the app's mini scoreboard window loads the same page as mini.html: today's scores and tracked bets, compact
+const IS_MINI = IS_APP && /\/mini\.html$/.test(location.pathname);
+if (IS_MINI && location.hash !== '#scores') history.replaceState(null, '', '#scores');
 if (IS_APP) {
   const T = window.__TAURI__;
   document.documentElement.dataset.app = '1';
+  if (IS_MINI) document.documentElement.dataset.mini = '1';
   const ext = u => { try { const x = new URL(u, location.href); return (/^https?:$/.test(x.protocol) && x.host !== location.host) || /^(mailto|tel|sms):$/.test(x.protocol); } catch (e) { return false; } };
   const openOut = u => { try { T.opener.openUrl(String(new URL(u, location.href))); } catch (e) {} };
   document.addEventListener('click', e => { const a = e.target.closest?.('a[href]'); if (a && ext(a.href)) { e.preventDefault(); openOut(a.href); } }, true);
@@ -16,7 +20,7 @@ if (IS_APP) {
   class AppNote {
     static permission = 'granted';
     static requestPermission() { return Promise.resolve('granted'); }
-    constructor(title, o = {}) { try { T.notification.sendNotification({ title, body: o.body || '' }); } catch (e) {} }
+    constructor(title, o = {}) { if (IS_MINI) return; try { T.notification.sendNotification({ title, body: o.body || '' }); } catch (e) {} } // the main window sends alerts; the mini one stays quiet
     close() {}
   }
   window.Notification = AppNote;
@@ -2159,7 +2163,7 @@ function lazy(name) {
   if (!modP[name]) {
     const m = MODS[name];
     const css = m?.css ? new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = m.css; l.onload = l.onerror = res; document.head.append(l); }) : null;
-    modP[name] = Promise.all([import(m.js), css]).then(([x]) => x).catch(e => { delete modP[name]; throw e; });
+    modP[name] = Promise.all([import(new URL(m.js, document.baseURI).href), css]).then(([x]) => x).catch(e => { delete modP[name]; throw e; });
   }
   return modP[name];
 }
@@ -3255,6 +3259,7 @@ document.addEventListener('click', e => {
   const bd = el.closest('[data-betdel]'); if (bd) { const c = bd.closest('.bt-card'); if (c && c.closest('.bt-ask')) c.remove(); removeBet(bd.dataset.betdel); return; }
   if (el.closest('[data-news]')) { openNews(); return; }
   if (el.closest('[data-settings]')) { openSettings(); return; }
+  if (el.closest('[data-openmini]')) { appCall('open_mini').catch(() => toast("Couldn't open the mini scoreboard")); return; }
   if (el.closest('[data-week]')) { openWeek(); return; }
   if (el.closest('[data-alerts]')) { toggleAlerts(); return; }
   const wb = el.closest('[data-watch]'); if (wb) { const id = wb.dataset.watch; toggleWatch(id, S.watchInfo?.[id]); return; }
@@ -3368,4 +3373,34 @@ async function appUpdateCheck(manual = false) {
     return { st: 'newer', cur, v };
   } catch (e) { return { st: 'error' }; }
 }
-if (IS_APP) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }
+if (IS_APP && !IS_MINI) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }
+
+/* Windows app: tray, mini scoreboard button, and the mini window's own bar */
+const appCall = (cmd, args) => { try { return window.__TAURI__.core.invoke(cmd, args); } catch (e) { return Promise.reject(e); } };
+if (IS_APP && !IS_MINI) {
+  appCall('set_close_to_tray', { on: lsGet('fc-app-tray') !== '0' }).catch(() => {});
+  try {
+    window.__TAURI__.event.listen('fc-nav', e => { location.hash = String(e.payload || '#scores'); });
+    // the first time the window hides to the tray, say so (Windows notification, since the window is gone)
+    window.__TAURI__.event.listen('fc-to-tray', () => { if (lsGet('fc-app-trayseen')) return; lsSet('fc-app-trayseen', '1'); try { window.__TAURI__.notification.sendNotification({ title: 'Fullcourt is still running', body: 'It\'s in the tray by the clock, keeping your bet alerts on. Right-click it to quit. You can turn this off in Settings.' }); } catch (x) {} });
+  } catch (e) {}
+  const mb = document.createElement('button');
+  mb.className = 'icon-btn mini-btn'; mb.dataset.openmini = ''; mb.title = 'Mini scoreboard: a small always-on-top window'; mb.setAttribute('aria-label', 'Open the mini scoreboard');
+  mb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2.5"/><rect x="12" y="11" width="7" height="5" rx="1.2"/></svg>';
+  $('.set-btn')?.before(mb);
+}
+if (IS_MINI) {
+  let onTop = lsGet('fc-mini-top') !== '0';
+  appCall('set_mini_on_top', { on: onTop }).catch(() => {});
+  const bar = document.createElement('div'); bar.className = 'mini-bar';
+  const pinTxt = () => (onTop ? 'On top' : 'Pin on top');
+  bar.innerHTML = `<b>Fullcourt</b><span class="mini-live"><i></i>Live</span><button class="mini-pin${onTop ? ' on' : ''}" data-minipin title="Keep this window above other windows">${pinTxt()}</button><button class="mini-full" data-minifull title="Open the full Fullcourt window">Open full</button>`;
+  document.body.prepend(bar);
+  bar.addEventListener('click', e => {
+    if (e.target.closest('[data-minifull]')) appCall('focus_main').catch(() => {});
+    const pin = e.target.closest('[data-minipin]');
+    if (pin) { onTop = !onTop; lsSet('fc-mini-top', onTop ? '1' : '0'); appCall('set_mini_on_top', { on: onTop }).catch(() => {}); pin.classList.toggle('on', onTop); pin.textContent = pinTxt(); }
+  });
+  // always today, always Scores
+  window.addEventListener('hashchange', () => { if (location.hash !== '#scores' && !document.querySelector('.sheet.open')) history.replaceState(null, '', '#scores'); });
+}

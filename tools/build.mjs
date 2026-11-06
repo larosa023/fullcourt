@@ -53,7 +53,7 @@ const minCSS = async code => (await esbuild.transform(code, { loader: 'css', min
 
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
-const write = (name, ext, code) => { const f = `${name}.${hash(code)}.${ext}`; fs.writeFileSync(path.join(OUT, f), code); return `/assets/${f}`; };
+const write = (name, ext, code) => { const f = `${name}.${hash(code)}.${ext}`; fs.writeFileSync(path.join(OUT, f), code); return `./assets/${f}`; };
 
 const coreSrc = read('core.js');
 { // the "What's new" dot compares against this id, so the two must match
