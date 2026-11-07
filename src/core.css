@@ -1495,3 +1495,14 @@ tr:hover .pl-sh, .pl-sh:focus-visible { opacity: 1; }
 @media (min-width: 761px) and (max-width: 1000px) { .nav button { padding-left: 5px !important; padding-right: 5px !important; } .nav .nav-more { font-size: 0 !important; } .nav .nav-more svg { width: 16px; height: 16px; } }
 @media (min-width: 761px) and (max-width: 840px) { .nav button { padding-left: 3px !important; padding-right: 3px !important; } }
 @media (min-width: 1341px) { :root[data-league^="ncaa"] .nav button { padding-left: 7px; padding-right: 7px; } }
+.g-court { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 2px 8px 2px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-2); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; flex: none; cursor: pointer; }
+.g-court svg { width: 12px; height: 12px; color: var(--accent); }
+.g-court:hover { color: var(--ink); border-color: color-mix(in oklab, var(--accent) 50%, var(--line)); }
+.g-hl ~ .g-court { margin-left: 6px; }
+/* header: room for Replay and Cap */
+@media (min-width: 1341px) { .search-btn .lbl { display: none; } .search-btn { padding-left: 12px; padding-right: 10px; gap: 8px; } }
+@media (min-width: 761px) and (max-width: 1340px) { .nav button { padding-left: 6px; padding-right: 6px; } }
+@media (min-width: 761px) and (max-width: 1200px) { .nav button { padding-left: 5px; padding-right: 5px; font-size: 13.5px; } }
+@media (min-width: 761px) and (max-width: 1100px) { .nav button { padding-left: 4px !important; padding-right: 4px !important; font-size: 13px !important; } }
+@media (min-width: 761px) and (max-width: 860px) { .nav button { padding-left: 3px !important; padding-right: 3px !important; font-size: 12px !important; } }
+@media (min-width: 1341px) { html.has-fav .ask-btn .lbl { display: none; } html.has-fav .ask-btn { width: 38px; justify-content: center; padding: 0; } }

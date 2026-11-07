@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07b', date: 'Nov 7', items: [
+    ['Capsheet: every NBA contract', 'A new Cap tab has every team\'s cap sheet: each player\'s salary for the next six seasons, player and team options, non-guaranteed years, dead money from waived players and two-way deals, with the team\'s payroll against the cap, tax line and both aprons. The Players tab is searchable and sortable by team, salary, money left and contract end (try Expires after 2026-27 for next summer\'s free agents). Tap anyone for their full contract. NBA player pages now have a Contract card too. Contracts refresh every Monday.'],
+    ['Deadline: the trade machine', 'Inside Cap, Trade machine lets you pick 2 to 4 teams, move players and draft picks, and see right away whether the deal works under 2026-27 rules: salary matching, the first and second aprons, cap room, roster limits, trade kickers and recently signed free agents, with a plain-English reason when it doesn\'t. Each team shows its payroll before and after. Save trades on your device or share a trade card image.'],
+    ['Chalk: a live 2D court', 'Every game has a new Court tab (and a Court button on live and finished games on Scores): a top-down court where shots land as they happen, made or missed in team colors, building a running shot chart next to the scorebug and play log. Finished games replay at 1× to 60× with play, pause, a scrubber and quarter jumps; live games follow along. Tap any play in the log to jump there.'],
+  ] },
   { id: '2026-11-07a', date: 'Nov 7', items: [
     ['Replay: every game\'s highlights', 'A new Replay tab is a clean feed of each finished game\'s highlights, newest first, with the final score on every card. Filter by team or jump to a date, scroll for older days, and open Top plays for the game\'s individual clips. Nothing plays until you tap, and a video pauses when you scroll past it. Finished games on Scores now show a Highlights marker, and the game sheet has a Highlights in Replay button. Works for the WNBA and college too.'],
     ['Compare moved to More', 'To make room for Replay, Compare is now in the More menu at the end of the header (and still in the phone menu).'],

@@ -341,7 +341,7 @@ function placeKnob(seg) {
 }
 
 /* ================= routing ================= */
-const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay'];
+const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay', 'cap'];
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
   S.view = view;
@@ -356,6 +356,7 @@ function go(view, push = true) {
   if (view === 'compare') renderCompare();
   if (view === 'bets') renderBetDesk();
   if (view === 'replay') lazy('replay').then(m => m.renderReplay()).catch(() => { $('#rpBody').innerHTML = `<div class="empty"><b>Replay didn't load</b><button class="btn" data-retry="replay">Try again</button></div>`; });
+  if (view === 'cap') lazy('cap').then(m => m.renderCap()).catch(() => { $('#capBody').innerHTML = `<div class="empty"><b>Capsheet didn't load</b><button class="btn" data-retry="cap">Try again</button></div>`; });
   navMenu(false);
   $('#nav [data-navmore]')?.toggleAttribute('aria-current', !$(`#nav > [data-view="${view}"]`) && !!$(`#navMenu [data-view="${view}"]`));
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
@@ -740,6 +741,7 @@ function gameCard(g, i, animate) {
   } else if (L) {
     foot = `<div class="g-foot">${face(L.a?.id, L.a?.displayName, 'mini-face', 80)}<span class="lead"><b>${esc(L.a?.shortName || L.a?.displayName)}</b> ${esc(L.dv)} ${L.cat?.name === 'points' ? 'pts' : esc(L.cat?.abbreviation || '')} · ${esc(L.team.abbr)}</span></div>`;
     if (post && g.hasHl) foot = foot.replace('</div>', `<span class="g-hl" title="Highlights available: open the game">${PLAY_ICON}Highlights</span></div>`);
+    if (!IS_C || live) foot = foot.replace(/<\/div>$/, `<span class="g-court" data-court="${g.id}" role="button" tabindex="0" title="Watch on the 2D court" aria-label="Court view">${COURT_ICON}Court</span></div>`);
   }
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
@@ -1222,7 +1224,7 @@ async function openGame(id, opts = {}) {
   const sheet = openSheet('Game');
   // opened from a bet leg: start on that player's team in the box score, scroll to his row and keep it highlighted
   const focusPid = opts.focus ? String(opts.focus) : null; let focusDone = false;
-  let tab = 'box', boxSide = 1, lastPlayId = null, first = true, clipCard = null, cur = null;
+  let tab = opts.tab || 'box', boxSide = 1, lastPlayId = null, first = true, clipCard = null, cur = null;
   const shotF = { team: 'all', pid: '' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
   addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : null);
@@ -1287,7 +1289,7 @@ async function openGame(id, opts = {}) {
       main += recapHTML(d, sides) + notableCard(d) + clipsCard(clips);
       if (live) side += oddsCard(gameOdds(d, id), sides, 'Line', `Updated ${esc(fmtTime(new Date().toISOString()))}. Shows in-game prices when the sportsbook posts them.`);
       main += `<div class="card"><div class="tabs hs" role="tablist" data-drag>
-        ${[['box', 'Box score'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
+        ${[['box', 'Box score'], ['court', 'Court'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
       </div><div class="pane" id="gpane"></div></div>`;
     }
     sheet.body.innerHTML = `<div class="g-layout"><div class="g-side">${side}</div><div class="g-main">${main}</div></div>`;
@@ -1302,6 +1304,7 @@ async function openGame(id, opts = {}) {
       if (tab === 'box') pane.innerHTML = boxScore(d, sides, boxSide);
       if (tab === 'box' && focusPid) { const row = $(`tr[data-player="${focusPid}"]`, pane); if (row) { row.classList.add('focus'); if (!focusDone) { focusDone = true; requestAnimationFrame(() => row.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' })); } } }
       if (tab === 'shots') pane.innerHTML = shotChart(d, sides, shotF);
+      if (tab === 'court') { if (!pane.firstChild) pane.innerHTML = '<div class="sk" style="height:420px;border-radius:12px"></div>'; lazy('chalk').then(m => { if (pane.isConnected && tab === 'court') m.drawChalk(pane, d, sides, id, live); }).catch(() => { pane.innerHTML = '<div class="empty" style="border:0"><b>The court didn\'t load</b></div>'; }); }
       if (tab === 'team') pane.innerHTML = teamCompare(d, sides);
       if (tab === 'plays') pane.innerHTML = playsList(d, sides, lastPlayId, plF);
       if (tab === 'lead') pane.innerHTML = gameLeaders(d);
@@ -2232,7 +2235,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2684,6 +2687,7 @@ function clipList(d) {
   }).filter(Boolean).slice(0, 8);
 }
 const durText = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const COURT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M12 5v14"/><circle cx="12" cy="12" r="2.6"/></svg>';
 const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>';
 function clipsCard(clips) {
   if (!clips.length) return '';
@@ -2934,15 +2938,18 @@ async function playerTrends(id, box, seasonAvg) {
   if (IS_C) html += '<div class="card splits-card csplits"></div>'; // college: splits built from the game logs (conference, ranked opponents, months, career highs)
   else if (sp?.splitCategories) { box._sp = sp; html += '<div class="card splits-card"></div>'; }
   if (!IS_C && log.length) html += '<div class="card splits-card mates-card"></div>'; // with / without teammates, loaded when it scrolls into view
+  if (LGK === 'nba') html += '<div class="card splits-card contract-card"></div>'; // Capsheet contract, loaded when it scrolls into view
   if (!html) { box.remove(); return; }
   box.innerHTML = html;
   box.classList.add('in');
   wireDrag(box);
   const seg = $('[data-trseg]', box);
   if (seg) { placeKnob(seg); drawTrend(box, 'pts'); seg.addEventListener('click', e => { const b = e.target.closest('[data-tr]'); if (!b) return; $$('button', seg).forEach(x => x.setAttribute('aria-pressed', x === b)); placeKnob(seg); drawTrend(box, b.dataset.tr); }); }
+  const kc = $('.contract-card', box);
+  if (kc) { const io2 = new IntersectionObserver(es => { if (!es.some(x => x.isIntersecting)) return; io2.disconnect(); lazy('cap').then(m => m.drawContract(kc, id)).catch(() => kc.remove()); }, { rootMargin: '300px' }); io2.observe(kc); }
   const mc = $('.mates-card', box);
   if (mc) { const io = new IntersectionObserver(es => { if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('mates').then(m => m.drawMates(mc, id)).catch(() => mc.remove()); }, { rootMargin: '300px' }); io.observe(mc); }
-  const sc = $('.splits-card:not(.mates-card)', box);
+  const sc = $('.splits-card:not(.mates-card):not(.contract-card)', box);
   const slot = box.parentElement?.querySelector('.splits-slot');
   if (sc && slot) { slot.replaceWith(sc); if (!box.children.length) box.remove(); }
   if (sc && IS_C) lazy('csplits').then(m => m.drawCollegeSplits(sc, id)).catch(() => sc.remove());
@@ -3332,6 +3339,7 @@ document.addEventListener('click', e => {
   const lgb = el.closest('[data-lg]'); if (lgb) { switchLeague(lgb.dataset.lg); return; }
   if (el.closest('[data-navmore]')) { navMenu(); return; }
   // a game's highlights in Replay (from the game sheet)
+  const ckb = el.closest('[data-court]'); if (ckb) { e.preventDefault(); openGame(ckb.dataset.court, { tab: 'court' }); return; }
   const rpl = el.closest('[data-replay]'); if (rpl) { const [gid, day] = rpl.dataset.replay.split('|'); S.replayFocus = { gid, day }; closeAll(); if (S.view === 'replay') lazy('replay').then(m => m.renderReplay()); else go('replay'); return; }
   const v = el.closest('[data-view]');
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
@@ -3377,6 +3385,7 @@ document.addEventListener('click', e => {
     if (k === 'teams') { stdPromise = null; renderTeams(); }
     if (k === 'leaders') loadLeaders();
     if (k === 'replay') go('replay');
+    if (k === 'cap') go('cap');
   }
 });
 // keyboard arrows on the date rail

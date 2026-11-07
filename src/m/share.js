@@ -167,3 +167,35 @@ function visibleColor(hex, bg) {
 }
 function roundRect(x, l, t, w, h, r) { x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r); x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath(); }
 
+
+/* Deadline: a trade card. T = { teams, R (per-team result from the trade machine), ok, season, names } */
+async function shareTrade(T) {
+  const K = await canvasKit(); const { x, C, font, text, fit } = K;
+  const n = T.teams.length;
+  text('TRADE', 72, 132, font(800, 92), C.ink);
+  text(`${T.season} rules`.toUpperCase(), 72, 176, font(500, 24, 'mono'), C.muted);
+  const okTxt = T.ok ? '✓ WORKS' : '✕ DOESN\'T WORK', okC = T.ok ? '#2BC48A' : '#FF5A5F';
+  x.font = font(800, 40); const ow = x.measureText(okTxt).width + 44;
+  x.fillStyle = okC + '22'; x.beginPath(); x.roundRect(1008 - ow, 82, ow, 64, 32); x.fill();
+  text(okTxt, 1008 - ow / 2, 128, font(800, 40), okC, 'center');
+  const logos = await Promise.all(T.teams.map(a => loadImg(logoSrc(a, 200))));
+  const top = 214, bottom = 948, h = (bottom - top) / n;
+  T.teams.forEach((a, i) => {
+    const r = T.R[a], y = top + i * h, tc = teamColor(a);
+    x.fillStyle = C.surface; x.beginPath(); x.roundRect(72, y + 8, 936, h - 16, 26); x.fill();
+    x.fillStyle = tc; x.beginPath(); x.roundRect(72, y + 8, 10, h - 16, [26, 0, 0, 26]); x.fill();
+    const L = Math.min(84, h - 70); if (logos[i]) x.drawImage(logos[i], 106, y + 28, L, L);
+    text(fit((T.names[a] || a).toUpperCase(), font(800, 40), 560), 106 + L + 22, y + 62, font(800, 40), C.ink);
+    text(`${money(r.before)} → ${money(r.after)}`, 984, y + 60, font(500, 24, 'mono'), C.muted, 'right');
+    const items = [...r.inP.map(p => `${p.name}  ${money(p.sal[0])}`), ...r.inPk.map(k => `${k.year} ${k.round === 1 ? '1st' : '2nd'}-round pick (${k.from})`)];
+    const lineH = Math.min(40, (h - 110) / Math.max(1, Math.min(items.length, 5)));
+    text('GETS', 106 + L + 22, y + 100, font(500, 20, 'mono'), C.accent);
+    const shown = items.slice(0, Math.max(1, Math.floor((h - 100) / lineH) - 0));
+    shown.forEach((t, j) => text(fit(t, font(600, Math.min(30, lineH - 6), 'body'), 700), 106 + L + 22, y + 100 + (j + 1) * lineH, font(600, Math.min(30, lineH - 6), 'body'), C.ink));
+    if (!items.length) text('Nothing', 106 + L + 22, y + 100 + lineH, font(600, 28, 'body'), C.muted);
+    if (items.length > shown.length) text(`+${items.length - shown.length} more`, 984, y + h - 30, font(500, 22, 'mono'), C.muted, 'right');
+  });
+  K.foot();
+  return { canvas: K.c, name: `trade-${T.teams.join('-').toLowerCase()}.png`, title: `Trade: ${T.teams.join(', ')}` };
+}
+function money(v) { return Math.abs(v) >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`; }
