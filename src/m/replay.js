@@ -7,6 +7,12 @@ const RP = { days: new Map(), team: '', date: '', cursor: null, back: 0, busy: f
 const RP_MAX_BACK = 45; // how far back the feed scrolls (days)
 const RP_FIRST = 8; // games to show before waiting for a scroll
 
+// full game highlights (the NBA's YouTube uploads), matched to games by a GitHub job: tools/yt.mjs, branch yt-data
+const RP_YT = 'https://raw.githubusercontent.com/larosa023/fullcourt/yt-data/highlights.json';
+let rpYtP = null, rpYtAt = 0;
+const rpYt = () => { if (!rpYtP || Date.now() - rpYtAt > 10 * 60e3) { rpYtAt = Date.now(); rpYtP = fetch(`${RP_YT}?t=${Math.floor(Date.now() / 600e3)}`).then(r => (r.ok ? r.json() : { games: {} })).then(j => j.games || {}).catch(() => ({})); } return rpYtP; };
+const rpNick = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const rpFull = g => { const Y = RP.yt || {}; return Y[`${g.day}|${rpNick(g.away.name)}|${rpNick(g.home.name)}`] || Y[`${g.day}|${rpNick(g.home.name)}|${rpNick(g.away.name)}`] || null; };
 const rpVideo = h => { const s = h?.links?.source || {}; const mp4 = s.HD?.href || s.href || s.full?.href || ''; return mp4 ? { id: String(h.id), title: h.headline || 'Game highlights', dur: h.duration || 0, thumb: h.thumbnail || '', mp4 } : null; };
 const rpKey = day => `fc-rp:${LGK}:${day}`;
 function rpDay(day) {
@@ -38,6 +44,7 @@ function rpCard(g) {
     <div class="rp-body">
       ${rpScore(g)}
       <div class="rp-act">
+        ${rpFull(g) ? `<button class="chip sm rp-full" data-rpfull="${esc(rpFull(g).id)}" title="${esc(rpFull(g).title)}">${PLAY_ICON}Full game</button>` : ''}
         <button class="chip sm" data-rpclips aria-expanded="false">Top plays</button>
         <button class="chip sm" data-game="${esc(g.id)}">Box score</button>
         ${g.note ? `<span class="rp-note">${esc(g.note)}</span>` : ''}
@@ -61,6 +68,8 @@ async function renderReplay() {
   rpTeams();
   if (!root._wired) { root._wired = true; wireReplay(root); }
   RP.cursor = RP.date || S.today; RP.back = 0; RP.done = false; RP.shown = 0;
+  if (!IS_C && !IS_W) RP.yt = await Promise.race([rpYt(), sleep(2500).then(() => RP.yt || {})]); // don't hold the feed up for it
+  rpYt().then(y => { if (y === RP.yt) return; RP.yt = y; $$('.rp-card', root).forEach(c => { if (c.querySelector('[data-rpfull]')) return; const g = c._g; const f = g && rpFull(g); if (f) $('.rp-act', c).insertAdjacentHTML('afterbegin', `<button class="chip sm rp-full" data-rpfull="${esc(f.id)}">${PLAY_ICON}Full game</button>`); }); });
   await rpLoadMore(true);
   if (RP.focus) { const c = $(`.rp-card[data-rpg="${RP.focus}"]`, root); if (c) c.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
   // infinite scroll: load older days as the bottom comes into view
@@ -93,6 +102,7 @@ async function rpLoadMore(first = false) {
       days.forEach((day, i) => {
         const games = lists[i].filter(rpMatch); if (!games.length) return;
         feed.insertAdjacentHTML('beforeend', `${rpDayHead(day)}<div class="rp-grid">${games.map(rpCard).join('')}</div>`);
+        games.forEach(g => { const c = feed.querySelector(`.rp-card[data-rpg="${g.id}"]`); if (c) c._g = g; });
         RP.shown += games.length;
       });
       if (RP.date || RP.back > RP_MAX_BACK) RP.done = true;
@@ -111,10 +121,25 @@ function rpPlay(card, clip) {
     stage.innerHTML = ''; stage.append(v);
   }
   const src = g?.mp4 || card._hl?.mp4; if (!src) return;
-  if (v.src !== src) { v.poster = g?.thumb || card._hl?.thumb || ''; v.src = src; }
+  if (v.src !== src) { v.poster = g?.thumb || card._hl?.thumb || ''; v.src = src; v.muted = true; v.defaultMuted = true; }
+  rpStopYt(card);
   v.play().catch(() => {});
 }
 
+// put any other card's YouTube player back to its thumbnail (one video at a time)
+function rpStopYt(except) {
+  $$('.rp-card .rp-stage iframe').forEach(f => { const c = f.closest('.rp-card'); if (c !== except && c._stage) { $('.rp-stage', c).innerHTML = c._stage; $$('[data-rpfull]', c).forEach(b => b.setAttribute('aria-pressed', 'false')); } });
+}
+function rpPlayFull(card, id) {
+  const stage = $('.rp-stage', card);
+  $$('#v-replay video').forEach(v => v.pause());
+  rpStopYt(card);
+  card._stage ||= stage.innerHTML;
+  // starts muted (YouTube allows autoplay only when muted); unmute in the player
+  stage.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1" title="Full game highlights" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
+  $$('[data-rpfull]', card).forEach(b => b.setAttribute('aria-pressed', 'true'));
+  if (!$('.rp-yt', card)) $('.rp-act', card).insertAdjacentHTML('beforeend', `<a class="rp-yt" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">YouTube ↗</a>`);
+}
 function wireReplay(root) {
   root.addEventListener('change', e => {
     const t = e.target.closest('[data-rpteam]'); if (t) { RP.team = t.value; RP.focus = null; renderReplay(); return; }
@@ -125,7 +150,8 @@ function wireReplay(root) {
     const card = e.target.closest('.rp-card'); if (!card) return;
     const day = card.closest('.rp-grid')?.previousElementSibling?.dataset.rpday;
     if (!card._hl) { const games = day ? await rpDay(day) : []; card._hl = games.find(x => x.id === card.dataset.rpg)?.hl; }
-    if (e.target.closest('[data-rpplay]')) { rpPlay(card); return; }
+    const fg = e.target.closest('[data-rpfull]'); if (fg) { rpPlayFull(card, fg.dataset.rpfull); return; }
+    if (e.target.closest('[data-rpplay]')) { if (card._stage && $('iframe', card)) { $('.rp-stage', card).innerHTML = card._stage; } rpPlay(card); return; }
     const tp = e.target.closest('[data-rpclips]');
     if (tp) {
       const box = $('.rp-clips', card), open = box.hidden; box.hidden = !open; tp.setAttribute('aria-expanded', open);

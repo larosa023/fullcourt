@@ -37,3 +37,9 @@
   .rp-grid { grid-template-columns: 1fr; gap: 12px; }
   .rp-day { margin-top: 18px; font-size: 18px; }
 }
+
+.rp-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.rp-full { background: color-mix(in oklab, var(--accent) 14%, var(--surface)) !important; border-color: color-mix(in oklab, var(--accent) 45%, var(--line)) !important; }
+.rp-full svg { width: 10px; height: 10px; margin-right: 4px; color: var(--accent); }
+.rp-full[aria-pressed="true"] { background: var(--accent) !important; color: #fff !important; } .rp-full[aria-pressed="true"] svg { color: #fff; }
+.rp-yt { font-size: 12px; color: var(--muted); text-decoration: none; } .rp-yt:hover { color: var(--ink); }

@@ -14,17 +14,30 @@ try { const r = await fetch(`${PREV}?t=${Date.now()}`); if (r.ok) prev = await r
 const games = { ...(prev.games || {}) };
 let found = 0, seen = 0;
 for (const [lg, ch] of Object.entries(CHANNELS)) {
-  // the channel's uploads playlist (UU…) feed, with the channel feed as a fallback
+  // 1. YouTube Data API (needs the YT_KEY repo secret; free, 1 unit per call, ~100 calls a day): the latest 100 uploads
+  const entries = [];
+  if (process.env.YT_KEY) {
+    let page = '';
+    for (let n = 0; n < 2; n++) {
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=UU${ch.slice(2)}&key=${process.env.YT_KEY}${page ? `&pageToken=${page}` : ''}`);
+      const j = await r.json(); if (!r.ok) { console.log(lg, 'API', r.status, j.error?.message); break; }
+      for (const it of j.items || []) entries.push({ id: it.snippet?.resourceId?.videoId, title: it.snippet?.title || '', at: it.snippet?.publishedAt });
+      page = j.nextPageToken; if (!page) break;
+    }
+    console.log(lg, 'API videos', entries.length);
+  }
+  // 2. otherwise the public feed (the uploads playlist, then the channel feed), which YouTube sometimes breaks
   let xml = '';
+  if (!entries.length)
   for (const url of [`https://www.youtube.com/feeds/videos.xml?playlist_id=UU${ch.slice(2)}`, `https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`]) {
     const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' } });
     const t = await res.text();
     console.log(lg, url.split('?')[1].slice(0, 12), res.status, t.length, (t.match(/<title>([^<]+)/g) || []).slice(0, 3).join(' / '));
     if (res.ok && t.includes('<entry>')) { xml = t; break; }
   }
-  for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+  for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) entries.push({ id: m[1].match(/<yt:videoId>([^<]+)/)?.[1], title: dec(m[1].match(/<title>([^<]+)/)?.[1] || ''), at: m[1].match(/<published>([^<]+)/)?.[1] });
+  for (const { id, title, at } of entries) {
     seen++;
-    const e = m[1], id = e.match(/<yt:videoId>([^<]+)/)?.[1], title = dec(e.match(/<title>([^<]+)/)?.[1] || ''), at = e.match(/<published>([^<]+)/)?.[1];
     if (!id || !/full game highlights/i.test(title)) continue;
     // e.g. "TRAIL BLAZERS at LAKERS | FULL GAME HIGHLIGHTS | November 6, 2026" (sometimes with "Emirates NBA Cup" in it)
     const t = title.match(/([A-Z0-9 .'&]+?)\s+(?:at|vs\.?|@)\s+([A-Z0-9 .'&]+?)\s*\|/i);

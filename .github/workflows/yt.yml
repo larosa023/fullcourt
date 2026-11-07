@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - name: Build highlights.json
+        env: { YT_KEY: '${{ secrets.YT_KEY }}' }
         run: mkdir pub && node tools/yt.mjs pub/highlights.json
       - name: Publish
         run: |

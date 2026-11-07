@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07e', date: 'Nov 7', items: [
+    ['Full game highlights in Replay', 'NBA games in Replay get a Full game button for the NBA\'s full-length highlights (usually around 10 minutes), playing right in the card. All Replay videos now start muted; tap the speaker for sound.'],
+  ] },
   { id: '2026-11-07d', date: 'Nov 7', items: [
     ['More room on big screens', 'On wide screens (1640 px and up) the whole site is a bit wider, and Compare is back as its own tab in the header. Laptops, tablets and phones look the same as before.'],
   ] },
