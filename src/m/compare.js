@@ -61,8 +61,8 @@ async function cmpData(id) {
 async function ensureCmpDefaults() {
   if (S.cmp[0] && S.cmp[1]) return;
   const key = 'offensive.avgPoints';
-  if (!S.leadCache[key]) S.leadCache[key] = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc${SEASON_QS}`);
-  const ids = (S.leadCache[key].athletes || []).map(a => a.athlete.id);
+  if (!S.leadCache[key]) S.leadCache[key] = { t: Date.now(), d: await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc${SEASON_QS}`) };
+  const ids = (S.leadCache[key].d.athletes || []).map(a => a.athlete.id);
   if (!S.cmp[0]) S.cmp[0] = ids.find(x => x !== S.cmp[1]);
   if (!S.cmp[1]) S.cmp[1] = ids.find(x => x !== S.cmp[0]);
 }

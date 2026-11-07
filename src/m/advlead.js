@@ -1,7 +1,7 @@
 /* ---------------- advanced leader boards (from the full player table) ---------------- */
-async function renderAdvLeader(c) {
-  const body = $('#leadBody');
-  body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
+async function renderAdvLeader(c, silent) {
+  const body = $('#leadBody'), keepY = silent ? scrollY : null;
+  if (!silent) body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
   let rows;
   try { [rows] = await Promise.all([leagueTable(), loadStandings().catch(() => null), ensureTeamColors()]); }
   catch (e) { body.innerHTML = `<div class="empty"><b>Leaders didn't load</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`; return; }

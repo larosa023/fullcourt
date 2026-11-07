@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07c', date: 'Nov 7', items: [
+    ['Leaders stay current', 'League leaders now refresh on their own while the page is open: every minute while games are live, every 10 minutes otherwise, and right after any game ends (season stats count finished games). The board updates in place without jumping, and a line under the title shows when it last updated. The same goes for the advanced boards and award races.'],
+  ] },
   { id: '2026-11-07b', date: 'Nov 7', items: [
     ['Capsheet: every NBA contract', 'A new Cap tab has every team\'s cap sheet: each player\'s salary for the next six seasons, player and team options, non-guaranteed years, dead money from waived players and two-way deals, with the team\'s payroll against the cap, tax line and both aprons. The Players tab is searchable and sortable by team, salary, money left and contract end (try Expires after 2026-27 for next summer\'s free agents). Tap anyone for their full contract. NBA player pages now have a Contract card too. Contracts refresh every Monday.'],
     ['Deadline: the trade machine', 'Inside Cap, Trade machine lets you pick 2 to 4 teams, move players and draft picks, and see right away whether the deal works under 2026-27 rules: salary matching, the first and second aprons, cap room, roster limits, trade kickers and recently signed free agents, with a plain-English reason when it doesn\'t. Each team shows its payroll before and after. Save trades on your device or share a trade card image.'],

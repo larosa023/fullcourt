@@ -128,12 +128,12 @@ async function renderAward(c) {
   const key = 'award-' + c.award;
   if (!S.leadCache[key]) {
     body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
-    try { S.leadCache[key] = await awardRace(c.award); }
+    try { S.leadCache[key] = { t: Date.now(), d: await awardRace(c.award) }; }
     catch (e) { console.error(e); body.innerHTML = `<div class="empty"><b>Couldn't build the race</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`; return; }
   }
   await ensureTeamColors();
   if (leadCats()[S.leadKey] !== c) return;
-  const { list, wModel, srcs, updated } = S.leadCache[key];
+  const { list, wModel, srcs, updated } = S.leadCache[key].d;
   const A = AWARD[c.award];
   if (!list.length) { body.innerHTML = `<div class="empty"><b>Too early to call</b>The race fills in once players have a few games in.</div>`; return; }
   list.forEach(x => rememberPlayer({ id: x.r.id, displayName: x.r.name, shortName: x.r.short, position: { abbreviation: x.r.pos } }, x.r.teamId));

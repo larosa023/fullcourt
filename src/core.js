@@ -594,7 +594,10 @@ async function loadScores({ silent = false } = {}) {
   try {
     const d = await getJSON(url);
     S.offline = S.cachedUrl === url;
+    const wasIn = new Set((S.games || []).filter(g => g.state === 'in').map(g => g.id));
     S.games = (d.events || []).map(parseGame);
+    if (S.games.some(g => g.state === 'post' && wasIn.has(g.id))) S.leadFinalAt = Date.now(); // a game just ended: leaders' season stats move
+    if (S.date === S.today) S.liveNow = S.games.some(g => g.state === 'in');
     const cal = d.leagues?.[0]?.calendar;
     if (Array.isArray(cal) && cal.length && typeof cal[0] === 'string') S.calendar = cal.map(x => x.slice(0, 10).replace(/-/g, ''));
     // remember each live game's line the first time we see it, so we can tell if the book is moving it in-game
@@ -1003,25 +1006,42 @@ const ADV_LEADER_CATS = [
 ];
 const leadCats = () => advOn ? ADV_LEADER_CATS : LEADER_CATS;
 document.addEventListener('fcadv', () => { S.leadKey = 0; renderLeadChips(); if (S.view === 'leaders') loadLeaders(); });
-async function loadLeaders() {
+/* Leaders refresh: every minute while games are live, every 10 minutes otherwise, and right after a game ends.
+   ESPN's season numbers count finished games, so the board moves when a game goes final. */
+const leadTTL = () => (S.liveNow ? 60e3 : 10 * 60e3);
+const leadStale = e => !e || Date.now() - e.t > leadTTL() || e.t < (S.leadFinalAt || 0);
+async function loadLeaders(opts = {}) {
   const c = leadCats()[S.leadKey];
-  if (c.adv) return renderAdvLeader(c);
-  if (c.award) return renderAward(c);
+  const silent = !!opts.silent;
+  if (c.adv) { if (silent && !leadStale(S.lt)) return; const y = scrollY; if (silent) { try { await leagueTable(); } catch (e) { return; } } await renderAdvLeader(c, silent); if (silent) window.scrollTo(0, y); leadStamp(); return; }
+  if (c.award) {
+    const k = 'award-' + c.award; if (silent && !leadStale(S.leadCache[k])) return;
+    const y = scrollY;
+    if (S.leadCache[k] && leadStale(S.leadCache[k])) { if (!silent) delete S.leadCache[k]; else { try { const m = await lazy('awards'); S.leadCache[k] = { t: Date.now(), d: await m.awardRace(c.award) }; } catch (e) { return; } } }
+    await renderAward(c); if (silent) window.scrollTo(0, y); leadStamp(); return;
+  }
   const body = $('#leadBody');
   const key = c.cat + '.' + c.name;
-  if (!S.leadCache[key]) {
-    body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
+  const ent = S.leadCache[key];
+  if (silent && !leadStale(ent)) return;
+  if (leadStale(ent)) {
+    if (!ent) body.innerHTML = `<div class="lead-grid"><div class="sk" style="height:420px;border-radius:20px"></div><div class="sk" style="height:520px"></div></div>`;
     try {
       const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=15&sort=${key}:desc${SEASON_QS}`);
-      S.leadCache[key] = d;
+      const sig = x => JSON.stringify((x?.athletes || []).map(a => [a.athlete?.id, a.categories?.map(k => k.values)]));
+      const same = ent && sig(ent.d) === sig(d);
+      S.leadCache[key] = { t: Date.now(), d };
+      if (silent && same) { leadStamp(); return; } // nothing moved: just the "updated" time
     } catch (e) {
+      if (ent) { leadStamp(); return; } // keep what's on screen
       body.innerHTML = `<div class="empty"><b>Leaders didn't load</b>The stats feed may be busy.<br><button class="btn" data-retry="leaders">Try again</button></div>`;
       return;
     }
   }
+  const keepY = silent ? scrollY : null;
   await ensureTeamColors();
   if (leadCats()[S.leadKey] !== c) return;
-  const d = S.leadCache[key];
+  const d = S.leadCache[key].d;
   const idx = (d.categories || []).find(x => x.name === c.cat)?.names?.indexOf(c.name) ?? -1;
   const gpIdx = (d.categories || []).find(x => x.name === 'general')?.names?.indexOf('gamesPlayed') ?? -1;
   const rows = (d.athletes || []).map(a => {
@@ -1052,7 +1072,20 @@ async function loadLeaders() {
       </button>`).join('')}</div>
   </div>`;
   requestAnimationFrame(() => requestAnimationFrame(() => $$('.lrow .bar i', body).forEach(i => i.style.width = i.dataset.w + '%')));
+  leadStamp();
+  if (keepY != null) window.scrollTo(0, keepY);
 }
+// "Updated 2 min ago" under the title
+function leadStamp() {
+  const el = $('#leadUpd'); if (!el) return;
+  const c = leadCats()[S.leadKey], e = c.adv ? S.lt : S.leadCache[c.award ? 'award-' + c.award : c.cat + '.' + c.name];
+  if (!e?.t) { el.textContent = ''; return; }
+  const m = Math.round((Date.now() - e.t) / 60e3);
+  el.innerHTML = `<i class="dot${S.liveNow ? ' on' : ''}"></i>Updated ${m < 1 ? 'just now' : `${m} min ago`} · ${S.liveNow ? 'checks every minute while games are live' : 'checks every 10 minutes'} and right after each game ends`;
+}
+// while Leaders is open: refresh when stale (silently, keeping your place), and keep the "updated" time current
+setInterval(() => { if (S.view !== 'leaders' || document.hidden || IS_C) return; loadLeaders({ silent: true }).catch(() => {}); leadStamp(); }, 30e3);
+document.addEventListener('visibilitychange', () => { if (document.hidden || S.view !== 'leaders' || IS_C) return; leadStamp(); loadLeaders({ silent: true }).catch(() => {}); });
 
 
 /* ================= timeouts, team fouls, bonus (worked out from the play-by-play) ================= */
@@ -2086,7 +2119,7 @@ function renderSearch() {
   const teams = matchTeams(q);
   let players = spPlayers;
   if (!q) {
-    const pts = S.leadCache['offensive.avgPoints'];
+    const pts = S.leadCache['offensive.avgPoints']?.d;
     players = (pts?.athletes || []).slice(0, 6).map(a => ({ id: a.athlete.id, name: a.athlete.displayName, sub: [a.athlete.position?.abbreviation, a.athlete.teams?.[0]?.displayName || a.athlete.teamName].filter(Boolean).join(' · '), teamId: a.athlete.teamId }));
   }
   const askable = q.split(/\s+/).length >= 3 || /\?$/.test(q);
@@ -2235,7 +2268,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2276,7 +2309,7 @@ const openWeek = stub('week', 'openWeek');
 
 /* ---------------- data helpers ---------------- */
 async function leagueTable() {
-  if (S.lt && Date.now() - S.lt.t < 10 * 60e3) return S.lt.rows;
+  if (S.lt && !leadStale(S.lt)) return S.lt.rows;
   const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=false&page=1&limit=600&sort=offensive.avgPoints:desc${SEASON_QS}`, { timeout: 25000 });
   const idx = {}; (d.categories || []).forEach(c => { idx[c.name] = c.names; });
   const rows = (d.athletes || []).map(a => {
