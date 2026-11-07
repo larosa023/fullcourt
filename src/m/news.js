@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07h', date: 'Nov 7', items: [
+    ['Michael Jordan\'s photo', 'Jordan now has a real photo everywhere in History: his profile, the records, the legends grid and On this day. More classic players\' photos are on the way.'],
+  ] },
   { id: '2026-11-07g', date: 'Nov 7', items: [
     ['History, polished', 'On this day opens with the date\'s biggest night as a big spotlight, and arrows step a day back or forward. Seasons shows the champion with its logo and colours, cards for the Finals MVP and the MVP, and arrows to step through seasons. Records puts the top three on a podium, with bars for everyone else. Legend cards show career points, rebounds and assists, and can be sorted by all-time points, titles, MVPs, career scoring or name. Profiles add the teams a player played for and their best season. History also opens on the part you used last.'],
     ['Photos for more players', 'Every Finals MVP now has a full profile and photo, and more players are matched to their ESPN photos (accented names like Jokić were being missed). ESPN has no photos for many retired greats (Jordan, Bird, Magic and others), so they now get a card in their team\'s colours with their initials and team logo.'],

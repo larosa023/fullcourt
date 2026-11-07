@@ -257,3 +257,6 @@
 .hy-stbl { width: 100%; }
 .hy-stbl td:last-child { width: 1%; }
 .hy-spot::after { width: 200px; height: 200px; right: -40px; top: -40px; opacity: .7; }
+
+/* photos added by hand: transparent cut-outs on a team-coloured disc */
+.hy-own { --mc: #5b6472; background: radial-gradient(120% 120% at 30% 20%, color-mix(in oklab, var(--mc) 70%, #fff 10%), color-mix(in oklab, var(--mc) 60%, #000 40%)) !important; object-fit: cover; object-position: center top; }

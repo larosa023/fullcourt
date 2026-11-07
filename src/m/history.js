@@ -30,12 +30,16 @@ const hColor = a => a && H_KNOWN.has(hAbbr(a)) ? teamColor(hAbbr(a)) : null;
 const mainTeam = L => { const m = {}; (L?.seasons || []).forEach(x => { if (x[2] && !/TM$/.test(x[2])) m[x[2]] = (m[x[2]] || 0) + (x[3] || 1); }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0] || null; };
 // a player's photo (ESPN's headshot). Where ESPN has none: a card in their main team's colours with their initials and the team logo
 function hyMono(name, cls, team) { const c = hColor(team); return `<div class="${cls} hy-mono"${c ? ` style="--mc:${c}"` : ''}><span>${esc(initials(name))}</span>${team && H_KNOWN.has(hAbbr(team)) ? logo(hAbbr(team), 40, 'lg hy-mlg') : ''}</div>`; }
+// photos you've added yourself (files in data/photos/), keyed by Basketball-Reference id and ESPN id
+const H_PHOTOS = { jordami01: 'jordami01.webp', 1035: 'jordami01.webp' };
+const ownPhoto = (key, name, cls, team) => { const f = H_PHOTOS[key]; if (!f) return ''; const c = hColor(team); return `<img class="${cls} hy-own" src="${new URL(`data/photos/${f}`, document.baseURI).href}" alt="${esc(name)}" loading="lazy" draggable="false"${c ? ` style="--mc:${c}"` : ''}>`; };
 function hyFace(id, name, cls, w, team, photo) {
+  if (id && H_PHOTOS[id]) return ownPhoto(id, name, cls, team);
   if (!id || photo === false) return hyMono(name, cls, team);
   const fb = hyMono(name, cls, team).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   return `<img class="${cls}" src="${headSrc(id, w)}" alt="${esc(name)}" loading="lazy" draggable="false" onerror="this.outerHTML=this.dataset.fb" data-fb="${fb}">`;
 }
-const legFace = (H, id, name, cls, w) => { const L = H?.legends?.[id], e = L?.espn || H?.espn?.[id]; return hyFace(e, name, cls, w, mainTeam(L), L ? L.photo : (H?.nophoto || []).includes(e) ? false : undefined); };
+const legFace = (H, id, name, cls, w) => { if (H_PHOTOS[id]) return ownPhoto(id, name, cls, mainTeam(H?.legends?.[id])); const L = H?.legends?.[id], e = L?.espn || H?.espn?.[id]; return hyFace(e, name, cls, w, mainTeam(L), L ? L.photo : (H?.nophoto || []).includes(e) ? false : undefined); };
 const H_PREV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>';
 const H_NEXT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 const hNum = (v, d = 1) => v == null ? '–' : Number(v).toFixed(d);
