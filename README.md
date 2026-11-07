@@ -9,7 +9,7 @@ The same site is published in three places while we compare hosts (November 2026
 | | Link | Host | Notes |
 |---|---|---|---|
 | **1. Netlify** (main) | [nbafullcourty.netlify.app](https://nbafullcourty.netlify.app) | Netlify (paid) | The original. Updates on every site change. Also hosts `/api/scores` for the desktop widget |
-| **2. Cloudflare** | [fullcourt.pages.dev](https://fullcourt.pages.dev) | Cloudflare Pages (free) | Updates on every push to `main` |
+| **2. Cloudflare** | [fullcourt-46z.pages.dev](https://fullcourt-46z.pages.dev) | Cloudflare Pages (free) | Updates on every push to `main` |
 | **3. GitHub Pages** | [larosa023.github.io/fullcourt](https://larosa023.github.io/fullcourt/) | GitHub Pages (free) | Updates on every site change, plus once a day |
 | **Windows app** | [Download Fullcourt-Setup.exe](https://github.com/larosa023/fullcourt/releases/latest) | GitHub Releases | Installs Fullcourt as a Windows program; updates itself (Settings → Check for updates) |
 
