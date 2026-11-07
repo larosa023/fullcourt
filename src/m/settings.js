@@ -62,7 +62,7 @@ function openSettings() {
         <button class="set-row" data-openmini><span><b>Mini scoreboard</b><small>A small always-on-top window with today's games and your tracked bets</small></span><em class="set-val">Open</em></button>
         <button class="set-row" data-appcheck><span><b>Check for updates</b><small class="set-appv">Fullcourt for Windows</small></span><em class="set-val">Check</em></button>
         <a class="set-row" href="https://github.com/larosa023/fullcourt/releases" target="_blank" rel="noopener"><span><b>Release notes</b><small>Every version on GitHub</small></span><em class="set-val">Open</em></a>
-      </div><p class="set-note">The app also checks by itself each time it opens and every 6 hours.</p></section>` : ''}
+      </div><p class="set-note">The app also checks by itself when it opens, every 10 minutes while it runs (even in the tray), and when you come back to it.</p></section>` : ''}
       <section><h3 class="set-h">Isle</h3><div class="set-list">
         <button class="set-row" role="switch" aria-checked="${isleOn()}" data-isle><span><b>Connect to Isle</b><small>Isle is a Dynamic Island for Windows. It shows your team's live games and the ones you send with the Show on Isle button in a game, at the top of your screen</small></span><i class="sw"><i></i></i></button>
         <a class="set-row" href="https://github.com/larosa023/Isle/releases/latest" target="_blank" rel="noopener"><span><b>Get Isle</b><small>Free, for Windows 10 and 11</small></span><em class="set-val">Open</em></a>

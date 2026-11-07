@@ -3465,7 +3465,7 @@ setInterval(() => { if (S.view === 'scores' && !document.hidden && S.games.some(
 }
 try { const t = document.getElementById('tzNote'); if (t) t.textContent = TZ_AB === 'ET' ? 'ET' : TZ_AB + ' (your time zone)'; } catch (e) {}
 
-/* Windows app updater: once a launch (and every 6 hours) see if GitHub has a newer release. "Update now" has the
+/* Windows app updater: see if GitHub has a newer release (on launch, every 10 minutes, and when the window comes back). "Update now" has the
    app download it, check it against GitHub's checksum, install it silently and reopen (main.rs, install_update).
    Older app versions without that command still get a download link. */
 const APP_REL = 'https://github.com/larosa023/fullcourt/releases';
@@ -3489,6 +3489,8 @@ async function appUpdateCheck(manual = false) {
     el.innerHTML = `<b>Fullcourt ${esc(v)} is out</b><span class="au-msg">You're on ${esc(cur)}. Updating takes a few seconds; your bets and settings stay.</span>
       <button class="btn sm" data-appupd>Update now</button><div class="au-bar" hidden><i></i></div>
       <span class="au-act"><button class="link-btn" data-appskip>Not now</button>${rel.body ? `<a class="link-btn" href="${esc(rel.html_url)}">What's new</a>` : ''}</span>`;
+    // found while the window is hidden or in the tray: a Windows notification, once per version
+    if (!manual && document.hidden && lsGet('fc-app-told') !== v) { lsSet('fc-app-told', v); try { new Notification(`Fullcourt ${v} is ready`, { body: 'Open Fullcourt and click Update now. It takes a few seconds.' }); } catch (x) {} }
     const msg = $('.au-msg', el), bar = $('.au-bar', el);
     el.addEventListener('click', async e => {
       if (e.target.closest('[data-appskip]')) { lsSet('fc-app-skip', v); el.remove(); return; }
@@ -3506,7 +3508,14 @@ async function appUpdateCheck(manual = false) {
     return { st: 'newer', cur, v };
   } catch (e) { return { st: 'error' }; }
 }
-if (IS_APP && !IS_MINI) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }
+// checked soon after launch, every 10 minutes while open (even in the tray), and whenever the window comes back
+// into view (at most once a minute), so a new release shows up within minutes of being published
+if (IS_APP && !IS_MINI) {
+  let lastChk = 0; const chk = () => { if (Date.now() - lastChk < 60e3) return; lastChk = Date.now(); appUpdateCheck(); };
+  setTimeout(chk, 5000); setInterval(chk, 10 * 60e3);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) chk(); });
+  window.addEventListener('focus', chk);
+}
 
 /* Windows app: tray, mini scoreboard button, and the mini window's own bar */
 function appOpenGame(t) {
