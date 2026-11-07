@@ -2,6 +2,7 @@
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
   { id: '2026-11-07j', date: 'Nov 7', items: [
+    ['Photos for Dave Bing, Fred Brown, Sleepy Floyd, World B. Free and Fat Lever', 'Five more classic players now have photos in History.'],
     ['123 more photos', 'Dennis Johnson, Lenny Wilkens, Kevin McHale, Walt Frazier, Earl Monroe, Chris Webber, Shawn Kemp and over a hundred more players now have real photos across History, including the Records lists. Nearly everyone on the all-time leader boards has a face now.'],
   ] },
   { id: '2026-11-07i', date: 'Nov 7', items: [
