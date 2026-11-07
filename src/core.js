@@ -3473,7 +3473,7 @@ const APP_REL = 'https://github.com/larosa023/fullcourt/releases';
 async function appUpdateCheck(manual = false) {
   try {
     const T = window.__TAURI__, cur = await T.app.getVersion();
-    const res = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15'); if (!res.ok) return { st: 'error', cur };
+    const res = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15', { cache: 'no-store' }); if (!res.ok) return { st: 'error', cur };
     const rels = await res.json();
     // highest version, compared number by number (GitHub lists "1.0.10" below "1.0.9")
     const num = x => x.split('.').map(n => +n || 0), cmp = (x, y) => { const a = num(x), b = num(y); for (let k = 0; k < 3; k++) if ((a[k] || 0) !== (b[k] || 0)) return (a[k] || 0) - (b[k] || 0); return 0; };
