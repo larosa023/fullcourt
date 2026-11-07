@@ -48,7 +48,9 @@ function parseTeam(html, abbr) {
     const signed = note.match(/Signed ([^.]*?(?:contract|extension|deal)[^.]*?)(?=\.|$)/)?.[1] || '';
     const twoWay = /two-way/i.test(signed) && sal.every(v => v == null);
     const traded = note.match(/Traded from ([A-Z]{3}) to ([A-Z]{3}) ([A-Za-z]+ \d+, \d{4})/);
-    out.push({ br: idm[1], name, team: TO_ESPN[abbr] || abbr, age: +strip(cell('age_today')?.[3] || '') || null, sal, opt, ng, gtd, twoWay, signed, traded: traded ? { from: TO_ESPN[traded[1]] || traded[1], on: traded[3] } : null, note });
+    // newest note first: "Waived …" means this team still owes him (dead money on its cap), and he's elsewhere now
+    const dead = /^Waived\b/.test(note);
+    out.push({ br: idm[1], name, team: TO_ESPN[abbr] || abbr, dead, age: +strip(cell('age_today')?.[3] || '') || null, sal, opt, ng, gtd, twoWay, signed, traded: traded ? { from: TO_ESPN[traded[1]] || traded[1], on: traded[3] } : null, note });
   }
   return { seasons, players: out };
 }
@@ -72,7 +74,7 @@ let matched = 0;
 for (const p of players) {
   const e = espn.get(norm(p.name)); if (!e) continue; matched++;
   p.espn = e.id; p.pos = e.pos;
-  if (e.team && e.team !== p.team) p.espnTeam = e.team; // moved since the weekly read (trade or signing)
+  if (!p.dead && e.team && e.team !== p.team) p.espnTeam = e.team; // moved since the weekly read (trade or signing)
   const k = e.k; if (k?.tradeKicker?.active) p.kicker = k.tradeKicker.percentage;
   if (k?.incomingTradeValue && k.incomingTradeValue !== p.sal[0]) p.tradeIn = k.incomingTradeValue;
 }
