@@ -3473,8 +3473,10 @@ async function appUpdateCheck(manual = false) {
     const T = window.__TAURI__, cur = await T.app.getVersion();
     const res = await fetch('https://api.github.com/repos/larosa023/fullcourt/releases?per_page=15'); if (!res.ok) return { st: 'error', cur };
     const rels = await res.json();
-    const rel = rels.find(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease); if (!rel) return { st: 'current', cur };
-    const v = rel.tag_name.replace('desktop-v', ''), num = x => x.split('.').map(n => +n || 0);
+    // highest version, compared number by number (GitHub lists "1.0.10" below "1.0.9")
+    const num = x => x.split('.').map(n => +n || 0), cmp = (x, y) => { const a = num(x), b = num(y); for (let k = 0; k < 3; k++) if ((a[k] || 0) !== (b[k] || 0)) return (a[k] || 0) - (b[k] || 0); return 0; };
+    const rel = rels.filter(r => /^desktop-v\d/.test(r.tag_name || '') && !r.draft && !r.prerelease).sort((x, y) => cmp(y.tag_name.slice(9), x.tag_name.slice(9)))[0]; if (!rel) return { st: 'current', cur };
+    const v = rel.tag_name.replace('desktop-v', '');
     const a = num(v), b = num(cur), i = [0, 1, 2].find(k => (a[k] || 0) !== (b[k] || 0)), newer = i != null && (a[i] || 0) > (b[i] || 0);
     if (!newer) return { st: 'current', cur };
     if ($('#appUpd')) return { st: 'newer', cur, v };
