@@ -1,0 +1,33 @@
+# Publishes the website to GitHub Pages: https://larosa023.github.io/fullcourt/
+# A second copy of the site next to Netlify (and Cloudflare Pages), to compare hosts. Same files, same data.
+# One-time setup on GitHub: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: pages
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['desktop/**', 'tools/**', 'netlify/**', 'README.md', 'netlify.toml', '.github/workflows/desktop.yml', '.github/workflows/odds.yml']
+  schedule:
+    - cron: '17 10 * * *' # daily, so the weekly awards update (pushed by a bot, which doesn't trigger this) shows up
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: '${{ steps.deploy.outputs.page_url }}'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gather the site
+        run: |
+          mkdir _site
+          cp -r index.html assets fonts data ocr sw.js manifest.webmanifest ./*.png _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

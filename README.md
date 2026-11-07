@@ -2,6 +2,19 @@
 
 ### ▶ **[Open Fullcourt → nbafullcourty.netlify.app](https://nbafullcourty.netlify.app)**
 
+## Where to open it
+
+The same site is published in three places while we compare hosts (November 2026). They all show the same thing and pull the same live data. Only the address and the host differ.
+
+| | Link | Host | Notes |
+|---|---|---|---|
+| **1. Netlify** (main) | [nbafullcourty.netlify.app](https://nbafullcourty.netlify.app) | Netlify (paid) | The original. Updates on every site change. Also hosts `/api/scores` for the desktop widget |
+| **2. Cloudflare** | [fullcourt.pages.dev](https://fullcourt.pages.dev) | Cloudflare Pages (free) | Updates on every push to `main` |
+| **3. GitHub Pages** | [larosa023.github.io/fullcourt](https://larosa023.github.io/fullcourt/) | GitHub Pages (free) | Updates on every site change, plus once a day |
+| **Windows app** | [Download Fullcourt-Setup.exe](https://github.com/larosa023/fullcourt/releases/latest) | GitHub Releases | Installs Fullcourt as a Windows program; updates itself (Settings → Check for updates) |
+
+Each copy saves your bets, stars and favorites separately (they're different addresses). To move them: **Settings → Your data → Export my data** on one, then **Import data** on the other.
+
 Live NBA scores, odds, standings, rosters and stats. It's a website, so there's nothing to download or install. Open the link on any phone or computer.
 
 ## What's on it

@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-06e', date: 'Nov 6', items: [
+    ['Move your data anywhere', 'Settings → Your data can now export everything you\'ve saved (tracked bets, stars, favorites, your players, Pick\'em and settings) as a file or copied text, and import it in another browser, on another device or in the Windows app.'],
+    ['Mini scoreboard (Windows app)', 'A small always-on-top window with today\'s games and your tracked bets, live. Open it from the new header button, Settings or the tray icon. Pin or unpin it on top, and jump back to the full window any time.'],
+    ['Runs in the tray (Windows app)', 'Closing the Windows app now keeps Fullcourt in the tray by the clock, so bet alerts keep coming. Click the icon to bring it back; right-click for Mini scoreboard, Bet desk or Quit. Turn it off in Settings if you\'d rather it quit.'],
+  ] },
   { id: '2026-11-06d', date: 'Nov 6', items: [
     ['Check for updates (Windows app)', 'In the Windows app, Settings has a Windows app section with your version and a Check for updates button. If a new version is out, the same row becomes Update now: it downloads, installs and reopens Fullcourt for you. Release notes for every version are one tap away.'],
   ] },
