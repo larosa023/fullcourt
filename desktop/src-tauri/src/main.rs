@@ -131,8 +131,9 @@ fn open_mini_window(app: &AppHandle) {
         .build();
 }
 
+// async on purpose: building a window inside a synchronous command deadlocks on Windows (both windows freeze)
 #[tauri::command]
-fn open_mini(app: AppHandle) {
+async fn open_mini(app: AppHandle) {
     open_mini_window(&app);
 }
 
@@ -195,7 +196,11 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, e| match e.id.as_ref() {
                     "open" => show_main(app),
-                    "mini" => open_mini_window(app),
+                    "mini" => {
+                        // off the event loop, for the same reason as open_mini
+                        let a = app.clone();
+                        tauri::async_runtime::spawn(async move { open_mini_window(&a) });
+                    }
                     "bets" => {
                         show_main(app);
                         let _ = app.emit_to("main", "fc-nav", "#bets");
