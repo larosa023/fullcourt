@@ -2,24 +2,12 @@ name: probe
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/probe.yml']
-  workflow_dispatch:
+    paths: ['.github/workflows/probe.yml', 'tools/probe.mjs']
 jobs:
   p:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          UA='Mozilla/5.0 (compatible; fullcourt-history/1.0; weekly; +https://github.com/larosa023/fullcourt)'
-          B=https://www.basketball-reference.com
-          curl -s -A "$UA" "$B/wnba/leaders/pts_career.html" | sed 's/<!--//g;s/-->//g' > l.html
-          echo "== leaders"; grep -o 'id="leaders".\{0,2500\}' l.html | head -c 2500; echo
-          sleep 5
-          curl -s -A "$UA" "$B/wnba/players/t/tauradi01w.html" | sed 's/<!--//g;s/-->//g' > t.html
-          echo "== meta"; grep -o 'id="meta".\{0,4000\}' t.html | sed 's/<[^>]*>/ /g;s/  */ /g' | head -c 2500; echo
-          echo "== bling"; grep -o 'id="bling".\{0,1500\}' t.html | head -c 1500; echo
-          echo "== tfoot"; python3 - <<'PY'
-          s=open('t.html').read(); i=s.find('id="per_game0"'); j=s.find('</table>',i); t=s[i:j]; k=t.find('<tfoot'); print(t[k:k+1500])
-          PY
-          echo "== data-birth"; grep -o 'data-birth="[^"]*"\|data-death="[^"]*"' t.html | head
-          sleep 5
-          for k in trb ast stl blk fg3 g; do curl -s -o /dev/null -w "$k %{http_code}\n" -A "$UA" "$B/wnba/leaders/${k}_career.html"; sleep 4; done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node tools/probe.mjs

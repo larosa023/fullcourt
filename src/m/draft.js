@@ -13,6 +13,7 @@ function loadDraft() {
     .then(d => { try { localStorage.setItem(DRAFT_LS, JSON.stringify({ at: Date.now(), d })); } catch (e) {} return d; });
   if (c?.d && Date.now() - c.at < 6 * 3600e3) draftP = Promise.resolve(c.d);
   else draftP = fresh().catch(e => { draftP = null; if (c?.d) return c.d; throw e; });
+  draftP = draftP.then(d => { if (d.nba) dNorm('nba', d.nba); if (d.wnba) dNorm('wnba', d.wnba); return d; });
   return draftP;
 }
 const DCOL = { nba: 'mens-college-basketball', wnba: 'womens-college-basketball' };
@@ -36,6 +37,18 @@ function dSaved(lg, y) { try { return JSON.parse(localStorage.getItem(dKey(lg, y
 function dSave(lg, y, st) { try { localStorage.setItem(dKey(lg, y), JSON.stringify(st)); } catch (e) {} }
 
 // the order after the lottery (if one's been run): the drawn teams take picks 1-4, the rest of the lottery keeps its order
+const lg0 = L => L.rounds === 2 ? 'nba' : 'wnba';
+// the WNBA's real 2027 lottery (WNBA.com): seven teams by two-season record (expansion teams: one season), two picks drawn,
+// picks 3-7 by record. Its round 1 replaces the order built from last season's standings alone.
+const OFFICIAL = { wnba: { 2027: { lottery: ['CON', 'TOR', 'CHI', 'SEA', 'POR', 'LA', 'PHX'], odds: [329, 329, 161, 93, 52, 24, 12], draws: 2, src: 'WNBA.com' } } };
+function dNorm(lg, L) {
+  if (L._n) return L; L._n = true; L.draws = 4;
+  const O = OFFICIAL[lg]?.[L.year]; if (!O || !O.lottery.every(a => L.teams[a])) return L;
+  const r1 = L.order.filter(x => x.round === 1), rest = r1.map(x => x.team).filter(a => !O.lottery.includes(a));
+  [...O.lottery, ...rest].forEach((a, i) => { r1[i].team = a; });
+  Object.assign(L, { lottery: O.lottery.slice(), odds: O.odds.slice(), draws: O.draws, official: O.src });
+  return L;
+}
 function dOrder(L, lot) {
   const o = L.order.map(x => ({ ...x }));
   if (!lot) return o;
@@ -44,9 +57,43 @@ function dOrder(L, lot) {
   [...lot, ...rest].forEach((a, i) => { r1[i].team = a; });
   void lotSet; return o;
 }
+/* who actually owns each 2027 NBA first-round pick: trades, protections and swaps, by hand from RealGM's
+   future-picks list (checked Nov 7, 2026). "Favorable" = the earlier pick. Round 2 isn't tracked. */
+const PICKS = { wnba: { 2027: { src: 'WNBA.com', rules: [{ to: 'CHI', owner: 'WSH' }, { to: 'PHX', owner: 'LA' }] } }, nba: { 2027: {
+  src: 'RealGM, Nov 7, 2026',
+  rules: [
+    { to: 'NY', owner: 'BKN' }, { to: 'PHX', owner: 'HOU' },
+    { prot: 'DAL', keep: 2, owner: 'CHA' }, { prot: 'LAL', keep: 4, owner: 'MEM' }, { prot: 'MIA', keep: 14, owner: 'CHA' },
+    { ranges: 'SA', bands: [[16, 'SAC'], [30, 'OKC']] },
+    { rank: ['CLE', 'MIN', 'UTAH'], give: ['MEM', 'UTAH', 'PHX'] },
+    { rank: ['MIL', 'NO'], give: ['NO', 'ATL'], atl: 5 }, // ATL gets the worse of the two only if it lands 5-30
+    { to: 'ATL', owner: 'SA' },
+    { rank: ['OKC', 'DEN', 'LAC'], give: ['OKC', 'OKC', 'LAC'], denKeep: 5 }, // DEN keeps a top-5 pick, then it's OKC/LAC only
+    { rank: ['HOU', 'BKN'], give: ['HOU', 'BKN'] },
+  ] } } };
+function dOwners(lg, L, order) {
+  const P = PICKS[lg]?.[L.year]; if (!P) return order;
+  const r1 = order.filter(x => x.round === 1), at = {}; r1.forEach(x => { x.orig = x.team; at[x.team] = x; });
+  const set = (orig, owner, how) => { const x = at[orig]; if (x && owner && owner !== orig) { x.team = owner; x.how = how; } };
+  for (const r of P.rules) {
+    if (r.to) set(r.to, r.owner, 'traded');
+    else if (r.prot) { const x = at[r.prot]; if (x && x.pick > r.keep) set(r.prot, r.owner, `top-${r.keep} protected`); }
+    else if (r.ranges) { const x = at[r.ranges]; if (x) set(r.ranges, r.bands.find(([m]) => x.pick <= m)?.[1], 'protected'); }
+    else if (r.rank) {
+      let teams = r.rank.filter(t => at[t]), give = r.give.slice();
+      if (r.denKeep && at.DEN && at.DEN.pick <= r.denKeep) { teams = teams.filter(t => t !== 'DEN'); give = ['OKC', 'LAC']; }
+      teams.sort((a, b) => at[a].pick - at[b].pick);
+      const owners = teams.map((t, i) => give[i]);
+      if (r.atl) { const worse = teams[1]; if (worse && at[worse].pick < r.atl) owners[1] = 'NO'; }
+      // reassign: each pick in the group goes to its owner by rank (a swap: the picks themselves stay put)
+      teams.forEach((t, i) => set(t, owners[i], teams.length > 2 ? 'pick group' : 'swap'));
+    }
+  }
+  return order;
+}
 // fill every pick: yours first where you've set one, otherwise the best player left, nudged toward the team's needs
 function dFill(L, st) {
-  const order = dOrder(L, st.lot), taken = new Set(Object.values(st.locks)), byId = Object.fromEntries(L.prospects.map(p => [p.id, p]));
+  const order = dOwners(lg0(L), L, dOrder(L, st.lot)), taken = new Set(Object.values(st.locks)), byId = Object.fromEntries(L.prospects.map(p => [p.id, p]));
   let avail = L.prospects.filter(p => !taken.has(p.id));
   return order.map(x => {
     const lockId = st.locks[x.pick];
@@ -60,7 +107,7 @@ function dFill(L, st) {
 }
 function runLottery(L) {
   const teams = L.lottery.slice(), w = L.odds.slice(0, teams.length), drawn = [];
-  for (let k = 0; k < Math.min(4, teams.length); k++) {
+  for (let k = 0; k < Math.min(L.draws || 4, teams.length); k++) {
     const tot = teams.reduce((s, t, i) => s + (drawn.includes(t) ? 0 : w[i]), 0);
     let r = Math.random() * tot;
     for (let i = 0; i < teams.length; i++) { if (drawn.includes(teams[i])) continue; r -= w[i]; if (r <= 0) { drawn.push(teams[i]); break; } }
@@ -83,14 +130,14 @@ async function renderDraft() {
   const pickOf = Object.fromEntries(picks.filter(x => x.p).map(x => [x.p.id, x]));
   const mine = Object.keys(st.locks).length;
   const srcNote = L.source === 'espn' ? 'Prospect rankings: ESPN\'s big board' : `Prospect rankings: Fullcourt's board from college stats${lg === 'wnba' ? ' (seniors and grad students, the draft-eligible)' : ''}. Early in the season it moves a lot; it switches to ESPN's big board once ESPN publishes one.`;
-  const orderNote = lg === 'nba' ? `Order from this season's standings (${L.lottery.length} lottery teams). Traded picks aren't shown.` : `Order from the ${L.standingsSeason} final standings (${L.lottery.length} lottery teams). Traded picks aren't shown.`;
-  const lotNote = st.lot ? (() => { const moves = st.lot.map((a, i) => ({ a, from: lotIdx(a) + 1, to: i + 1 })).filter(m => m.from !== m.to); return `<div class="dr-lot"><b>Lottery result</b>${moves.length ? moves.map(m => `<span>${logo(m.a, 40)}${esc(tn(m.a).short)} <em class="${m.to < m.from ? 'up' : 'dn'}">${m.from} → ${m.to}</em></span>`).join('') : '<span>Chalk: the top four held their spots.</span>'}<button class="link-btn" data-dlot="undo">Back to standings order</button></div>`; })() : '';
+  const orderNote = lg === 'nba' ? `Order from this season's standings (${L.lottery.length} lottery teams). First-round trades, protections and swaps are applied (${PICKS.nba[L.year]?.src || 'not tracked yet'}); round 2 shows original owners.` : `${L.official ? `Round 1 follows the WNBA's lottery setup (${L.official}): seven teams by two-season record, two picks drawn, picks 3-7 by record; Chicago's pick belongs to Washington and Phoenix's to Los Angeles.` : `Order from the ${L.standingsSeason} final standings.`} Rounds 2 and 3 go by ${L.standingsSeason} record, original owners.`;
+  const lotNote = st.lot ? (() => { const moves = st.lot.map((a, i) => ({ a, from: lotIdx(a) + 1, to: i + 1 })).filter(m => m.from !== m.to); const own = Object.fromEntries(picks.filter(x => x.round === 1 && x.orig).map(x => [x.orig, x.team])); return `<div class="dr-lot"><b>Lottery result</b>${moves.length ? moves.map(m => `<span>${logo(own[m.a] || m.a, 40)}${esc(tn(own[m.a] || m.a).short)}${own[m.a] && own[m.a] !== m.a ? ` <small>(via ${esc(tn(m.a).short)})</small>` : ''} <em class="${m.to < m.from ? 'up' : 'dn'}">${m.from} → ${m.to}</em></span>`).join('') : `<span>Chalk: the top ${(L.draws || 4) === 2 ? 'two' : 'four'} held their spots.</span>`}<button class="link-btn" data-dlot="undo">Back to standings order</button></div>`; })() : '';
   const row = x => {
-    const t = tn(x.team), p = x.p, need = L.needs[x.team] || [], li = lotIdx(x.team);
+    const t = tn(x.team), p = x.p, need = L.needs[x.team] || [], li = lotIdx(x.orig || x.team), via = x.orig && x.orig !== x.team ? tn(x.orig) : null;
     const od = x.round === 1 && li >= 0 && L.odds[li] && !st.lot ? `<span class="dr-odds" title="Chance at the #1 pick">${(L.odds[li] / 10).toFixed(1)}% at #1</span>` : '';
     return `<div class="dr-row${x.mine ? ' mine' : ''}" style="--tc:${t.color ? '#' + t.color : teamColor(x.team)}">
       <span class="dr-no">${x.pick}</span>
-      <div class="dr-tm">${logo(x.team, 64)}<span><b>${esc(t.short || t.name)}</b><small>${t.w}-${t.l}${od ? ' · ' : ''}${od}</small><span class="dr-needs">${need.map(n => `<i class="${p && fits(n, p) ? 'hit' : ''}">${esc(n)}</i>`).join('')}</span></span></div>
+      <div class="dr-tm">${logo(x.team, 64)}<span><b>${esc(t.short || t.name)}</b><small>${via ? `<span class="dr-via" title="${esc(x.how || '')}">via ${esc(via.short || x.orig)} (${via.w}-${via.l})</span>` : `${t.w}-${t.l}`}${od ? ' · ' : ''}${od}</small><span class="dr-needs">${need.map(n => `<i class="${p && fits(n, p) ? 'hit' : ''}">${esc(n)}</i>`).join('')}</span></span></div>
       ${p ? `<button class="dr-pl" data-dpro="${esc(p.id)}">${dFace(lg, p, 'dr-pf', 200)}<span><b>${esc(p.name)}</b><small>${esc([p.pos, p.ht, p.cls].filter(Boolean).join(' · '))}</small><small class="dr-schl">${dSchool(p.tid, 32)}${esc(p.school || '')}</small></span><span class="dr-ln"><span><strong>${d1(p.pts)}</strong>PTS</span><span><strong>${d1(p.reb)}</strong>REB</span><span><strong>${d1(p.ast)}</strong>AST</span><span><strong>${p.tpa >= .5 ? dPct(p.tp) : '–'}</strong>3P</span></span></button>` : '<span class="dr-pl empty">–</span>'}
       <div class="dr-act">${x.mine ? `<span class="dr-mine">Your pick</span><button class="icon-btn dr-unl" data-dunlock="${x.pick}" aria-label="Let Fullcourt pick" title="Let Fullcourt pick">${ICON.close}</button>` : ''}<button class="btn ghost dr-chg" data-dchange="${x.pick}">Change</button></div>
     </div>`;

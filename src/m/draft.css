@@ -96,3 +96,5 @@
   .dr-acts { width: 100%; } .dr-acts .btn { flex: 1; }
   .dr-q { font-size: 16px; }
 }
+
+.dr-via { color: var(--ink-2, var(--ink)); font-weight: 600; }
