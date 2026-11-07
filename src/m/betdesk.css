@@ -238,8 +238,8 @@
 #bdMain.bd-blur::after { content: 'Hidden for screen sharing'; position: absolute; top: 90px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); pointer-events: none; }
 
 /* wide screens: the parlay slip sits in the empty margin beside the table instead of over it */
-@media (min-width: 1960px) {
-  .bd-slip { right: auto; left: calc(50% + 660px + 20px); width: min(380px, calc((100vw - 1320px) / 2 - 40px)); }
+@media (min-width: 2300px) {
+  .bd-slip { right: auto !important; left: calc(50% + 740px + 20px); width: min(380px, calc((100vw - 1480px) / 2 - 40px)); }
 }
 .bs-act .bs-share { flex: none; width: 44px; padding: 0; display: grid; place-items: center; }
 .bs-act .bs-share svg { width: 17px; height: 17px; }
@@ -410,3 +410,5 @@ em.est.bk { color: #2f86ff; border-color: color-mix(in oklab, #2f86ff 45%, var(-
 .bd-fair { font-style: italic; color: var(--ink-2); }
 .bd-fair i { font-style: normal; font-family: var(--mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-left: 4px; }
 .bd-note .bd-fair { font-style: normal; font-weight: 600; }
+/* the page is 1480px wide from 1640px up (core.css) */
+@media (min-width: 1640px) { .bd-slip { right: max(16px, calc((100vw - 1480px) / 2 + 16px)); } }

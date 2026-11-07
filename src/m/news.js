@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07d', date: 'Nov 7', items: [
+    ['More room on big screens', 'On wide screens (1640 px and up) the whole site is a bit wider, and Compare is back as its own tab in the header. Laptops, tablets and phones look the same as before.'],
+  ] },
   { id: '2026-11-07c', date: 'Nov 7', items: [
     ['Leaders stay current', 'League leaders now refresh on their own while the page is open: every minute while games are live, every 10 minutes otherwise, and right after any game ends (season stats count finished games). The board updates in place without jumping, and a line under the title shows when it last updated. The same goes for the advanced boards and award races.'],
   ] },

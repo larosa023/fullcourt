@@ -358,7 +358,7 @@ function go(view, push = true) {
   if (view === 'replay') lazy('replay').then(m => m.renderReplay()).catch(() => { $('#rpBody').innerHTML = `<div class="empty"><b>Replay didn't load</b><button class="btn" data-retry="replay">Try again</button></div>`; });
   if (view === 'cap') lazy('cap').then(m => m.renderCap()).catch(() => { $('#capBody').innerHTML = `<div class="empty"><b>Capsheet didn't load</b><button class="btn" data-retry="cap">Try again</button></div>`; });
   navMenu(false);
-  $('#nav [data-navmore]')?.toggleAttribute('aria-current', !$(`#nav > [data-view="${view}"]`) && !!$(`#navMenu [data-view="${view}"]`));
+  $('#nav [data-navmore]')?.toggleAttribute('aria-current', !navTab(view) && !!$(`#navMenu [data-view="${view}"]`));
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 /* ---- phone menu drawer ---- */
@@ -415,8 +415,11 @@ function navMenu(open) {
 document.addEventListener('click', e => { if (!e.target.closest?.('#navMenu, [data-navmore]')) navMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') navMenu(false); });
 addEventListener('resize', () => navMenu(false));
+// the header tab for a view, if it's showing at this width (Compare is a tab only on wide screens)
+const navTab = view => $$(`#nav > [data-view="${view}"]`).find(b => b.offsetWidth);
+addEventListener('resize', () => { movePill(); $('#nav [data-navmore]')?.toggleAttribute('aria-current', !navTab(S.view) && !!$(`#navMenu [data-view="${S.view}"]`)); });
 function movePill() {
-  const b = $(`#nav > [data-view="${S.view}"]`) || ($(`#navMenu [data-view="${S.view}"]`) && $('#nav [data-navmore]')), p = $('#navPill');
+  const b = navTab(S.view) || ($(`#navMenu [data-view="${S.view}"]`) && $('#nav [data-navmore]')), p = $('#navPill');
   if (!b || !p) return;
   p.style.width = b.offsetWidth + 'px';
   p.style.transform = `translateX(${b.offsetLeft}px)`;
@@ -2268,7 +2271,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
