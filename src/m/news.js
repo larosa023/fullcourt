@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07f', date: 'Nov 7', items: [
+    ['New: History', 'A whole new section for the NBA\'s past (a History tab on wide screens, under More on smaller ones, and in the menu on phones). On this day: every game played on today\'s date back to 2001, the biggest scoring nights, the closest finishes and legends born today, and you can pick any date. Seasons: every champion, Finals MVP and MVP since 1950, plus final standings and stat leaders from 2001-02 on. Records: the all-time career leader boards and a milestone watch for active players closing in on someone. Legends: the all-time greats with photos, and a search for any player past or present.'],
+    ['Player profiles for anyone', 'Tap any name in History for a full profile: photo, bio, accolades, career averages, where they rank all-time, points per game season by season, their full season-by-season stats, and a link to watch their career highlights.'],
+  ] },
   { id: '2026-11-07e', date: 'Nov 7', items: [
     ['Full game highlights in Replay', 'NBA games in Replay get a Full game button for the NBA\'s full-length highlights (usually around 10 minutes), playing right in the card. All Replay videos now start muted; tap the speaker for sound.'],
   ] },

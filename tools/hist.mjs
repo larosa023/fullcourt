@@ -63,7 +63,7 @@ for (const id of ids) {
       const c = cells(r), y = strip(c.year_id); if (!/^\d{4}-\d{2}$/.test(y) || seen.has(y) || !strip(c.age)) continue; // first row per season (a traded season's total)
       seen.add(y); seasons.push(COLS.map(k => { const v = strip(c[k]); return k === 'year_id' || k === 'team_name_abbr' ? v : v === '' ? null : +v; }));
     }
-    const foot = cells(rowsOf(t.slice(t.indexOf('<tfoot')))[0] || ''); // first footer row is the whole career (team splits follow)
+    const foot = rowsOf(t.slice(t.indexOf('<tfoot'))).map(cells).sort((x, y) => (+strip(y.games) || 0) - (+strip(x.games) || 0))[0] || {}; // the footer row with the most games is the whole career (team splits follow)
     const career = COLS.map(k => { const v = strip(foot[k]); return k === 'year_id' ? v : k === 'team_name_abbr' || k === 'age' ? null : v === '' ? null : +v; });
     legends[id] = {
       name, pos: f(/Position:\s*([^·]+?)\s*(?:·|Shoots|$)/), ht: f(/(\d-\d{1,2}),/), born: info.match(/data-birth="(\d{4}-\d{2}-\d{2})"/)?.[1] || f(/Born:\s*([A-Za-z]+ \d+\s?,\s?\d{4})/),
@@ -74,15 +74,29 @@ for (const id of ids) {
     console.log('legend', id, name, seasons.length);
   } catch (e) { console.log('legend failed', id, e.message); }
 }
-// ESPN ids, for photos and ESPN's own profile
+// ESPN ids, for photos and ESPN's own profile (names compared without accents or punctuation: Jokić = Jokic, J.R. = JR)
+const fold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/gi, '').toLowerCase().trim();
 for (const [id, L] of Object.entries(legends)) {
   try {
-    const d = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(L.name)}&limit=6&type=player`, true);
-    const hit = (d.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === 'NBA' && c.displayName?.toLowerCase() === L.name.toLowerCase());
+    const d = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(L.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))}&limit=6&type=player`, true);
+    const hit = (d.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === 'NBA' && fold(c.displayName) === fold(L.name));
     const m = hit?.uid?.match(/a:(\d+)/); if (m) L.espn = m[1];
   } catch (e) {}
   await sleep(150);
 }
+// ESPN ids for everyone else on the leader boards (photos, and their profile from ESPN)
+const espn = {};
+for (const r of Object.values(leaders).flat()) {
+  if (legends[r.id] || r.id in espn) continue;
+  espn[r.id] = null;
+  try {
+    const d = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(r.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))}&limit=6&type=player`, true);
+    const hit = (d.results || []).flatMap(x => x.type === 'player' ? x.contents || [] : []).find(c => c.description === 'NBA' && fold(c.displayName) === fold(r.name));
+    const m = hit?.uid?.match(/a:(\d+)/); if (m) espn[r.id] = m[1]; else delete espn[r.id];
+  } catch (e) { delete espn[r.id]; }
+  await sleep(150);
+}
+console.log('leader ESPN ids', Object.keys(espn).length);
 console.log('legends', Object.keys(legends).length, 'with ESPN ids', Object.values(legends).filter(l => l.espn).length);
 if (Object.keys(legends).length < 50 || !leaders.pts?.length) throw new Error('too little parsed; keeping last week\'s file');
-writeFileSync(process.argv[2] || 'history.json', JSON.stringify({ updated: new Date().toISOString(), source: 'Basketball-Reference + ESPN', cols: COLS, leaders, champions, mvp, legends }));
+writeFileSync(process.argv[2] || 'history.json', JSON.stringify({ updated: new Date().toISOString(), source: 'Basketball-Reference + ESPN', cols: COLS, leaders, champions, mvp, legends, espn }));
