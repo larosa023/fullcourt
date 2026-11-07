@@ -10,10 +10,16 @@ jobs:
     steps:
       - run: |
           UA='Mozilla/5.0 (compatible; fullcourt-history/1.0; weekly; +https://github.com/larosa023/fullcourt)'
-          for u in /wnba/leaders/pts_career.html /wnba/playoffs/ /wnba/awards/mvp.html /wnba/players/t/tauradi01w.html /wnba/leaders/; do
-            echo "=== $u"; curl -s -A "$UA" -w '\nHTTP %{http_code}\n' "https://www.basketball-reference.com$u" -o p.html; sed 's/<!--//g;s/-->//g' p.html > q.html
-            grep -o 'id="[a-z_0-9]*"' q.html | grep -v 'id="meta\|id="header' | sort -u | head -40 | tr '\n' ' '; echo
-            grep -o '<tr[^>]*>.\{0,700\}' q.html | grep 'data-stat' | head -4
-            grep -o 'id="info".\{0,1500\}' q.html | head -c 1500; echo
-            sleep 5
-          done
+          B=https://www.basketball-reference.com
+          curl -s -A "$UA" "$B/wnba/leaders/pts_career.html" | sed 's/<!--//g;s/-->//g' > l.html
+          echo "== leaders"; grep -o 'id="leaders".\{0,2500\}' l.html | head -c 2500; echo
+          sleep 5
+          curl -s -A "$UA" "$B/wnba/players/t/tauradi01w.html" | sed 's/<!--//g;s/-->//g' > t.html
+          echo "== meta"; grep -o 'id="meta".\{0,4000\}' t.html | sed 's/<[^>]*>/ /g;s/  */ /g' | head -c 2500; echo
+          echo "== bling"; grep -o 'id="bling".\{0,1500\}' t.html | head -c 1500; echo
+          echo "== tfoot"; python3 - <<'PY'
+          s=open('t.html').read(); i=s.find('id="per_game0"'); j=s.find('</table>',i); t=s[i:j]; k=t.find('<tfoot'); print(t[k:k+1500])
+          PY
+          echo "== data-birth"; grep -o 'data-birth="[^"]*"\|data-death="[^"]*"' t.html | head
+          sleep 5
+          for k in trb ast stl blk fg3 g; do curl -s -o /dev/null -w "$k %{http_code}\n" -A "$UA" "$B/wnba/leaders/${k}_career.html"; sleep 4; done
