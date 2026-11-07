@@ -1,5 +1,5 @@
 # History: career leaders and legend profiles (Basketball-Reference + ESPN ids), weekly.
-# Publishes history.json to the hist-data branch (not part of the website, so no deploy).
+# Publishes history.json (NBA) and history-wnba.json (WNBA) to the hist-data branch (not part of the website, so no deploy).
 name: history
 on:
   push:
@@ -14,16 +14,20 @@ concurrency: { group: history, cancel-in-progress: false }
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - name: Build
-        run: mkdir pub && node tools/hist.mjs pub/history.json
+        run: |
+          mkdir pub
+          # keep last week's WNBA file if this week's WNBA build fails
+          curl -sf -o pub/history-wnba.json https://raw.githubusercontent.com/${{ github.repository }}/hist-data/history-wnba.json || true
+          node tools/hist.mjs pub/history.json
       - name: Publish
         run: |
           cd pub && git init -q && git checkout -q --orphan hist-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add history.json && git commit -qm "history $(date -u +%FT%TZ)"
+          git add history.json $(ls history-wnba.json 2>/dev/null) && git commit -qm "history $(date -u +%FT%TZ)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" hist-data
