@@ -63,13 +63,13 @@ async function board(college, lg) {
     const per = k => T[k] / T.min * 40;
     const ts = T.pts / Math.max(1, 2 * (T.fga + .44 * T.fta));
     // scoring (more for efficient scorers), creating, defence and rebounding, per 40 minutes
-    const gs = per('pts') * (1 + (ts - .55) * 1.6) * .75 + .8 * per('ast') - .7 * per('tov') + 1.3 * per('stl') + .8 * per('blk') + .25 * per('reb');
+    const gs = per('pts') * (1 + (Math.max(.45, Math.min(.68, ts)) - .55) * 1.6) * .75 + .8 * per('ast') - .7 * per('tov') + 1.3 * per('stl') + .8 * per('blk') + .25 * per('reb');
     rows.push({ id, name: c.name, pos: c.pos, teamId: c.team, school: C.school, conf: C.confName, tier: C.tier, g: c.g, gPrev: p?.g || 0, G, mpg,
       pts: T.pts / G, reb: T.reb / G, ast: T.ast / G, stl: T.stl / G, blk: T.blk / G, tov: T.tov / G, fg: T.fgm / Math.max(1, T.fga), tp: T.tpm / Math.max(1, T.tpa), tpa: T.tpa / G, ft: T.ftm / Math.max(1, T.fta), ts,
       p40: { pts: per('pts'), reb: per('reb'), ast: per('ast'), stl: per('stl'), blk: per('blk'), tpa: per('tpa') }, raw: gs * C.tier });
   }
   const mean = rows.reduce((t, r) => t + r.raw, 0) / Math.max(1, rows.length);
-  rows.forEach(r => { r.prod = (r.G * r.raw + 10 * mean) / (r.G + 10); }); // few games: pulled toward average
+  rows.forEach(r => { r.prod = (r.G * r.raw + 20 * mean) / (r.G + 20); }); // few games: pulled hard toward average
   rows.sort((a, b) => b.prod - a.prod);
   // details (class, height, age, photo) for the best few hundred
   const short = rows.slice(0, 320);
@@ -96,7 +96,7 @@ async function board(college, lg) {
   }
   pool.sort((a, b) => b.score - a.score);
   const R = n => +n.toFixed(3);
-  return pool.slice(0, 110).map((r, i) => ({ rk: i + 1, id: r.id, name: r.name, pos: r.pos, ht: r.htd, wt: r.wt, cls: r.cls, age: r.age, school: r.school, schoolAbbr: r.teamAbbr, color: r.color, conf: r.conf, head: r.head,
+  return pool.slice(0, 110).map((r, i) => ({ rk: i + 1, id: r.id, name: r.name, pos: r.pos, ht: r.htd, wt: r.wt, cls: r.cls, age: r.age, school: r.school, schoolAbbr: r.teamAbbr, tid: r.teamId, color: r.color, conf: r.conf, head: r.head,
     g: r.g, gPrev: r.gPrev, mpg: R(r.mpg), pts: R(r.pts), reb: R(r.reb), ast: R(r.ast), stl: R(r.stl), blk: R(r.blk), tov: R(r.tov), fg: R(r.fg), tp: R(r.tp), tpa: R(r.tpa), ft: R(r.ft), ts: R(r.ts), score: r.score, tags: r.tags }));
 }
 
@@ -141,7 +141,9 @@ async function league(lg, college, standSeason, draftYear) {
     if (ath.length && depth[1] <= (depth[0] === 'C' ? 2 : 4)) n.push({ G: 'Guard depth', F: 'Wing depth', C: 'Big depth' }[depth[0]]);
     needs[t.abbr] = n.slice(0, 3);
   }
-  const teams = Object.fromEntries(all.map(t => [t.abbr, { id: t.id, name: t.name, short: t.short, w: t.w, l: t.l, conf: t.conf }]));
+  const tl = await get(`${SITE}/${lg}/teams`).catch(() => null), col = {};
+  (tl?.sports?.[0]?.leagues?.[0]?.teams || []).forEach(x => { col[x.team.abbreviation] = x.team.color; });
+  const teams = Object.fromEntries(all.map(t => [t.abbr, { id: t.id, name: t.name, short: t.short, w: t.w, l: t.l, conf: t.conf, color: col[t.abbr] || null }]));
   const eb = await espnBoard(lg, draftYear);
   const stats = await board(college, lg);
   let prospects = stats, source = 'stats';

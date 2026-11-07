@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07k', date: 'Nov 7', items: [
+    ['New: Mock Draft', 'A mock draft for the NBA and the WNBA (a Draft tab on wide screens, under More on smaller ones, and in the menu on phones). Fullcourt fills every pick from the standings, taking the best player left and leaning toward what each team needs. Change any pick and the rest re-flow around it, run the lottery as many times as you like, and share your first round as an image. Tap any prospect for their college stats and bio. Prospect rankings come from college stats for now, and switch to ESPN\'s big board once ESPN publishes it.'],
+  ] },
   { id: '2026-11-07j', date: 'Nov 7', items: [
     ['Photos for Dave Bing, Fred Brown, Sleepy Floyd, World B. Free and Fat Lever', 'Five more classic players now have photos in History.'],
     ['123 more photos', 'Dennis Johnson, Lenny Wilkens, Kevin McHale, Walt Frazier, Earl Monroe, Chris Webber, Shawn Kemp and over a hundred more players now have real photos across History, including the Records lists. Nearly everyone on the all-time leader boards has a face now.'],

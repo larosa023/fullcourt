@@ -341,7 +341,7 @@ function placeKnob(seg) {
 }
 
 /* ================= routing ================= */
-const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay', 'cap', 'history'];
+const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay', 'cap', 'history', 'draft'];
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
   S.view = view;
@@ -357,6 +357,7 @@ function go(view, push = true) {
   if (view === 'bets') renderBetDesk();
   if (view === 'replay') lazy('replay').then(m => m.renderReplay()).catch(() => { $('#rpBody').innerHTML = `<div class="empty"><b>Replay didn't load</b><button class="btn" data-retry="replay">Try again</button></div>`; });
   if (view === 'cap') lazy('cap').then(m => m.renderCap()).catch(() => { $('#capBody').innerHTML = `<div class="empty"><b>Capsheet didn't load</b><button class="btn" data-retry="cap">Try again</button></div>`; });
+  if (view === 'draft') lazy('draft').then(m => m.renderDraft()).catch(() => { $('#draftBody').innerHTML = `<div class="empty"><b>The mock draft didn't load</b><button class="btn" data-retry="draft">Try again</button></div>`; });
   if (view === 'history') lazy('history').then(m => m.renderHistory()).catch(() => { $('#histBody').innerHTML = `<div class="empty"><b>History didn't load</b><button class="btn" data-retry="history">Try again</button></div>`; });
   navMenu(false);
   $('#nav [data-navmore]')?.toggleAttribute('aria-current', !navTab(view) && !!$(`#navMenu [data-view="${view}"]`));
@@ -2272,7 +2273,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07j'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07k'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3424,6 +3425,7 @@ document.addEventListener('click', e => {
     if (k === 'replay') go('replay');
     if (k === 'cap') go('cap');
     if (k === 'history') go('history');
+    if (k === 'draft') go('draft');
   }
 });
 // keyboard arrows on the date rail
