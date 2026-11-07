@@ -14,7 +14,9 @@ try { const r = await fetch(`${PREV}?t=${Date.now()}`); if (r.ok) prev = await r
 const games = { ...(prev.games || {}) };
 let found = 0, seen = 0;
 for (const [lg, ch] of Object.entries(CHANNELS)) {
-  const xml = await (await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: { 'user-agent': 'fullcourt-highlights/1.0 (+https://github.com/larosa023/fullcourt)' } })).text();
+  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' } });
+  const xml = await res.text();
+  console.log(lg, 'feed', res.status, xml.length, (xml.match(/<title>([^<]+)/g) || []).slice(0, 4).join(' / '));
   for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
     seen++;
     const e = m[1], id = e.match(/<yt:videoId>([^<]+)/)?.[1], title = dec(e.match(/<title>([^<]+)/)?.[1] || ''), at = e.match(/<published>([^<]+)/)?.[1];
