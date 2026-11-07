@@ -1208,6 +1208,9 @@ html.switching .mast, html.switching .mast * { transition: color .22s ease, back
 /* share button */
 .share-btn.busy { opacity: .5; pointer-events: none; }
 .share-btn svg { width: 17px; height: 17px; }
+.isle-btn svg { width: 18px; height: 18px; }
+.isle-btn.on { color: var(--accent); }
+.isle-btn[data-busy] { opacity: .5; }
 
 /* =================== UPGRADES 3 =================== */
 /* line movement */

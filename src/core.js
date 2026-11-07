@@ -1210,6 +1210,7 @@ async function openGame(id, opts = {}) {
   const shotF = { team: 'all', pid: '' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
   addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : null);
+  addIsleBtn(sheet, id);
   const load = async () => {
     if (!sheet.alive) return;
     let d;
@@ -1753,6 +1754,7 @@ function renderFavLink() {
       ? `<span class="star">★</span>${logo(t.abbr, 40)}<span class="lbl">${esc(t.abbr)}</span>`
       : `<span class="star">★</span>${logo(t.abbr, 48)}<span>${esc(t.short || t.name)}</span>`;
   }
+  isleSync();
 }
 function setFav(id) {
   favId = favId === id ? null : id;
@@ -1763,6 +1765,67 @@ function setFav(id) {
   if (S.view === 'standings') renderStandings();
   if (S.view === 'teams') renderTeams();
   toast(favId ? `${S.teams[favId]?.short || 'Team'} pinned as your team` : 'Favorite team removed');
+}
+
+/* ---------------- Isle ----------------
+   Isle (github.com/larosa023/Isle) is a Dynamic Island for Windows. Fullcourt tells it your team and the games you
+   send with "Show on Isle", through Isle's API on this PC (127.0.0.1:47820), and Isle shows them live at the top of
+   the screen. On by default in the Windows app; on the website it's opt-in (Settings → Isle), because browsers ask
+   before a website talks to apps on your PC. Nothing is sent anywhere else. */
+var ISLE_API = 'http://127.0.0.1:47820', isleLast = '', isleSet = null;
+function isleOn() { const v = lsGet('fc-isle'); return !IS_MINI && (v === '1' || (IS_APP && v !== '0')); }
+function isleTracked() {
+  if (!isleSet) { try { isleSet = new Set(JSON.parse(lsGet('fc-isle-track') || '[]')); } catch (e) { isleSet = new Set(); } }
+  return isleSet;
+}
+function isleCall(path, body) {
+  const opts = body === undefined ? { targetAddressSpace: 'loopback' }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), targetAddressSpace: 'loopback' };
+  return fetch(ISLE_API + path, opts).then(r => r.ok ? r.json() : null).catch(() => null);
+}
+// Your team for the current league. Only sends when it changed (or when forced from Settings).
+function isleSync(force) {
+  if (!isleOn()) return Promise.resolve(null);
+  const t = favId && S.teams[favId];
+  if (favId && !t) return Promise.resolve(null); // teams still loading; renderFavLink runs again when they arrive
+  const body = { league: LGK, favorite: t ? { id: favId, abbr: t.abbr, name: t.short || t.name } : null, origin: IS_APP ? 'Fullcourt app' : location.host };
+  const key = JSON.stringify(body);
+  if (!force && key === isleLast) return Promise.resolve(null);
+  isleLast = key;
+  return isleCall('/v1/fullcourt/sync', body);
+}
+async function isleTrack(id, on) {
+  const r = await isleCall('/v1/fullcourt/track', { league: LGK, game: String(id), on });
+  if (!r) { toast("Couldn't reach Isle. Is it running on this PC?"); return false; }
+  const set = isleTracked(), k = LGK + ':' + id;
+  if (on) set.add(k); else set.delete(k);
+  lsSet('fc-isle-track', set.size ? JSON.stringify([...set].slice(-40)) : null);
+  toast(!on ? 'Stopped tracking on Isle' : r.sportsOn === false ? 'Sent to Isle, but live sports are turned off in Isle' : 'Tracking this game on Isle');
+  return true;
+}
+const ISLE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="6" rx="3"/><path d="M4 14h16M7 18h10"/></svg>';
+// The "Show on Isle" button in a game's top bar (only when Isle is turned on).
+function addIsleBtn(sheet, id) {
+  if (!isleOn()) return;
+  const bar = $('.sheet-bar', sheet.el); if (!bar || $('[data-isle]', bar)) return;
+  const k = LGK + ':' + id, b = document.createElement('button');
+  b.className = 'icon-btn isle-btn'; b.dataset.isle = ''; b.innerHTML = ISLE_ICON;
+  const paint = () => { const on = isleTracked().has(k); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.title = on ? 'Stop tracking on Isle' : 'Show on Isle'; b.setAttribute('aria-label', b.title); };
+  paint();
+  b.addEventListener('click', async e => {
+    e.stopPropagation(); if (b.dataset.busy) return; b.dataset.busy = '1';
+    try { if (await isleTrack(id, !isleTracked().has(k))) paint(); } finally { delete b.dataset.busy; }
+  });
+  bar.insertBefore(b, $('[data-share]', bar) || $('[data-expand]', bar));
+  // Isle forgets games once they end; match what it actually tracks
+  isleCall('/v1/fullcourt/track').then(list => {
+    if (!Array.isArray(list)) return;
+    const live = new Set(list.map(t => t.league + ':' + t.game)), set = isleTracked();
+    for (const x of [...set]) if (!live.has(x)) set.delete(x);
+    for (const x of live) set.add(x);
+    lsSet('fc-isle-track', set.size ? JSON.stringify([...set]) : null);
+    paint();
+  });
 }
 
 /* ---------------- score ticker (desktop) ---------------- */
@@ -3376,11 +3439,20 @@ async function appUpdateCheck(manual = false) {
 if (IS_APP && !IS_MINI) { setTimeout(appUpdateCheck, 8000); setInterval(appUpdateCheck, 6 * 3600e3); }
 
 /* Windows app: tray, mini scoreboard button, and the mini window's own bar */
+function appOpenGame(t) {
+  if (!t || !t.game || !/^\w{1,32}$/.test(String(t.game))) return;
+  const lg = ['nba', 'wnba', 'ncaam', 'ncaaw'].includes(t.league) ? t.league : LGK;
+  if (lg !== LGK) { location.href = `${location.pathname}?league=${lg}&game=${encodeURIComponent(t.game)}`; return; }
+  openGame(String(t.game));
+}
 const appCall = (cmd, args) => { try { return window.__TAURI__.core.invoke(cmd, args); } catch (e) { return Promise.reject(e); } };
 if (IS_APP && !IS_MINI) {
   appCall('set_close_to_tray', { on: lsGet('fc-app-tray') !== '0' }).catch(() => {});
   try {
     window.__TAURI__.event.listen('fc-nav', e => { location.hash = String(e.payload || '#scores'); });
+    // Isle (or anything else) can start the app with --league nba --game 401… to open that game
+    window.__TAURI__.event.listen('fc-open', e => appOpenGame(e.payload));
+    setTimeout(() => appCall('launch_target').then(appOpenGame).catch(() => {}), 400);
     // the first time the window hides to the tray, say so (Windows notification, since the window is gone)
     window.__TAURI__.event.listen('fc-to-tray', () => { if (lsGet('fc-app-trayseen')) return; lsSet('fc-app-trayseen', '1'); try { window.__TAURI__.notification.sendNotification({ title: 'Fullcourt is still running', body: 'It\'s in the tray by the clock, keeping your bet alerts on. Right-click it to quit. You can turn this off in Settings.' }); } catch (x) {} });
   } catch (e) {}

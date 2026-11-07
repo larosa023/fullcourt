@@ -3,12 +3,43 @@
 
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 // closing the main window hides it to the tray (on by default; Settings can turn it off)
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
+
+// a game to open that came in on the command line (`--league nba --game 401…`, e.g. from Isle)
+static LAUNCH: Mutex<Option<(String, String)>> = Mutex::new(None);
+
+/// Reads `--league <lg> --game <id>` from command-line arguments. Both must be short and alphanumeric.
+fn game_args(args: &[String]) -> Option<(String, String)> {
+    let mut league = String::from("nba");
+    let mut game: Option<String> = None;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--league" => {
+                if let Some(v) = it.next() {
+                    league = v.to_lowercase();
+                }
+            }
+            "--game" => game = it.next().cloned(),
+            _ => {}
+        }
+    }
+    let ok = |s: &str| !s.is_empty() && s.len() <= 32 && s.chars().all(|c| c.is_ascii_alphanumeric());
+    game.filter(|g| ok(g) && ok(&league)).map(|g| (league, g))
+}
+
+/// The page asks once at startup whether it was opened to show a particular game.
+#[tauri::command]
+fn launch_target() -> Option<serde_json::Value> {
+    let (league, game) = LAUNCH.lock().ok()?.take()?;
+    Some(serde_json::json!({ "league": league, "game": game }))
+}
 
 fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
@@ -133,13 +164,23 @@ fn save_export(app: AppHandle, name: String, text: String) -> Result<String, Str
 }
 
 fn main() {
+    if let Some(t) = game_args(&std::env::args().collect::<Vec<_>>()) {
+        if let Ok(mut l) = LAUNCH.lock() {
+            *l = Some(t);
+        }
+    }
     tauri::Builder::default()
-        // opening Fullcourt again focuses the window that's already open
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        // opening Fullcourt again focuses the window that's already open (and opens a game if one was passed)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            show_main(app);
+            if let Some((league, game)) = game_args(&args) {
+                let _ = app.emit_to("main", "fc-open", serde_json::json!({ "league": league, "game": game }));
+            }
+        }))
         .plugin(tauri_plugin_window_state::Builder::default().build()) // remembers size and position
         .plugin(tauri_plugin_opener::init()) // outside links open in the normal browser
         .plugin(tauri_plugin_notification::init()) // alerts as Windows notifications
-        .invoke_handler(tauri::generate_handler![install_update, open_mini, focus_main, set_mini_on_top, set_close_to_tray, save_export])
+        .invoke_handler(tauri::generate_handler![install_update, open_mini, focus_main, set_mini_on_top, set_close_to_tray, save_export, launch_target])
         .setup(|app| {
             // tray icon: click to open, right-click for the menu
             let open = MenuItem::with_id(app, "open", "Open Fullcourt", true, None::<&str>)?;

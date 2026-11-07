@@ -63,6 +63,10 @@ function openSettings() {
         <button class="set-row" data-appcheck><span><b>Check for updates</b><small class="set-appv">Fullcourt for Windows</small></span><em class="set-val">Check</em></button>
         <a class="set-row" href="https://github.com/larosa023/fullcourt/releases" target="_blank" rel="noopener"><span><b>Release notes</b><small>Every version on GitHub</small></span><em class="set-val">Open</em></a>
       </div><p class="set-note">The app also checks by itself each time it opens and every 6 hours.</p></section>` : ''}
+      <section><h3 class="set-h">Isle</h3><div class="set-list">
+        <button class="set-row" role="switch" aria-checked="${isleOn()}" data-isle><span><b>Connect to Isle</b><small>Isle is a Dynamic Island for Windows. It shows your team's live games and the ones you send with the Show on Isle button in a game, at the top of your screen</small></span><i class="sw"><i></i></i></button>
+        <a class="set-row" href="https://github.com/larosa023/Isle/releases/latest" target="_blank" rel="noopener"><span><b>Get Isle</b><small>Free, for Windows 10 and 11</small></span><em class="set-val">Open</em></a>
+      </div><p class="set-note">${IS_APP ? 'Talks only to Isle on this PC.' : 'Talks only to Isle on this PC. Your browser may ask to allow access to apps on your device the first time.'}</p></section>
       <section><h3 class="set-h">Your data</h3><p class="set-note">Saved only in this ${IS_APP ? 'app' : 'browser'}, separately for each league (NBA, WNBA and college). Export it to move it between browsers, devices and the Windows app.</p><div class="set-list">
         <button class="set-row" data-dexport><span><b>Export my data</b><small>Tracked bets, stars, favorites, your players, Pick'em and settings, as a file</small></span><em class="set-val">Save</em></button>
         <button class="set-row" data-dcopy><span><b>Copy my data</b><small>The same, as text you can paste into another browser or the Windows app</small></span><em class="set-val">Copy</em></button>
@@ -78,6 +82,12 @@ function openSettings() {
   sheet.body.addEventListener('click', async e => {
     const tr = e.target.closest('[data-apptray]');
     if (tr) { const on = tr.getAttribute('aria-checked') !== 'true'; tr.setAttribute('aria-checked', on); lsSet('fc-app-tray', on ? null : '0'); appCall('set_close_to_tray', { on }).catch(() => {}); return; }
+    const il = e.target.closest('[data-isle]');
+    if (il) {
+      const on = il.getAttribute('aria-checked') !== 'true'; il.setAttribute('aria-checked', on); lsSet('fc-isle', on ? '1' : '0');
+      if (on) { const r = await isleSync(true); toast(r ? 'Connected to Isle' : "Couldn't reach Isle. It'll connect when Isle is running"); }
+      return;
+    }
     const ac = e.target.closest('[data-appcheck]');
     if (ac) {
       const val = $('.set-val', ac), go = $('#appUpd [data-appupd]');
