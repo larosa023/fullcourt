@@ -10,13 +10,10 @@
 .cp-pay { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 20px; }
 .cp-lrow .cp-bar { grid-column: 2 / -1; }
 .cp-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); }
-.cp-chip.room { color: var(--win); } .cp-chip.tax { color: #d9a400; } .cp-chip.a1 { color: #ef7d2c; } .cp-chip.a2 { color: var(--loss); background: color-mix(in oklab, var(--loss) 12%, var(--surface)); }
-.cp-bar { position: relative; height: 8px; border-radius: 99px; background: var(--surface-2); margin: 2px 0 12px; }
+.cp-chip.room { color: var(--win); } .cp-chip.over { color: #4f8ef7; } .cp-chip.tax { color: #d9a400; } .cp-chip.a1 { color: #ef7d2c; } .cp-chip.a2 { color: var(--loss); background: color-mix(in oklab, var(--loss) 12%, var(--surface)); }
 .cp-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--win); transition: width .35s; }
 .cp-bar.over .cp-fill { background: var(--accent); } .cp-bar.tax .cp-fill { background: #d9a400; } .cp-bar.a1 .cp-fill { background: #ef7d2c; } .cp-bar.a2 .cp-fill { background: var(--loss); }
-.cp-was { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .55; border-radius: 2px; }
-.cp-ln { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--ink-2); opacity: .5; }
-.cp-ln em { position: absolute; top: 12px; transform: translateX(-50%); font-style: normal; font-family: var(--mono); font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.cp-was { position: absolute; z-index: 2; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .55; border-radius: 2px; }
 .cp-lrow .cp-ln em { display: none; }
 .cp-thead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .cp-sel, .cp-q { height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; padding: 0 10px; min-width: 0; }
@@ -88,4 +85,33 @@
   .cp-hero h2 { font-size: 24px; } .cp-hero .lg { width: 44px; height: 44px; }
   .cp-sel, .cp-q { font-size: 16px; } .cp-q { max-width: none; flex: 1 1 100%; } .cp-ctrl .cp-sel { flex: 1 1 0; }
   .cp-dl { grid-template-columns: 100px 1fr; }
+}
+
+/* cap bar: the payroll fills band by band (under the cap, over it, taxpayer, past the 1st apron, past the 2nd), each band its own colour */
+.cp-bar { position: relative; height: 12px; border-radius: 99px; margin: 26px 0 24px; }
+.cp-lrow .cp-bar { margin: 6px 0 2px; height: 10px; }
+.cp-z { position: absolute; top: 0; bottom: 0; text-decoration: none; overflow: hidden; --zc: var(--win); background: color-mix(in oklab, var(--zc) 16%, var(--surface-2)); }
+.cp-z u { position: absolute; left: 0; top: 0; bottom: 0; background: var(--zc); transition: width .35s; }
+.cp-z.room { border-radius: 99px 0 0 99px; } .cp-z.over { --zc: #4f8ef7; } .cp-z.tax { --zc: #d9a400; } .cp-z.a1 { --zc: #ef7d2c; } .cp-z.a2 { --zc: var(--loss); border-radius: 0 99px 99px 0; }
+.cp-z + .cp-z { border-left: 2px solid var(--surface); }
+.cp-end { position: absolute; z-index: 2; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.cp-ln { position: absolute; z-index: 1; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; border-radius: 2px; background: var(--ink); opacity: .9; }
+.cp-ln.cap { background: #4f8ef7; } .cp-ln.tax { background: #d9a400; } .cp-ln.a1 { background: #ef7d2c; } .cp-ln.a2 { background: var(--loss); }
+.cp-ln em { position: absolute; top: 19px; left: 1px; transform: translateX(-50%); font-style: normal; font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--ink-2, var(--ink)); }
+.cp-ln em span { color: var(--muted); }
+.cp-ln.a1 em { top: auto; bottom: 19px; } /* the tax line and 1st apron sit close together: one label above, one below */
+.cp-lrow .cp-ln em { display: none; }
+.cp-lrow .cp-ln { top: -3px; bottom: -3px; }
+.cp-scrow { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 0 14px; }
+.cp-scale { position: relative; height: 30px; margin-bottom: 2px; }
+.cp-scale b { position: absolute; bottom: 0; transform: translateX(-50%); display: grid; justify-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; padding: 2px 6px 3px; border-radius: 7px; background: var(--surface); border: 1px solid currentColor; line-height: 1.15; }
+.cp-scale b span { font-weight: 400; font-size: 9px; color: var(--muted); }
+.cp-scale b::after { content: ''; position: absolute; top: 100%; left: 50%; width: 2px; height: 5px; margin-left: -1px; background: currentColor; }
+.cp-scale .cap { color: #4f8ef7; } .cp-scale .tax { color: #d9a400; } .cp-scale .a1 { color: #ef7d2c; } .cp-scale .a2 { color: var(--loss); }
+.cp-scale .a1 { bottom: auto; top: -16px; } .cp-scale .a1::after { top: 100%; height: 22px; }
+.cp-scale { margin-top: 18px; }
+@media (max-width: 760px) {
+  .cp-scrow { grid-template-columns: 26px minmax(0, 1fr); padding: 0 12px; }
+  .cp-scale b { font-size: 9px; padding: 1px 4px 2px; } .cp-scale b span { display: none; }
+  .cp-ln em span { display: none; }
 }

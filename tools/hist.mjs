@@ -46,6 +46,7 @@ console.log('mvp', mvp.length, mvp[0]);
 const ids = new Set();
 for (const [k, n] of [['pts', 80], ['trb', 30], ['ast', 30], ['stl', 20], ['blk', 20], ['fg3', 25], ['g', 15]]) leaders[k].slice(0, n).forEach(x => ids.add(x.id));
 for (const m of mvp) ids.add(m.id);
+for (const c of champions) if (c.fmvpId) ids.add(c.fmvpId); // every Finals MVP too
 console.log('legends to fetch', ids.size);
 const legends = {};
 const COLS = ['year_id', 'age', 'team_name_abbr', 'games', 'mp_per_g', 'pts_per_g', 'trb_per_g', 'ast_per_g', 'stl_per_g', 'blk_per_g', 'fg_pct', 'fg3_pct', 'ft_pct'];
@@ -98,5 +99,12 @@ for (const r of Object.values(leaders).flat()) {
 }
 console.log('leader ESPN ids', Object.keys(espn).length);
 console.log('legends', Object.keys(legends).length, 'with ESPN ids', Object.values(legends).filter(l => l.espn).length);
+// which of those ESPN ids actually have a headshot (ESPN has none for many retired players): the site draws a
+// team-coloured initials card for those straight away instead of trying a photo that isn't there
+const hasPhoto = async id => { try { const r = await fetch(`https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`, { method: 'HEAD', headers: { 'user-agent': UA } }); return r.ok; } catch (e) { return null; } };
+const nophoto = [];
+for (const L of Object.values(legends)) { if (!L.espn) { L.photo = false; continue; } const ok = await hasPhoto(L.espn); if (ok === false) L.photo = false; }
+for (const id of Object.values(espn)) { if (id && (await hasPhoto(id)) === false) nophoto.push(id); }
+console.log('without a photo', Object.values(legends).filter(l => l.photo === false).length, 'legends,', nophoto.length, 'others');
 if (Object.keys(legends).length < 50 || !leaders.pts?.length) throw new Error('too little parsed; keeping last week\'s file');
-writeFileSync(process.argv[2] || 'history.json', JSON.stringify({ updated: new Date().toISOString(), source: 'Basketball-Reference + ESPN', cols: COLS, leaders, champions, mvp, legends, espn }));
+writeFileSync(process.argv[2] || 'history.json', JSON.stringify({ updated: new Date().toISOString(), source: 'Basketball-Reference + ESPN', cols: COLS, leaders, champions, mvp, legends, espn, nophoto }));

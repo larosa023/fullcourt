@@ -48,14 +48,23 @@ function capCell(p, i) {
   return `<td class="${cls}" title="${esc(tip)}">${money(v)}${p.opt[i] ? `<sup>${p.opt[i] === 'P' ? 'PO' : 'TO'}</sup>` : ''}</td>`;
 }
 // a bar against the cap lines (cap, tax, first and second apron)
-function capBar(pay, c, after) {
-  // the scale starts at $100M so the gaps between teams and the cap lines are visible
-  const lo = 100e6, max = Math.max(c.apron2 * 1.1, pay * 1.03, (after || 0) * 1.03), pc = v => `${(Math.max(0, v - lo) / (max - lo) * 100).toFixed(2)}%`;
+function capBar(pay, c, after, o = {}) {
+  // the scale starts at $100M so the gaps between teams and the cap lines are visible; a list passes one shared top (o.max)
+  const lo = 100e6, max = o.max || Math.max(c.apron2 * 1.1, pay * 1.03, (after || 0) * 1.03), at = v => Math.min(100, Math.max(0, v - lo) / (max - lo) * 100), pc = v => `${at(v).toFixed(2)}%`;
   const [k] = capStatus(after ?? pay, c);
-  return `<div class="cp-bar ${k}" role="img" aria-label="Payroll ${money(pay)}${after != null ? `, ${money(after)} after the trade` : ''}">
-    <i class="cp-fill" style="width:${pc(after ?? pay)}"></i>${after != null && after !== pay ? `<i class="cp-was" style="left:${pc(pay)}"></i>` : ''}
-    ${[['cap', c.cap, 'Cap'], ['tax', c.tax, 'Tax'], ['a1', c.apron1, '1st'], ['a2', c.apron2, '2nd']].map(([n, v, l]) => `<b class="cp-ln ${n}" style="left:${pc(v)}"><em>${l}</em></b>`).join('')}
+  // coloured bands between the lines: under the cap, over the cap, taxpayer, past the 1st apron, past the 2nd
+  const cuts = [0, at(c.cap), at(c.tax), at(c.apron1), at(c.apron2), 100];
+  const P = at(after ?? pay);
+  const zones = ['room', 'over', 'tax', 'a1', 'a2'].map((z, i) => { const w = cuts[i + 1] - cuts[i]; return w > 0 ? `<s class="cp-z ${z}" style="left:${cuts[i].toFixed(2)}%;width:${w.toFixed(2)}%"><u style="width:${(Math.min(Math.max(P - cuts[i], 0), w) / w * 100).toFixed(1)}%"></u></s>` : ''; }).join('');
+  return `<div class="cp-bar ${k}${o.bare ? ' bare' : ''}" role="img" aria-label="Payroll ${money(pay)}${after != null ? `, ${money(after)} after the trade` : ''}">${zones}
+    <i class="cp-end" style="left:${pc(after ?? pay)}"></i>${after != null && after !== pay ? `<i class="cp-was" style="left:${pc(pay)}"></i>` : ''}
+    ${[['cap', c.cap, 'Cap'], ['tax', c.tax, 'Tax'], ['a1', c.apron1, '1st apron'], ['a2', c.apron2, '2nd apron']].map(([n, v, l]) => `<b class="cp-ln ${n}" style="left:${pc(v)}"><em>${l}<span> ${money(v, 0)}</span></em></b>`).join('')}
   </div>`;
+}
+// the shared scale shown above a list of bars
+function capScale(c, max) {
+  const lo = 100e6, pc = v => `${(Math.max(0, v - lo) / (max - lo) * 100).toFixed(2)}%`;
+  return `<div class="cp-scale" aria-hidden="true">${[['cap', c.cap, 'Cap'], ['tax', c.tax, 'Tax'], ['a1', c.apron1, '1st apron'], ['a2', c.apron2, '2nd apron']].map(([n, v, l]) => `<b class="${n}" style="left:${pc(v)}">${l}<span>${money(v, 0)}</span></b>`).join('')}</div>`;
 }
 
 const CS = { tab: 'teams', team: '', q: '', sort: 's0', dir: -1, exp: '', tm: '', n: 120 };
@@ -77,9 +86,10 @@ const capLegend = `<div class="cp-legend"><span><i class="po"></i>Player option<
 
 function capLeague(d) {
   const c = d.cap, rows = Object.values(d.teams).sort((a, b) => b.pay[0] - a.pay[0]);
+  const top = Math.max(c.apron2 * 1.1, ...rows.map(t => t.pay[0] * 1.03));
   return `<div class="cp-lines"><span>Cap <b>${money(c.cap, 1)}</b></span><span>Tax <b>${money(c.tax, 1)}</b></span><span>1st apron <b>${money(c.apron1, 1)}</b></span><span>2nd apron <b>${money(c.apron2, 1)}</b></span><span>Minimum <b>${money(c.min, 1)}</b></span></div>
-    <div class="cp-league">${rows.map(t => { const [k, l] = capStatus(t.pay[0], c); const tm = S.teams[Object.keys(S.teams).find(id => S.teams[id].abbr === t.abbr)] || {}; const toTax = c.tax - t.pay[0];
-      return `<button class="cp-lrow" data-capteam="${t.abbr}">${logo(t.abbr, 64)}<span class="cp-ln-n"><b>${esc(tm.name || t.abbr)}</b><small>${t.roster.length} players · ${toTax >= 0 ? `${money(toTax)} under the tax` : `${money(-toTax)} over the tax`}</small></span><span class="cp-pay">${money(t.pay[0])}</span><span class="cp-chip ${k}">${l}</span>${capBar(t.pay[0], c)}</button>`; }).join('')}</div>
+    <div class="cp-league"><div class="cp-scrow"><span></span>${capScale(c, top)}</div>${rows.map(t => { const [k, l] = capStatus(t.pay[0], c); const tm = S.teams[Object.keys(S.teams).find(id => S.teams[id].abbr === t.abbr)] || {}; const toTax = c.tax - t.pay[0];
+      return `<button class="cp-lrow" data-capteam="${t.abbr}">${logo(t.abbr, 64)}<span class="cp-ln-n"><b>${esc(tm.name || t.abbr)}</b><small>${t.roster.length} players · ${toTax >= 0 ? `${money(toTax)} under the tax` : `${money(-toTax)} over the tax`}</small></span><span class="cp-pay">${money(t.pay[0])}</span><span class="cp-chip ${k}">${l}</span>${capBar(t.pay[0], c, null, { max: top })}</button>`; }).join('')}</div>
     ${capFoot(d)}`;
 }
 

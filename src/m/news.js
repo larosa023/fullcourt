@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07g', date: 'Nov 7', items: [
+    ['History, polished', 'On this day opens with the date\'s biggest night as a big spotlight, and arrows step a day back or forward. Seasons shows the champion with its logo and colours, cards for the Finals MVP and the MVP, and arrows to step through seasons. Records puts the top three on a podium, with bars for everyone else. Legend cards show career points, rebounds and assists, and can be sorted by all-time points, titles, MVPs, career scoring or name. Profiles add the teams a player played for and their best season. History also opens on the part you used last.'],
+    ['Photos for more players', 'Every Finals MVP now has a full profile and photo, and more players are matched to their ESPN photos (accented names like Jokić were being missed). ESPN has no photos for many retired greats (Jordan, Bird, Magic and others), so they now get a card in their team\'s colours with their initials and team logo.'],
+    ['Clearer cap lines', 'Cap bars now fill in colour, zone by zone: green under the cap, blue over it, yellow as a taxpayer, orange past the 1st apron and red past the 2nd. The cap, tax and apron lines are drawn in colour too, and a labelled scale sits above the team list.'],
+  ] },
   { id: '2026-11-07f', date: 'Nov 7', items: [
     ['New: History', 'A whole new section for the NBA\'s past (a History tab on wide screens, under More on smaller ones, and in the menu on phones). On this day: every game played on today\'s date back to 2001, the biggest scoring nights, the closest finishes and legends born today, and you can pick any date. Seasons: every champion, Finals MVP and MVP since 1950, plus final standings and stat leaders from 2001-02 on. Records: the all-time career leader boards and a milestone watch for active players closing in on someone. Legends: the all-time greats with photos, and a search for any player past or present.'],
     ['Player profiles for anyone', 'Tap any name in History for a full profile: photo, bio, accolades, career averages, where they rank all-time, points per game season by season, their full season-by-season stats, and a link to watch their career highlights.'],
