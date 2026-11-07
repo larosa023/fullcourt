@@ -1,0 +1,30 @@
+# Contracts for Capsheet and Deadline: ESPN rosters + Basketball-Reference contract pages, once a week.
+# Publishes contracts.json to the cap-data branch (not part of the website, so no deploy).
+name: cap
+on:
+  push:
+    branches: [main]
+    paths: ['tools/cap*.mjs', '.github/workflows/cap.yml']
+  schedule:
+    - cron: '23 9 * * 1' # Mondays, 4:23 AM ET
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: cap, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Fetch
+        run: |
+          mkdir pub && cd pub
+          node ../tools/cap-probe.mjs
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan cap-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -qm "cap $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" cap-data
