@@ -14,9 +14,14 @@ try { const r = await fetch(`${PREV}?t=${Date.now()}`); if (r.ok) prev = await r
 const games = { ...(prev.games || {}) };
 let found = 0, seen = 0;
 for (const [lg, ch] of Object.entries(CHANNELS)) {
-  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' } });
-  const xml = await res.text();
-  console.log(lg, 'feed', res.status, xml.length, (xml.match(/<title>([^<]+)/g) || []).slice(0, 4).join(' / '));
+  // the channel's uploads playlist (UU…) feed, with the channel feed as a fallback
+  let xml = '';
+  for (const url of [`https://www.youtube.com/feeds/videos.xml?playlist_id=UU${ch.slice(2)}`, `https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`]) {
+    const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' } });
+    const t = await res.text();
+    console.log(lg, url.split('?')[1].slice(0, 12), res.status, t.length, (t.match(/<title>([^<]+)/g) || []).slice(0, 3).join(' / '));
+    if (res.ok && t.includes('<entry>')) { xml = t; break; }
+  }
   for (const m of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
     seen++;
     const e = m[1], id = e.match(/<yt:videoId>([^<]+)/)?.[1], title = dec(e.match(/<title>([^<]+)/)?.[1] || ''), at = e.match(/<published>([^<]+)/)?.[1];
