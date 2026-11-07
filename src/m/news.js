@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07a', date: 'Nov 7', items: [
+    ['Replay: every game\'s highlights', 'A new Replay tab is a clean feed of each finished game\'s highlights, newest first, with the final score on every card. Filter by team or jump to a date, scroll for older days, and open Top plays for the game\'s individual clips. Nothing plays until you tap, and a video pauses when you scroll past it. Finished games on Scores now show a Highlights marker, and the game sheet has a Highlights in Replay button. Works for the WNBA and college too.'],
+    ['Compare moved to More', 'To make room for Replay, Compare is now in the More menu at the end of the header (and still in the phone menu).'],
+  ] },
   { id: '2026-11-06e', date: 'Nov 6', items: [
     ['Move your data anywhere', 'Settings → Your data can now export everything you\'ve saved (tracked bets, stars, favorites, your players, Pick\'em and settings) as a file or copied text, and import it in another browser, on another device or in the Windows app.'],
     ['Mini scoreboard (Windows app)', 'A small always-on-top window with today\'s games and your tracked bets, live. Open it from the new header button, Settings or the tray icon. Pin or unpin it on top, and jump back to the full window any time.'],

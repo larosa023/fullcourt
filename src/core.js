@@ -341,13 +341,13 @@ function placeKnob(seg) {
 }
 
 /* ================= routing ================= */
-const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets'];
+const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay'];
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
   S.view = view;
   closeDrawer();
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
-  $$('#nav [data-view], #tabbar [data-view], #drawer [data-view]').forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  $$('#nav [data-view], #navMenu [data-view], #tabbar [data-view], #drawer [data-view]').forEach(b => b.dataset.view === view ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   movePill();
   if (push && location.hash !== '#' + view) { if (S.skipPop) S.pendingHash = view; else history.replaceState(null, '', '#' + view); }
   if (view === 'standings') renderStandings();
@@ -355,6 +355,9 @@ function go(view, push = true) {
   if (view === 'leaders') loadLeaders();
   if (view === 'compare') renderCompare();
   if (view === 'bets') renderBetDesk();
+  if (view === 'replay') lazy('replay').then(m => m.renderReplay()).catch(() => { $('#rpBody').innerHTML = `<div class="empty"><b>Replay didn't load</b><button class="btn" data-retry="replay">Try again</button></div>`; });
+  navMenu(false);
+  $('#nav [data-navmore]')?.toggleAttribute('aria-current', !$(`#nav > [data-view="${view}"]`) && !!$(`#navMenu [data-view="${view}"]`));
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 /* ---- phone menu drawer ---- */
@@ -400,8 +403,19 @@ document.addEventListener('change', e => { if (e.target.matches?.('[data-cscope]
   drawerEl.addEventListener('pointercancel', end);
 })();
 
+/* More menu in the header (Compare lives there) */
+function navMenu(open) {
+  const m = $('#navMenu'), b = $('#nav [data-navmore]'); if (!m || !b) return;
+  if (open == null) open = m.hidden;
+  if (open) { const r = b.getBoundingClientRect(); m.style.left = `${Math.round(Math.min(r.left, innerWidth - 250))}px`; m.style.top = `${Math.round(r.bottom + 8)}px`; }
+  m.hidden = !open; b.setAttribute('aria-expanded', open);
+  if (open) setTimeout(() => $('button', m)?.focus({ preventScroll: true }), 30);
+}
+document.addEventListener('click', e => { if (!e.target.closest?.('#navMenu, [data-navmore]')) navMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') navMenu(false); });
+addEventListener('resize', () => navMenu(false));
 function movePill() {
-  const b = $(`#nav [data-view="${S.view}"]`), p = $('#navPill');
+  const b = $(`#nav > [data-view="${S.view}"]`) || ($(`#navMenu [data-view="${S.view}"]`) && $('#nav [data-navmore]')), p = $('#navPill');
   if (!b || !p) return;
   p.style.width = b.offsetWidth + 'px';
   p.style.transform = `translateX(${b.offsetLeft}px)`;
@@ -437,6 +451,7 @@ function parseGame(e) {
     note: c.notes?.[0]?.headline || '',
     headline: c.headlines?.[0]?.shortLinkText || '',
     odds: parseOdds(c.odds?.[0]),
+    hasHl: !!c.highlights?.length,
   };
 }
 
@@ -724,6 +739,7 @@ function gameCard(g, i, animate) {
     foot = `<div class="g-foot"><span class="tip">${esc(fmtTime(g.date))}</span><span class="lead">${esc(until || g.venue || '')}</span></div>`;
   } else if (L) {
     foot = `<div class="g-foot">${face(L.a?.id, L.a?.displayName, 'mini-face', 80)}<span class="lead"><b>${esc(L.a?.shortName || L.a?.displayName)}</b> ${esc(L.dv)} ${L.cat?.name === 'points' ? 'pts' : esc(L.cat?.abbreviation || '')} · ${esc(L.team.abbr)}</span></div>`;
+    if (post && g.hasHl) foot = foot.replace('</div>', `<span class="g-hl" title="Highlights available: open the game">${PLAY_ICON}Highlights</span></div>`);
   }
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
@@ -1246,7 +1262,8 @@ async function openGame(id, opts = {}) {
           <button class="gh-team" data-team="${sides[1].id}">${logo(sides[1].abbr, 120)}<b>${esc(sides[1].short)}</b><span>${esc(sides[1].rec)} · Home</span>${sitOf(sides[1])}</button>
         </div>
         <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtLocal(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>
-        <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span></div>
+        <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span>
+        ${g.state === 'post' && (d.videos || []).length ? `<button class="gh-hl" data-replay="${esc(id)}|${etYmd(comp.date)}">${PLAY_ICON}Highlights in Replay</button>` : ''}</div>
       </div>`;
 
     let side = header, main = '';
@@ -2215,7 +2232,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-06e'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3313,6 +3330,9 @@ setInterval(() => { if (!document.hidden && !IS_W && lsGet('fc-bd-stars') && lsG
 document.addEventListener('click', e => {
   const el = e.target;
   const lgb = el.closest('[data-lg]'); if (lgb) { switchLeague(lgb.dataset.lg); return; }
+  if (el.closest('[data-navmore]')) { navMenu(); return; }
+  // a game's highlights in Replay (from the game sheet)
+  const rpl = el.closest('[data-replay]'); if (rpl) { const [gid, day] = rpl.dataset.replay.split('|'); S.replayFocus = { gid, day }; closeAll(); if (S.view === 'replay') lazy('replay').then(m => m.renderReplay()); else go('replay'); return; }
   const v = el.closest('[data-view]');
   if (v) { e.preventDefault(); closeAll(); go(v.dataset.view); return; }
   if (el.closest('[data-close]')) { closeTop(); return; }
@@ -3356,6 +3376,7 @@ document.addEventListener('click', e => {
     if (k === 'standings') { stdPromise = null; renderStandings(); }
     if (k === 'teams') { stdPromise = null; renderTeams(); }
     if (k === 'leaders') loadLeaders();
+    if (k === 'replay') go('replay');
   }
 });
 // keyboard arrows on the date rail

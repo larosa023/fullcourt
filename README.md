@@ -26,6 +26,7 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 - **Teams**: roster, injury report, schedule strip and month calendar, and league-wide team rankings
 - **Players**: averages, last-10 trend chart, splits, recent games, collapsible career stats, and share-as-image
 - **Leaders** in 11 categories, plus Fullcourt's own MVP and Rookie races
+- **Replay**: a feed of every finished game's highlights, newest first, filterable by team and date, with each game's top plays
 - **Ask Fullcourt**: stats questions in plain English, and **Compare** for head-to-head players
 - Favorite team with game alerts, Settings to hide parts you don't use, What's new, light/dark mode, keyboard shortcuts, and a home-screen app that keeps your last scores when you lose signal
 - All dates and times in Eastern (ET). "Today" switches to the next day at 4 AM ET, so late West Coast games stay on the night they were played.

@@ -1471,3 +1471,27 @@ tr:hover .pl-sh, .pl-sh:focus-visible { opacity: 1; }
 :root[data-mini] .game .odds-line, :root[data-mini] .game .ml, :root[data-mini] .game .tip, :root[data-mini] .game .g-tag { display: none !important; }
 :root[data-mini] .game .g-foot { padding-top: 6px !important; margin-top: 0 !important; min-height: 0 !important; }
 :root[data-mini] .game .g-foot .lead, :root[data-mini] .game .g-foot { font-size: 12px; }
+
+/* header More menu (Compare lives there) */
+.nav .nav-more { display: inline-flex; align-items: center; gap: 3px; }
+.nav .nav-more svg { width: 13px; height: 13px; opacity: .7; transition: transform .15s; }
+.nav .nav-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.nav-menu { position: fixed; z-index: 60; display: grid; gap: 2px; min-width: 230px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 16px 44px rgb(0 0 0 / .28); }
+.nav-menu[hidden] { display: none; }
+.nav-menu button { display: grid; gap: 1px; text-align: left; padding: 9px 11px; border-radius: 10px; color: var(--ink); }
+.nav-menu button:hover, .nav-menu button:focus-visible, .nav-menu button[aria-current="page"] { background: var(--surface-2); }
+.nav-menu b { font-weight: 650; font-size: 14px; }
+.nav-menu span { font-size: 12px; color: var(--muted); }
+/* Replay links */
+.g-hl { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 2px 8px 2px 6px; border-radius: 99px; background: var(--surface-2); color: var(--ink-2); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; flex: none; }
+.g-hl svg { width: 10px; height: 10px; color: var(--accent); }
+.gh-hl { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 12px 6px 10px; border-radius: 99px; border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--line)); background: color-mix(in oklab, var(--accent) 10%, var(--surface)); color: var(--ink); font-weight: 650; font-size: 13px; }
+.gh-hl svg { width: 12px; height: 12px; color: var(--accent); }
+.gh-hl:hover { background: color-mix(in oklab, var(--accent) 18%, var(--surface)); }
+/* header: tabs tightened to fit Replay and More */
+.nav button { padding-left: 9px; padding-right: 9px; }
+.nav { gap: 0; }
+@media (min-width: 761px) and (max-width: 1340px) { .nav button { padding-left: 7px; padding-right: 7px; } }
+@media (min-width: 761px) and (max-width: 1000px) { .nav button { padding-left: 5px !important; padding-right: 5px !important; } .nav .nav-more { font-size: 0 !important; } .nav .nav-more svg { width: 16px; height: 16px; } }
+@media (min-width: 761px) and (max-width: 840px) { .nav button { padding-left: 3px !important; padding-right: 3px !important; } }
+@media (min-width: 1341px) { :root[data-league^="ncaa"] .nav button { padding-left: 7px; padding-right: 7px; } }

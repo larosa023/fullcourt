@@ -1,0 +1,148 @@
+/* Replay: every finished game's highlights, newest first.
+   One scoreboard per day carries each finished game's ESPN "Game Highlights" video, so the feed costs one small
+   request per day. A game's individual top-play clips load from its game data only when you open them.
+   Past days are kept for the session (they don't change); today is refetched so new games appear. */
+
+const RP = { days: new Map(), team: '', date: '', cursor: null, back: 0, busy: false, done: false, io: null, focus: null };
+const RP_MAX_BACK = 45; // how far back the feed scrolls (days)
+const RP_FIRST = 8; // games to show before waiting for a scroll
+
+const rpVideo = h => { const s = h?.links?.source || {}; const mp4 = s.HD?.href || s.href || s.full?.href || ''; return mp4 ? { id: String(h.id), title: h.headline || 'Game highlights', dur: h.duration || 0, thumb: h.thumbnail || '', mp4 } : null; };
+const rpKey = day => `fc-rp:${LGK}:${day}`;
+function rpDay(day) {
+  if (RP.days.has(day)) return RP.days.get(day);
+  const isPast = day < S.today;
+  if (isPast) { try { const c = sessionStorage.getItem(rpKey(day)); if (c) { const v = Promise.resolve(JSON.parse(c)); RP.days.set(day, v); return v; } } catch (e) {} }
+  const p = getJSON(`${API}/scoreboard?dates=${day}${SB_QS}`, { retries: 1 }).then(d => {
+    const games = (d.events || []).map(e => { const g = parseGame(e); return { id: g.id, date: g.date, day, detail: statusText(g), note: g.note, away: g.away, home: g.home, hl: rpVideo(e.competitions?.[0]?.highlights?.[0]) }; }).filter(g => g.hl);
+    games.sort((a, b) => new Date(b.date) - new Date(a.date));
+    if (isPast) { try { sessionStorage.setItem(rpKey(day), JSON.stringify(games)); } catch (e) {} }
+    return games;
+  }).catch(() => { RP.days.delete(day); return []; });
+  RP.days.set(day, p);
+  return p;
+}
+const rpMatch = g => !RP.team || String(g.home.id) === RP.team || String(g.away.id) === RP.team;
+
+function rpScore(g) {
+  const side = s => `<span class="rp-t${s.winner ? ' w' : ''}">${logo(s.abbr, 48)}<b>${esc(s.abbr)}</b><em>${esc(s.score)}</em></span>`;
+  return `<div class="rp-score">${side(g.away)}<i>@</i>${side(g.home)}<span class="rp-st">${esc(g.detail)}</span></div>`;
+}
+function rpCard(g) {
+  return `<article class="rp-card${RP.focus === g.id ? ' focus' : ''}" data-rpg="${esc(g.id)}">
+    <div class="rp-stage">
+      <img src="${esc(g.hl.thumb)}" alt="" loading="lazy" decoding="async">
+      <button class="rp-play" data-rpplay aria-label="Play ${esc(g.hl.title)}"><span class="clip-btn">${PLAY_ICON}</span></button>
+      <span class="rp-dur">${durText(g.hl.dur)}</span>
+    </div>
+    <div class="rp-body">
+      ${rpScore(g)}
+      <div class="rp-act">
+        <button class="chip sm" data-rpclips aria-expanded="false">Top plays</button>
+        <button class="chip sm" data-game="${esc(g.id)}">Box score</button>
+        ${g.note ? `<span class="rp-note">${esc(g.note)}</span>` : ''}
+      </div>
+      <div class="rp-clips" hidden></div>
+    </div>
+  </article>`;
+}
+const rpDayHead = day => `<h3 class="rp-day" data-rpday="${day}">${esc(day === S.today ? 'Today' : day === addDays(S.today, -1) ? 'Yesterday' : fmtDay(day, { weekday: 'long', month: 'short', day: 'numeric' }))}</h3>`;
+
+async function renderReplay() {
+  const root = $('#rpBody'); if (!root) return;
+  if (S.replayFocus) { RP.focus = S.replayFocus.gid; RP.date = S.replayFocus.day; RP.team = ''; S.replayFocus = null; }
+  root.innerHTML = `<div class="rp-ctrl">
+      <select class="rp-team" data-rpteam aria-label="Filter by team"><option value="">All teams</option></select>
+      <label class="rp-date"><span>Date</span><input type="date" data-rpdate max="${S.today.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}" value="${RP.date ? RP.date.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : ''}"></label>
+      ${RP.date || RP.team ? '<button class="link-btn" data-rpclear>Show all, newest first</button>' : ''}
+    </div>
+    <div class="rp-feed" id="rpFeed"></div>
+    <div class="rp-more" id="rpMore"><div class="sk" style="height:230px;border-radius:16px"></div></div>`;
+  rpTeams();
+  if (!root._wired) { root._wired = true; wireReplay(root); }
+  RP.cursor = RP.date || S.today; RP.back = 0; RP.done = false; RP.shown = 0;
+  await rpLoadMore(true);
+  if (RP.focus) { const c = $(`.rp-card[data-rpg="${RP.focus}"]`, root); if (c) c.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+  // infinite scroll: load older days as the bottom comes into view
+  RP.io?.disconnect();
+  RP.io = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) rpLoadMore(); }, { rootMargin: '600px' });
+  const more = $('#rpMore'); if (more) RP.io.observe(more);
+}
+
+async function rpTeams() {
+  const sel = $('[data-rpteam]'); if (!sel) return;
+  let teams = [];
+  if (!IS_C) { await loadStandings().catch(() => null); teams = (S.standings?.confs || []).flatMap(c => c.rows.map(r => S.teams[r.id] || { id: r.id, name: r.name })); }
+  if (!teams.length) teams = Object.values(S.teams);
+  teams = teams.filter(t => t?.id).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  sel.innerHTML = `<option value="">All teams</option>${teams.map(t => `<option value="${t.id}"${String(t.id) === RP.team ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}`;
+}
+
+// add days to the feed until there's enough to fill the screen (or the date filter's single day is in)
+async function rpLoadMore(first = false) {
+  if (RP.busy || RP.done) return; RP.busy = true;
+  const feed = $('#rpFeed'), more = $('#rpMore'); if (!feed) { RP.busy = false; return; }
+  const want = RP.shown + (first ? RP_FIRST : 6);
+  try {
+    while (RP.shown < want && !RP.done) {
+      // fetch a few days at a time, newest first
+      const days = []; for (let i = 0; i < (RP.team ? 6 : 3) && RP.back <= RP_MAX_BACK; i++) { days.push(addDays(RP.cursor, -RP.back)); RP.back++; if (RP.date) break; }
+      if (!days.length) { RP.done = true; break; }
+      const lists = await Promise.all(days.map(rpDay));
+      if (!feed.isConnected) return;
+      days.forEach((day, i) => {
+        const games = lists[i].filter(rpMatch); if (!games.length) return;
+        feed.insertAdjacentHTML('beforeend', `${rpDayHead(day)}<div class="rp-grid">${games.map(rpCard).join('')}</div>`);
+        RP.shown += games.length;
+      });
+      if (RP.date || RP.back > RP_MAX_BACK) RP.done = true;
+    }
+  } finally { RP.busy = false; }
+  if (RP.done && more) more.innerHTML = RP.shown ? `<p class="rp-end">${RP.date ? 'That\'s every game with highlights that day.' : `That's the last ${RP_MAX_BACK} days. Pick a date to go further back.`}</p>` : `<div class="empty"><b>No highlights ${RP.date ? 'for that day' : 'yet'}</b><span>${RP.team ? 'Try another team or date.' : 'Videos appear shortly after each game ends.'}</span></div>`;
+}
+
+// play the game's highlights in place: user tap, so sound is on; only one video plays at a time
+function rpPlay(card, clip) {
+  const stage = $('.rp-stage', card), g = clip || null;
+  let v = $('video', stage);
+  if (!v) {
+    v = document.createElement('video');
+    v.controls = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', ''); v.preload = 'auto'; v.disablePictureInPicture = true;
+    stage.innerHTML = ''; stage.append(v);
+  }
+  const src = g?.mp4 || card._hl?.mp4; if (!src) return;
+  if (v.src !== src) { v.poster = g?.thumb || card._hl?.thumb || ''; v.src = src; }
+  v.play().catch(() => {});
+}
+
+function wireReplay(root) {
+  root.addEventListener('change', e => {
+    const t = e.target.closest('[data-rpteam]'); if (t) { RP.team = t.value; RP.focus = null; renderReplay(); return; }
+    const d = e.target.closest('[data-rpdate]'); if (d) { RP.date = d.value ? d.value.replace(/-/g, '') : ''; RP.focus = null; renderReplay(); }
+  });
+  root.addEventListener('click', async e => {
+    if (e.target.closest('[data-rpclear]')) { RP.date = ''; RP.team = ''; RP.focus = null; renderReplay(); return; }
+    const card = e.target.closest('.rp-card'); if (!card) return;
+    const day = card.closest('.rp-grid')?.previousElementSibling?.dataset.rpday;
+    if (!card._hl) { const games = day ? await rpDay(day) : []; card._hl = games.find(x => x.id === card.dataset.rpg)?.hl; }
+    if (e.target.closest('[data-rpplay]')) { rpPlay(card); return; }
+    const tp = e.target.closest('[data-rpclips]');
+    if (tp) {
+      const box = $('.rp-clips', card), open = box.hidden; box.hidden = !open; tp.setAttribute('aria-expanded', open);
+      if (open && !box.dataset.done) {
+        box.innerHTML = '<div class="sk" style="height:96px;border-radius:12px"></div>';
+        const d = await getJSON(`${API}/summary?event=${card.dataset.rpg}`).catch(() => null);
+        const clips = d ? clipList(d) : []; card._clips = clips; box.dataset.done = '1';
+        box.innerHTML = clips.length ? `<div class="clip-list hs drag-x" data-drag>${clips.map((x, i) => `<button class="clip-t" data-rpclip="${i}"><span class="ct-img">${x.thumb ? `<img src="${esc(x.thumb)}" alt="" loading="lazy" draggable="false">` : ''}<em>${durText(x.dur)}</em></span><span class="ct-txt">${esc(x.title)}</span></button>`).join('')}</div>` : '<p class="rp-end">No individual clips for this game.</p>';
+        wireDrag(box);
+      }
+      return;
+    }
+    const c = e.target.closest('[data-rpclip]');
+    if (c) { const clip = card._clips?.[+c.dataset.rpclip]; $$('.clip-t', card).forEach(b => b.classList.toggle('on', b === c)); rpPlay(card, clip); }
+  });
+  // one video at a time, and a video scrolled out of view pauses
+  root.addEventListener('play', e => { $$('video', root).forEach(v => { if (v !== e.target && !v.paused) v.pause(); }); }, true);
+  const vio = new IntersectionObserver(es => es.forEach(x => { if (!x.isIntersecting && x.target.tagName === 'VIDEO' && !x.target.paused) x.target.pause(); }), { threshold: 0.2 });
+  new MutationObserver(() => $$('video', root).forEach(v => { if (!v._seen) { v._seen = true; vio.observe(v); } })).observe(root, { childList: true, subtree: true });
+}
