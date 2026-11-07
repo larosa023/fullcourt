@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07i', date: 'Nov 7', items: [
+    ['55 more classic photos', 'Magic, Bird, Kareem, Wilt, Russell, Dr. J, Oscar, Jerry West, Hakeem, Barkley, Iverson, Isiah and dozens more legends now have real photos across History, cut out and framed to match the rest of the site.'],
+  ] },
   { id: '2026-11-07h', date: 'Nov 7', items: [
     ['Michael Jordan\'s photo', 'Jordan now has a real photo everywhere in History: his profile, the records, the legends grid and On this day. More classic players\' photos are on the way.'],
   ] },
