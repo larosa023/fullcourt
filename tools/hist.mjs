@@ -76,7 +76,7 @@ for (const id of ids) {
   } catch (e) { console.log('legend failed', id, e.message); }
 }
 // ESPN ids, for photos and ESPN's own profile (names compared without accents or punctuation: Jokić = Jokic, J.R. = JR)
-const fold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/gi, '').toLowerCase().trim();
+const fold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b\.?/gi, '').replace(/[^a-z ]/gi, '').toLowerCase().replace(/\s+/g, ' ').trim(); // Jimmy Butler III = Jimmy Butler
 for (const [id, L] of Object.entries(legends)) {
   try {
     const d = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(L.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))}&limit=6&type=player`, true);
@@ -97,6 +97,9 @@ for (const r of Object.values(leaders).flat()) {
   } catch (e) { delete espn[r.id]; }
   await sleep(150);
 }
+// players ESPN's search files under another league now (FIBA, NBL): their NBA ids, by hand
+const ESPN_FIX = { millspa02: '4004', mcgeeja01: '3452', butleji01: '6430', morrima03: '6462' };
+for (const [id, e] of Object.entries(ESPN_FIX)) if (!legends[id]) espn[id] = e;
 console.log('leader ESPN ids', Object.keys(espn).length);
 console.log('legends', Object.keys(legends).length, 'with ESPN ids', Object.values(legends).filter(l => l.espn).length);
 // which of those ESPN ids actually have a headshot (ESPN has none for many retired players): the site draws a

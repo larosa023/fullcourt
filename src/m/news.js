@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07j', date: 'Nov 7', items: [
+    ['123 more photos', 'Dennis Johnson, Lenny Wilkens, Kevin McHale, Walt Frazier, Earl Monroe, Chris Webber, Shawn Kemp and over a hundred more players now have real photos across History, including the Records lists. Nearly everyone on the all-time leader boards has a face now.'],
+  ] },
   { id: '2026-11-07i', date: 'Nov 7', items: [
     ['55 more classic photos', 'Magic, Bird, Kareem, Wilt, Russell, Dr. J, Oscar, Jerry West, Hakeem, Barkley, Iverson, Isiah and dozens more legends now have real photos across History, cut out and framed to match the rest of the site.'],
   ] },
