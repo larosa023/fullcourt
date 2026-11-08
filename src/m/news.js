@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08f', date: 'Nov 8', items: [
+    ['Windows app 1.3.2', 'The mini scoreboard (and the main window) no longer flash plain, unstyled buttons for a moment while opening. The app now has the page\'s styling in hand before it draws anything.'],
+  ] },
   { id: '2026-11-08e', date: 'Nov 8', items: [
     ['Win chances on upcoming games', 'Every upcoming NBA and college game now shows Fullcourt\'s own chance for each team, from the same ratings as Playoff Odds and Bracketology (injuries and the betting line included). The game\'s preview shows it next to ESPN\'s predictor, and NBA team pages show their playoff odds, linking to the full odds page.'],
     ['Faster Bet Desk', 'Rest and back-to-back flags now come from three small requests instead of every team\'s full schedule (tens of megabytes less on a phone), and the league\'s player table is kept on your device for a few minutes so Leaders, Compare and the Bet Desk open faster.'],

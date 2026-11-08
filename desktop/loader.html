@@ -27,6 +27,19 @@
   }
   if (!html) html = await (await fetch('app.html')).text();
   if (base) html = html.replace(/(["'(])\.\/(assets|fonts|data|ocr)\//g, `$1${base}$2/`);
+  /* Put the stylesheet straight into the page. A page written in this way can paint before a linked stylesheet arrives,
+     which flashed unstyled buttons for a moment (most visible in the mini scoreboard). */
+  try {
+    const m = html.match(/<link rel="stylesheet" href="([^"]+)">/);
+    if (m) {
+      const cssURL = new URL(m[1], base || location.href).href;
+      const r = await fetch(cssURL);
+      if (r.ok) {
+        const css = (await r.text()).replace(/url\((['"]?)([^'")]+)\1\)/g, (s, q, u) => /^(data:|https?:|#)/.test(u) ? s : `url(${q}${new URL(u, cssURL).href}${q})`);
+        html = html.replace(m[0], () => `<style>${css.replace(/<\/style/gi, '<\\/style')}</style>`);
+      }
+    }
+  } catch (e) {}
   html = html.replace(/<head>/i, `<head><script>window.FC_BASE=${JSON.stringify(base || location.href.replace(/[^/]*([?#].*)?$/, ''))};window.FC_LIVE=${base ? 'true' : 'false'}<\/script>`);
   document.open(); document.write(html); document.close();
 })();
