@@ -15,6 +15,10 @@ const strip = s => String(s || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' 
 const tableOf = (html, id) => { const i = html.indexOf(`id="${id}"`); return i < 0 ? '' : html.slice(i, html.indexOf('</table>', i)); };
 const rowsOf = t => [...t.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(m => m[1]);
 const cells = r => Object.fromEntries([...r.matchAll(/data-stat="([^"]+)"[^>]*>([\s\S]*?)<\/t[dh]>/g)].map(m => [m[1], m[2]]));
+// the first table on the page with a given column (pages name their tables differently, NBA vs WNBA)
+const tableWith = (html, stat) => { for (const m of html.matchAll(/<table[^>]*id="([^"]+)"/g)) { const t = tableOf(html, m[1]); if (t.includes(`data-stat="${stat}"`)) return t; } return ''; };
+const tds = r => [...r.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map(m => strip(m[1]));
+const cut = s => String(s || '').split(/\s+(?:died|college|relatives|hof|player_summary|exec_summary|wnba_summary|social|High School|College:|Died|Relatives|Hall of Fame|More)\b/)[0].trim();
 const link = (s, kind) => s?.match(new RegExp(`href=["'](/${kind}/[^"']+)["']`))?.[1] || null;
 const n = v => { const x = strip(v); return x === '' ? null : +x; };
 const now = new Date(), M = now.getUTCMonth() + 1, Y = now.getUTCFullYear();
@@ -27,18 +31,18 @@ async function coachPage(path) {
   const html = await brGet(path); if (!html) return {};
   const m = html.indexOf('id="meta"'), meta = strip(html.slice(m, m + 4000));
   const born = html.match(/data-birth="(\d{4}-\d{2}-\d{2})"/)?.[1] || meta.match(/Born:\s*([A-Za-z]+ \d+, \d{4})/)?.[1] || '';
-  const from = meta.match(/Born:.*?\d{4}\s+in\s+(.+?)(?:\s+(?:High School|College|Died|Relatives|Hall of Fame|More)|$)/)?.[1] || '';
-  const college = meta.match(/College:\s*(.+?)(?:\s+(?:Relatives|Hall of Fame|More|Player Summary)|$)/)?.[1] || '';
-  const played = /player_summary|As Player/.test(html) && /Player Summary|Career as Player|Played/.test(meta);
+  const from = cut(meta.match(/Born:.*?\d{4}\s+in\s+(.+)$/)?.[1] || '');
+  const college = cut(meta.match(/College:\s*(.+)$/)?.[1] || '');
+  const played = meta.match(/As Player:\s*(?:As Player:\s*)?([^()]+?)\s*\(Full Record\)/)?.[1]?.trim() || '';
   const seasons = [], path2 = [];
-  for (const r of rowsOf(tableOf(html, 'coach-stats'))) {
+  for (const r of rowsOf(tableOf(html, 'coach-stats') || tableWith(html, 'wins'))) {
     const c = cells(r), s = strip(c.season); if (!/^\d{4}(-\d{2})?$/.test(s)) continue;
     if (c.role) { path2.push({ s, team: esp(strip(c.team_id)), role: strip(c.role) }); continue; }
     if (c.wins == null) continue;
     seasons.push({ s, team: esp(strip(c.team_id)), lg: strip(c.lg_id), g: n(c.g), w: n(c.wins), l: n(c.losses), fin: strip(c.rank_team), pg: n(c.g_playoffs), pw: n(c.wins_playoffs), pl: n(c.losses_playoffs), note: strip(c.coach_remarks) });
   }
-  const awards = rowsOf(tableOf(html, 'coach-awards')).map(r => strip(r)).filter(x => x && !/^Award/i.test(x)).slice(0, 12);
-  const moves = rowsOf(tableOf(html, 'coach-transactions')).map(r => { const c = cells(r); return { d: strip(c.date || c.date_transaction || ''), t: strip(c.transaction || c.description || r) }; }).filter(x => x.t && !/^Date/.test(x.t)).slice(-8);
+  const awards = rowsOf(tableOf(html, 'coach-awards')).map(tds).filter(c => /^\d{4}/.test(c[0] || '')).map(c => `${c.at(-1)} (${c[0]})`).slice(0, 14);
+  const moves = rowsOf(tableOf(html, 'coach-transactions')).map(tds).filter(c => c.length >= 2 && /\d{4}/.test(c[0])).map(c => ({ d: c[0], t: c.slice(1).join(' ') })).slice(-8);
   return { born, from, college, played, seasons, path: path2, awards, moves };
 }
 
