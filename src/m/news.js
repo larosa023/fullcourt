@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07n', date: 'Nov 7', items: [
+    ['Photo fix', 'Legend cards in History now always show the photo the player\'s profile shows. Some, like Gary Payton\'s, were falling back to initials.'],
+  ] },
   { id: '2026-11-07m', date: 'Nov 7', items: [
     ['Nicknames', 'Players now show their real nicknames, the ones Basketball-Reference lists (Wemby, The Answer, His Airness...), on player pages, legend cards and History profiles. Search works with them too: type "The Answer" or "Wemby" and the player comes up. Players without a known nickname just don\'t show one.'],
   ] },
