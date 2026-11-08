@@ -35,7 +35,7 @@ const TEAMS = ['ATL', 'BOS', 'BRK', 'CHO', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
 for (const t of TEAMS) {
   const html = await brGet(`/teams/${t}/${season}.html`).catch(() => null); if (!html) continue;
   const i = html.indexOf('id="roster"'), tb = i > 0 ? html.slice(i, html.indexOf('</table>', i)) : '';
-  for (const m of tb.matchAll(/href="\/players\/[a-z]\/([a-z0-9]+)\.html">([^<]+)</g)) if (!want[m[1]]) want[m[1]] = { lg: 'nba', name: strip(m[2]), espn: null, current: true };
+  for (const m of tb.matchAll(/href=["']\/players\/[a-z]\/([a-z0-9]+)\.html["'][^>]*>([^<]+)</g)) want[m[1]] = { ...(want[m[1]] || { lg: 'nba', name: strip(m[2]), espn: null }), current: true };
 }
 console.log('players to cover', Object.keys(want).length, 'already read', Object.keys(players).length);
 
