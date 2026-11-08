@@ -736,6 +736,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .fav-btn { position: absolute; top: 14px; right: 14px; z-index: 2; padding: 7px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: #fff; background: rgb(0 0 0 / .28); border: 1px solid rgb(255 255 255 / .35); backdrop-filter: blur(6px); transition: background .2s, transform .2s var(--ease); }
 .fav-btn:hover { background: rgb(0 0 0 / .45); transform: translateY(-1px); }
 .fav-btn.on { background: #fff; color: #111; border-color: #fff; }
+/* player page: a small round star so it stays off the player's face */
+.fav-btn.w-hero { top: 10px; right: 10px; width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
+.fav-btn.w-hero svg { width: 17px; height: 17px; }
+.fav-btn.w-hero.on svg { color: var(--accent); }
 .drawer-fav .lg { width: 22px; height: 22px; }
 .drawer-fav .star { color: var(--accent); font-size: 16px; width: 22px; text-align: center; }
 

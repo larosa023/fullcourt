@@ -3254,7 +3254,7 @@ const STAR = on => `<svg viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none
 function watchBtnHTML(id, hero) {
   const on = isWatched(id);
   // the player page shows it as a pill in the banner's corner, like a team page's "Your team" button
-  if (hero) return `<button class="fav-btn${on ? ' on' : ''}" data-watch="${esc(id)}" data-whero aria-pressed="${on}">${on ? '★ In your players' : '☆ Add to your players'}</button>`;
+  if (hero) { const l = on ? 'In your players' : 'Add to your players'; return `<button class="fav-btn w-hero${on ? ' on' : ''}" data-watch="${esc(id)}" data-whero aria-pressed="${on}" aria-label="${l}" title="${l}">${STAR(on)}</button>`; }
   return `<button class="btn ${on ? '' : 'ghost'} watch-btn" data-watch="${esc(id)}" aria-pressed="${on}">${STAR(on)}${on ? 'In your players' : 'Add to your players'}</button>`;
 }
 function toggleWatch(id, info) {
