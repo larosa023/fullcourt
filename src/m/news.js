@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08c', date: 'Nov 8', items: [
+    ['Smarter playoff odds', 'Team ratings now blend ESPN\'s Basketball Power Index with Fullcourt\'s own scoring margin, adjusted for who each team played and where, with recent games counting more. Injured players are taken out of the games they\'ll miss (until their expected return), teams get credit for games their regulars sat out, and today\'s games use the betting line. Standings follow the NBA\'s real tiebreakers, and the odds now come from 20,000 simulated seasons.'],
+    ['Tap a team in Odds', 'Each team has its own page: projected record and win range, where it\'s likely to finish (seed by seed), its odds over time, how its next game swings them, and a breakdown of why its rating is what it is, with injured players listed. The table also shows each team\'s seed range at a glance.'],
+  ] },
   { id: '2026-11-08b', date: 'Nov 8', items: [
     ['New: Playoff odds', 'Standings has an Odds tab. Fullcourt plays out the rest of the season thousands of times, Play-In and playoffs included, and shows each team\'s projected record, its chances at the playoffs, the Play-In, the #1 seed, the conference finals, the Finals and the title. It updates every few hours as games finish.'],
     ['Sim the season', 'One tap plays the rest of the season once: final standings, the Play-In, every playoff series and the champion. Tap again for a different outcome.'],

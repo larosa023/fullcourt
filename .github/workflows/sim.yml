@@ -4,7 +4,7 @@ name: sim
 on:
   push:
     branches: [main]
-    paths: ['tools/sim.mjs', '.github/workflows/sim.yml']
+    paths: ['tools/sim.mjs', 'src/m/simengine.js', '.github/workflows/sim.yml']
   schedule:
     - cron: '13 */3 * * *' # every 3 hours
   workflow_dispatch:

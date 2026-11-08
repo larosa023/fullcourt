@@ -38,7 +38,7 @@ const DATA = [
   { name: 'Mock Draft', file: 'draft-data/draft.json', maxH: 30, ok: d => (d.nba?.prospects?.length || 0) > 30 && (d.nba?.order?.length || 0) >= 30 },
   { name: 'Nicknames', file: 'nick-data/nicknames.json', maxH: 30, ok: d => Object.keys(d.players || {}).length > 200 },
   { name: 'Coaches', file: 'coach-data/coaches.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.nba?.teams || {}).length >= 25 },
-  { name: 'Playoff odds', file: 'sim-data/sim.json', maxH: 8, ok: d => (d.nba?.teams?.length || 0) === 30 },
+  { name: 'Playoff odds', file: 'sim-data/sim.json', maxH: 8, ok: d => (d.nba?.teams?.length || 0) === 30 && (!d.nba.games?.length || !!d.nba.odds) },
 ];
 for (const D of DATA) {
   try {
