@@ -1730,6 +1730,7 @@ async function openPlayer(id) {
       <div class="txt">
         <div class="pl-who">
         <h2 class="h-display">${esc(bio.firstName || name.split(' ')[0])}<br>${esc(bio.lastName || name.split(' ').slice(1).join(' '))}</h2>
+        <p class="pl-nick" hidden></p>
         <p>${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
         </div>
         ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
@@ -1752,6 +1753,7 @@ async function openPlayer(id) {
     </section>
     <div class="splits-slot"></div>
     <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button>${watchBtnHTML(id)}</div>`;
+  loadNicks().then(N => { const x = N.by[id], el = $('.pl-nick', sheet.body); if (x && el) { el.innerHTML = nickLine(x.nick, 3); el.hidden = false; } });
   wireDrag(sheet.body);
   S.watchInfo = S.watchInfo || {};
   S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
@@ -2096,6 +2098,21 @@ function flowCard(d, sides) {
 }
 
 /* ---------------- search ---------------- */
+/* Nicknames: the real ones, as Basketball-Reference lists them (built daily by tools/nick.mjs, branch nick-data) */
+let nickP = null;
+function loadNicks() {
+  if (nickP) return nickP;
+  let c = null; try { c = JSON.parse(localStorage.getItem('fc-nicks') || 'null'); } catch (e) {}
+  const index = d => { const by = {}, list = []; for (const [br, p] of Object.entries(d.players || {})) { if (!p.nick?.length) continue; const x = { br, ...p }; if (p.espn) by[p.espn] = x; list.push(x); } return { by, list }; };
+  if (c?.d && Date.now() - c.at < 24 * 3600e3) nickP = Promise.resolve(index(c.d));
+  else nickP = fetch(`https://raw.githubusercontent.com/larosa023/fullcourt/nick-data/nicknames.json?t=${Math.floor(Date.now() / 3600e3)}`).then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { try { localStorage.setItem('fc-nicks', JSON.stringify({ at: Date.now(), d })); } catch (e) {} return index(d); })
+    .catch(() => (c?.d ? index(c.d) : { by: {}, list: [] }));
+  return nickP;
+}
+const nickLine = (list, n = 4) => list.slice(0, n).map(x => `“${esc(x)}”`).join(' · ');
+const nickFold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+let spNick = [];
 const spPop = $('#searchPop'), spIn = $('#spInput'), spRes = $('#spRes');
 let spItems = [], spIdx = 0, spTimer = 0, spSeq = 0, spPlayers = [], spState = 'idle';
 function openSearch() {
@@ -2107,6 +2124,7 @@ function openSearch() {
   renderSearch();
   setTimeout(() => spIn.focus(), 30);
   if (!S.standings) loadStandings().then(renderSearch).catch(() => {});
+  loadNicks();
 }
 function closeSearch() {
   if (spPop.hidden) return;
@@ -2123,6 +2141,8 @@ function renderSearch() {
   const q = spIn.value.trim();
   const teams = matchTeams(q);
   let players = spPlayers;
+  // nickname matches ("Wemby", "The Answer") come first; retired players open their History profile
+  if (q.length >= 2 && spNick.length) { const nk = Object.fromEntries(spNick.map(n => [String(n.id), n])); players = [...spNick.filter(n => !players.some(p => String(p.id) === String(n.id))), ...players.map(p => nk[p.id] ? { ...p, sub: [nk[p.id].sub, p.sub].filter(Boolean).join(' · ') } : p)].slice(0, 9); }
   if (!q) {
     const pts = S.leadCache['offensive.avgPoints']?.d;
     players = (pts?.athletes || []).slice(0, 6).map(a => ({ id: a.athlete.id, name: a.athlete.displayName, sub: [a.athlete.position?.abbreviation, a.athlete.teams?.[0]?.displayName || a.athlete.teamName].filter(Boolean).join(' · '), teamId: a.athlete.teamId }));
@@ -2135,6 +2155,7 @@ function renderSearch() {
     i++;
     if (it.type === 'ask') return `<button class="sp-row sp-ask${i === spIdx ? ' on' : ''}" data-ask="${esc(it.q)}" data-i="${i}"><span class="sp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/><path d="M9.6 9.6a2.4 2.4 0 1 1 3.3 2.2c-.6.3-.9.8-.9 1.4M12 16h.01"/></svg></span><span><b>Ask: “${esc(it.q)}”</b><small>Get the answer from live stats</small></span></button>`;
     if (it.type === 'team') return `<button class="sp-row${i === spIdx ? ' on' : ''}" data-team="${it.t.id}" data-i="${i}">${logo(it.t.abbr, 56)}<span><b>${esc(it.t.name)}</b><small>${favId === it.t.id ? '★ Your team' : 'Team'}</small></span></button>`;
+    if (it.p.leg) return `<button class="sp-row${i === spIdx ? ' on' : ''}" data-nickleg="${esc(it.p.leg)}" data-i="${i}">${face(it.p.id, it.p.name, 'sp-face', 120)}<span><b>${esc(it.p.name)}</b><small>${esc(it.p.sub || '')}</small></span></button>`;
     return `<button class="sp-row${i === spIdx ? ' on' : ''}" data-player="${it.p.id}" data-i="${i}">${face(it.p.id, it.p.name, 'sp-face', 120)}<span><b>${esc(it.p.name)}</b><small>${esc(it.p.sub || 'Player')}</small></span></button>`;
   };
   const aH = askable ? row(spItems[0]) : '';
@@ -2150,7 +2171,8 @@ spIn.addEventListener('input', () => {
   spIdx = 0;
   const q = spIn.value.trim();
   clearTimeout(spTimer);
-  if (q.length < 2) { spPlayers = []; spState = 'idle'; renderSearch(); return; }
+  if (q.length < 2) { spPlayers = []; spNick = []; spState = 'idle'; renderSearch(); return; }
+  loadNicks().then(N => { const f = nickFold(q); if (f.length < 2) return; spNick = N.list.filter(x => x.lg === LGK && x.nick.some(n => { const k = nickFold(n); return k === f || (f.length >= 3 && k.startsWith(f)); })).slice(0, 4).map(x => ({ id: x.espn || x.br, name: x.name, sub: nickLine(x.nick.filter(n => nickFold(n).startsWith(f)).concat(x.nick).filter((v, i, a) => a.indexOf(v) === i), 2), ...(x.cur ? {} : { leg: x.br }) })).filter(x => x.leg || /^\d+$/.test(x.id)); renderSearch(); });
   spState = 'loading'; renderSearch();
   spTimer = setTimeout(async () => {
     const my = ++spSeq;
@@ -2273,7 +2295,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07l'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-07m'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3408,6 +3430,7 @@ document.addEventListener('click', e => {
   const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game, g.dataset.legpid ? { focus: g.dataset.legpid } : {}); return; }
   const tm = el.closest('[data-team]'); if (tm) { openTeam(tm.dataset.team); return; }
   const p = el.closest('[data-player]'); if (p) { openPlayer(p.dataset.player); return; }
+  const nl = el.closest('[data-nickleg]'); if (nl) { closeSearch(); lazy('history').then(m => m.openLegend({ br: nl.dataset.nickleg })); return; }
   const d = el.closest('[data-date]'); if (d) { pickDate(d.dataset.date); return; }
   const r = el.closest('[data-rail]'); if (r) { const rail = $('#rail'); rail.scrollBy({ left: +r.dataset.rail * rail.clientWidth * 0.7, behavior: reduced ? 'auto' : 'smooth' }); return; }
   const f = el.closest('[data-filter]'); if (f) { gamesFilter = f.dataset.filter; renderGames(true); return; }

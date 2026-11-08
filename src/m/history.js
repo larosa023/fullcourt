@@ -165,7 +165,7 @@ async function histRecords(pane) {
 
 /* ---------- Legends + search ---------- */
 async function histLegends(pane) {
-  const H = await loadHist(); if (!pane.isConnected) return;
+  const [H, NK] = await Promise.all([loadHist(), hyNicks()]); if (!pane.isConnected) return;
   const rank = id => { const i = H.leaders.pts.findIndex(r => r.id === id); return i < 0 ? 999 : i; };
   const era = L => { const y = +(L.seasons[0]?.[0] || '0000').slice(0, 4); return HW ? (y < 2005 ? 'w97' : y < 2013 ? 'w05' : y < 2020 ? 'w13' : 'w20') : y < 1980 ? 'pre80' : y < 1990 ? '80s' : y < 2000 ? '90s' : y < 2010 ? '00s' : '10s'; };
   const isAct = id => Object.values(H.leaders).some(l => l.some(r => r.id === id && r.active));
@@ -178,20 +178,26 @@ async function histLegends(pane) {
   pane.innerHTML = `<div class="hy-search"><input class="hy-q" type="search" data-hq placeholder="Search any player, past or present" value="${esc(HS.q)}" autocomplete="off" spellcheck="false" aria-label="Search any player"><div class="hy-res" id="hsRes"></div></div>
     <div class="chips hy-rchips">${[['all', 'All'], ['hof', 'Hall of Fame'], ['active', 'Active'], ...(HW ? [['w97', '1997-2004'], ['w05', '2005-2012'], ['w13', '2013-2019'], ['w20', '2020s']] : [['pre80', 'Before 1980'], ['80s', '1980s'], ['90s', '1990s'], ['00s', '2000s'], ['10s', '2010s+']])].map(([k, t]) => `<button class="chip" data-hera="${k}" aria-pressed="${HS.era === k}">${t}</button>`).join('')}</div>
     <div class="hy-lbar"><span class="hy-note">${list.length} player${list.length === 1 ? '' : 's'}</span><div class="hy-sort">Sort <div class="seg hy-sortseg">${[['pts', 'All-time points'], ['rings', 'Titles'], ['mvp', 'MVPs'], ['ppg', 'Career PPG'], ['az', 'A–Z']].map(([k, t]) => `<button data-hsort="${k}" aria-pressed="${HS.sort === k}">${t}</button>`).join('')}</div></div></div>
-    <div class="hy-lgrid">${list.map(L => { const tm = mainTeam(L); return `<button class="hy-lg" data-hleg="${esc(L.id)}" style="--tc:${hColor(tm) || 'var(--surface-3)'}">${hyFace(L.espn, L.name, 'hy-lgf', 260, tm, L.photo)}<b>${esc(L.name)}</b><small>${esc(span(L))}${L.hof ? ' · <span class="hof">HOF</span>' : ''}</small>${L.career?.[5] != null ? `<span class="hy-lgs"><span><strong>${hNum(L.career[5])}</strong>PTS</span><span><strong>${hNum(L.career[6])}</strong>REB</span><span><strong>${hNum(L.career[7])}</strong>AST</span></span>` : ''}<em>${esc(tag(L))}</em></button>`; }).join('')}</div>
+    <div class="hy-lgrid">${list.map(L => { const tm = mainTeam(L); return `<button class="hy-lg" data-hleg="${esc(L.id)}" style="--tc:${hColor(tm) || 'var(--surface-3)'}">${hyFace(L.espn, L.name, 'hy-lgf', 260, tm, L.photo)}<b>${esc(L.name)}</b>${NK[L.id] ? `<i class="hy-nk">“${esc(NK[L.id].nick[0])}”</i>` : ''}<small>${esc(span(L))}${L.hof ? ' · <span class="hof">HOF</span>' : ''}</small>${L.career?.[5] != null ? `<span class="hy-lgs"><span><strong>${hNum(L.career[5])}</strong>PTS</span><span><strong>${hNum(L.career[6])}</strong>REB</span><span><strong>${hNum(L.career[7])}</strong>AST</span></span>` : ''}<em>${esc(tag(L))}</em></button>`; }).join('')}</div>
     <p class="hy-src">${Object.keys(H.legends).length} all-time greats: the top of the career leader boards and every MVP. Search finds anyone else ESPN has.</p>`;
   if (HS.q) histSearch(HS.q);
 }
+// real nicknames (Basketball-Reference), by Basketball-Reference id
+const hyNicks = () => loadNicks().then(N => Object.fromEntries(N.list.map(x => [x.br, x]))).catch(() => ({}));
 let hsT = 0;
 async function histSearch(q) {
   const box = $('#hsRes'); if (!box) return;
   q = q.trim(); if (q.length < 2) { box.innerHTML = ''; return; }
   const my = ++hsT;
-  const [d, H] = await Promise.all([getJSON(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12&type=player`).catch(() => null), loadHist().catch(() => null)]);
+  const [d, H, NK] = await Promise.all([getJSON(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12&type=player`).catch(() => null), loadHist().catch(() => null), hyNicks()]);
+  const f = nickFold(q), nk = H && f.length >= 2 ? Object.keys(H.legends).filter(id => NK[id]?.nick.some(n => { const k = nickFold(n); return k === f || (f.length >= 3 && k.startsWith(f)); })).slice(0, 4) : [];
   if (my !== hsT || !box.isConnected) return;
   const hits = (d?.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).filter(c => c.description === LGN).slice(0, 8);
   const brOf = espn => H ? Object.entries(H.legends).find(([, L]) => L.espn === espn)?.[0] : null;
-  box.innerHTML = hits.length ? hits.map(c => { const id = c.uid?.match(/a:(\d+)/)?.[1]; const br = id && brOf(id); return id ? `<button class="hy-hit" ${br ? `data-hleg="${esc(br)}"` : `data-hespn="${id}"`}>${br ? legFace(H, br, c.displayName, 'hy-lf', 80) : hyFace(id, c.displayName, 'hy-lf', 80)}<span><b>${esc(c.displayName)}</b><small>${esc(c.subtitle || '')}</small></span></button>` : ''; }).join('') : `<p class="hy-note">No ${LGN} players found.</p>`;
+  const nkHtml = nk.map(id => `<button class="hy-hit" data-hleg="${esc(id)}">${legFace(H, id, H.legends[id].name, 'hy-lf', 80)}<span><b>${esc(H.legends[id].name)}</b><small>${nickLine(NK[id].nick, 2)}</small></span></button>`).join('');
+  const nkIds = new Set(nk.map(id => H.legends[id].espn));
+  hits.splice(0, hits.length, ...hits.filter(c => !nkIds.has(c.uid?.match(/a:(\d+)/)?.[1])));
+  box.innerHTML = nkHtml + (hits.length || nk.length ? hits.map(c => { const id = c.uid?.match(/a:(\d+)/)?.[1]; const br = id && brOf(id); return id ? `<button class="hy-hit" ${br ? `data-hleg="${esc(br)}"` : `data-hespn="${id}"`}>${br ? legFace(H, br, c.displayName, 'hy-lf', 80) : hyFace(id, c.displayName, 'hy-lf', 80)}<span><b>${esc(c.displayName)}</b><small>${esc(c.subtitle || '')}</small></span></button>` : ''; }).join('') : `<p class="hy-note">No ${LGN} players found.</p>`);
 }
 
 /* ---------- player profile (legend from history.json, or anyone from ESPN) ---------- */
@@ -213,6 +219,7 @@ async function openLegend({ br, espn }) {
   }
   if (!P) { sheet.body.innerHTML = '<div class="empty"><b>Couldn\'t load that player</b></div>'; return; }
   setTitle(sheet, P.name);
+  const NKA = await loadNicks().catch(() => ({ by: {}, list: [] })), pNick = (P.br && NKA.list.find(x => x.br === P.br)) || (P.espn && NKA.by[P.espn]) || null;
   const ranks = H ? Object.entries(H.leaders).map(([k, l]) => { const i = l.findIndex(r => r.id === P.br); return i >= 0 ? `#${i + 1} in ${(STAT_NAME[k] || k).toLowerCase()}` : null; }).filter(Boolean) : [];
   const active = P.active ?? (H ? Object.values(H.leaders).some(l => l.some(r => r.id === P.br && r.active)) : false);
   const team = P.seasons.map(s => s[2]).filter(Boolean).reduce((m, t) => (m[t] = (m[t] || 0) + 1, m), {}), main = Object.entries(team).sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -226,7 +233,7 @@ async function openLegend({ br, espn }) {
   const stints = []; P.seasons.forEach(s => { const a = s[2]; if (!a || /TM$/.test(a)) return; const yr = +s[0].slice(0, 4), last = stints.at(-1); if (last && last.a === a) { last.y1 = yr + (HW ? 0 : 1); last.g += s[3] || 0; } else stints.push({ a, y0: yr, y1: yr + (HW ? 0 : 1), g: s[3] || 0 }); });
   const age = P.born && /^\d{4}-\d{2}-\d{2}$/.test(P.born) ? Math.floor((Date.now() - new Date(P.born)) / 31557600000) : null;
   const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(P.name + ' career highlights')}`;
-  sheet.body.innerHTML = `<div class="hy-hero" style="--tc:${tc}">${P.br && ownKey(P.br) ? ownPhoto(P.br, P.name, 'hy-hf', main) : hyFace(P.espn, P.name, 'hy-hf', 400, main, P.photo)}<div><span class="eyebrow">${esc([pos, P.ht].filter(Boolean).join(' · '))}</span><h2>${esc(P.name)}</h2>
+  sheet.body.innerHTML = `<div class="hy-hero" style="--tc:${tc}">${P.br && ownKey(P.br) ? ownPhoto(P.br, P.name, 'hy-hf', main) : hyFace(P.espn, P.name, 'hy-hf', 400, main, P.photo)}<div><span class="eyebrow">${esc([pos, P.ht].filter(Boolean).join(' · '))}</span><h2>${esc(P.name)}</h2>${pNick ? `<p class="hy-nkl">${nickLine(pNick.nick, 4)}</p>` : ''}
       <p>${esc([P.born ? `Born ${/^\d{4}-/.test(P.born) ? new Date(P.born + 'T12:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : P.born}${P.died ? '' : age ? ` (${age})` : ''}` : '', P.died ? `died ${/^\d{4}-/.test(P.died) ? new Date(P.died + 'T12:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : P.died}` : '', P.college].filter(Boolean).join(' · '))}</p>
       ${P.draft ? `<p class="hy-dr">${esc(P.draft)}</p>` : ''}${P.hof ? `<p class="hy-hof">Hall of Fame${/^\d{4}$/.test(P.hof) ? `, ${esc(P.hof)}` : ''}</p>` : ''}</div></div>
     ${C ? `<div class="hy-big">${[['PTS', C[5]], ['REB', C[6]], ['AST', C[7]], ['STL', C[8]], ['BLK', C[9]]].map(([l, v]) => `<div><b>${hNum(v)}</b><span>${l}</span></div>`).join('')}<div><b>${hInt(C[3])}</b><span>Games</span></div></div>` : ''}

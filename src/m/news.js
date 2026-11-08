@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07m', date: 'Nov 7', items: [
+    ['Nicknames', 'Players now show their real nicknames, the ones Basketball-Reference lists (Wemby, The Answer, His Airness...), on player pages, legend cards and History profiles. Search works with them too: type "The Answer" or "Wemby" and the player comes up. Players without a known nickname just don\'t show one.'],
+  ] },
   { id: '2026-11-07l', date: 'Nov 7', items: [
     ['WNBA History', 'History now covers the WNBA too: games on any date back to 2002, every champion and MVP since 1997, past standings and stat leaders, the all-time career leader boards with a milestone watch, and 74 legends with full profiles, from Cynthia Cooper and Lisa Leslie to Taurasi, Bird and A\'ja Wilson. Switch to the WNBA and open History.'],
     ['Traded picks in the Mock Draft', 'The NBA mock now uses who actually owns each first-round pick, including protections and swaps (the Thunder, Rockets, Hornets and Grizzlies picks, the Jazz-Cavaliers-Timberwolves group and more), with "via" showing whose pick it was. The WNBA mock now follows the league\'s real 2027 lottery: seven teams, two picks drawn, with Washington holding Chicago\'s pick and Los Angeles holding Phoenix\'s.'],

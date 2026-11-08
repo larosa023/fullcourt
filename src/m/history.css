@@ -260,3 +260,7 @@
 
 /* photos added by hand: transparent cut-outs on a team-coloured disc */
 .hy-own { --mc: #5b6472; background: radial-gradient(120% 120% at 30% 20%, color-mix(in oklab, var(--mc) 70%, #fff 10%), color-mix(in oklab, var(--mc) 60%, #000 40%)) !important; object-fit: cover; object-position: center top; }
+
+/* nicknames */
+.hy-nk { font-size: 11.5px; font-style: italic; color: var(--ink-2, var(--ink)); opacity: .8; margin-top: -1px; }
+.hy-nkl { font-style: italic; font-size: 14px !important; color: var(--ink) !important; opacity: .85; margin: 0 0 6px !important; }

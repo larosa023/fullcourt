@@ -51,9 +51,10 @@ for (const id of [...todo, ...stale]) {
     const m = html.indexOf('id="meta"'), blk = html.slice(m, m + 3000);
     const raw = blk.match(/<p>\s*\(([^<]{2,300})\)\s*<\/p>/)?.[1];
     const nick = raw ? strip(raw).split(/\s*,\s*/).filter(Boolean) : [];
-    players[id] = { ...(players[id] || {}), lg: w.lg, name: w.name, nick, at: new Date().toISOString().slice(0, 10), espn: players[id]?.espn || w.espn || null };
+    players[id] = { ...(players[id] || {}), lg: w.lg, name: w.name, nick, cur: !!w.current, at: new Date().toISOString().slice(0, 10), espn: players[id]?.espn || w.espn || null };
   } catch (e) { console.log('failed', id, e.message); }
 }
+for (const [id, p] of Object.entries(players)) p.cur = !!want[id]?.current; // on a roster this season
 // ESPN ids for current players who aren't in History (their pages on Fullcourt use ESPN ids)
 for (const [id, p] of Object.entries(players)) {
   if (p.espn || !p.nick?.length) continue;
