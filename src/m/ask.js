@@ -1056,11 +1056,13 @@ async function prepImage(file) {
   return c;
 }
 let ocrWorker = null;
+// In the Windows app the page and the site live at different addresses, and a worker can't start straight from another
+// address, so it starts from a tiny local stub that loads the reader from the site.
 async function readImage(file, onProgress) {
   const T = await loadOCR();
   if (!ocrWorker) {
     ocrWorker = await T.createWorker('eng', 1, {
-      workerPath: new URL('ocr/worker.min.js', ASSET_BASE).href, corePath: new URL('ocr/', ASSET_BASE).href, langPath: new URL('ocr/', ASSET_BASE).href, workerBlobURL: false, gzip: true,
+      workerPath: new URL('ocr/worker.min.js', ASSET_BASE).href, corePath: new URL('ocr/', ASSET_BASE).href, langPath: new URL('ocr/', ASSET_BASE).href, workerBlobURL: new URL(ASSET_BASE).origin !== location.origin, gzip: true,
       logger: m => { if (m.status === 'recognizing text') onProgress?.(0.35 + 0.65 * (m.progress || 0)); else if (/loading|initializ/.test(m.status)) onProgress?.(0.3 * (m.progress || 0)); },
     });
   }
