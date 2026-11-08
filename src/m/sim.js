@@ -31,6 +31,12 @@ async function projectedRecords(lg = 'nba') {
   return Object.fromEntries(X.teams.map(t => { const w = X.odds?.teams[t.abbr]?.w ?? t.w; return [t.abbr, { w, l: X.total - w, conf: t.conf }]; }));
 }
 
+// a one-line summary for the team page: projected record and playoff / title chances, opening the team's odds page
+async function teamOddsStrip(abbr) {
+  const { X } = await simData(sxLg()); const t = X.teams.find(x => x.abbr === abbr), o = X.odds?.teams?.[abbr]; if (!t || !o) return '';
+  return `<button class="sx-strip" data-sxopen="${esc(abbr)}"><span><em>Projected</em><b>${Math.round(o.w)}-${X.total - Math.round(o.w)}</b></span><span><em>Playoffs</em><b>${fp(o.po)}</b></span><span><em>${X.confs.length === 2 ? 'Top 6' : '#1 seed'}</em><b>${fp(X.confs.length === 2 ? o.t6 : o.top)}</b></span><span><em>Title</em><b>${fp(o.title)}</b></span><i aria-hidden="true">›</i></button>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sxopen]'); if (b) openTeamOdds(b.dataset.sxopen); });
 const fp = p => p == null ? '–' : p >= 99.95 ? '>99.9%' : p <= 0 ? '–' : p < 0.05 ? '<0.1%' : (p >= 10 ? p.toFixed(0) : p.toFixed(1)) + '%';
 const sgn = (x, d = 1) => x == null ? '–' : `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x).toFixed(d)}`;
 const seasonLabel = (X, lg) => lg === 'nba' ? `${X.season - 1}-${String(X.season).slice(2)}` : String(X.season);

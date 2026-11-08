@@ -25,5 +25,5 @@ jobs:
         run: |
           cd pub && git init -q && git checkout -q --orphan sim-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add sim.json && git commit -qm "sim $(date -u +%FT%TZ)"
+          git add sim.json wp.json && git commit -qm "sim $(date -u +%FT%TZ)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" sim-data

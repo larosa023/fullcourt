@@ -52,7 +52,7 @@ function renderStandings() {
   const confs = S.standings.confs;
   if (!CS.conf || !confs.some(c => c.id === CS.conf)) CS.conf = (favId && S.teams[favId]?.confId) || confs[0]?.id;
   $('#stdSeason').textContent = `${S.standings.season || ''} season`;
-  const tabs = [['ap', 'AP Top 25'], ['coaches', 'Coaches'], ['conf', 'Conferences'], ['march', 'Bracketology'], ['bracket', 'Bracket']];
+  const tabs = [['ap', 'AP Top 25'], ['coaches', 'Coaches'], ['conf', '<span class="cs-l">Conferences</span><span class="cs-s">Conf.</span>'], ['march', 'Bracketology'], ['bracket', 'Bracket']];
   if (CS.std === 'march') {
     wrap.classList.remove('tbl-wrap', 'drag-x'); wrap.removeAttribute('data-drag');
     const ctrl = `<div class="cs-ctrl"><div class="seg" id="csSeg"><span class="knob"></span>${tabs.map(([k, l]) => `<button data-csstd="${k}" aria-pressed="${CS.std === k}">${l}</button>`).join('')}</div></div>`;

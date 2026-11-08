@@ -26,9 +26,9 @@ jobs:
         run: |
           mkdir -p desktop/dist
           cp -r index.html assets fonts data ocr manifest.webmanifest favicon-32.png apple-touch-icon.png icon-192.png icon-512.png icon-maskable-512.png desktop/dist/
-          cp index.html desktop/dist/mini.html  # the mini scoreboard window: same page, compact layout
-          # the main window opens through the loader (newest site from GitHub Pages); the built-in copy is app.html
-          mv desktop/dist/index.html desktop/dist/app.html && cp desktop/loader.html desktop/dist/index.html
+          # both windows open through the loader (newest site from GitHub Pages); the built-in copy is app.html.
+          # The mini scoreboard is the same page at mini.html, which switches it to the compact layout.
+          mv desktop/dist/index.html desktop/dist/app.html && cp desktop/loader.html desktop/dist/index.html && cp desktop/loader.html desktop/dist/mini.html
       - name: Set the version
         shell: bash
         env: { GH_TOKEN: '${{ github.token }}' }

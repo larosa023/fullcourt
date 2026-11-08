@@ -23,7 +23,7 @@ async function get(url) {
 }
 // the engine, from the page's own module (it's plain JS with no page code)
 const ENG = readFileSync(new URL('../src/m/simengine.js', import.meta.url), 'utf8');
-const { simPrep, simRun } = await import('data:text/javascript;base64,' + Buffer.from(ENG + '\nexport { simPrep, simRun, simSeason };').toString('base64'));
+const { simPrep, simRun, ncdf } = await import('data:text/javascript;base64,' + Buffer.from(ENG + '\nexport { simPrep, simRun, simSeason, ncdf };').toString('base64'));
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/basketball', STD = 'https://site.api.espn.com/apis/v2/sports/basketball';
 const WEB = 'https://site.web.api.espn.com/apis/common/v3/sports/basketball', FITT = 'https://site.web.api.espn.com/apis/fitt/v3/sports/basketball';
@@ -154,7 +154,7 @@ async function build(lg) {
       pad: 0 };
   });
   const mean = teams.reduce((s, t) => s + t.r, 0) / teams.length; teams.forEach(t => { t.r = +(t.r - mean).toFixed(2); });
-  const games = [...left.values()].sort((x, y) => x.d.localeCompare(y.d)).map(g => [g.h, g.a, g.n, g.d, spread[g.id] ?? null]);
+  const leftS = [...left.values()].sort((x, y) => x.d.localeCompare(y.d)), games = leftS.map(g => [g.h, g.a, g.n, g.d, spread[g.id] ?? null]);
   const remaining = {}; for (const g of games) { remaining[g[0]] = (remaining[g[0]] || 0) + 1; remaining[g[1]] = (remaining[g[1]] || 0) + 1; }
   teams.forEach(t => { t.pad = Math.max(0, C.games - t.w - t.l - (remaining[t.id] || 0)); });
   // strength of the schedule left: average opponent rating
@@ -164,7 +164,11 @@ async function build(lg) {
   console.log(lg, teams.length, 'teams,', games.length, 'games left,', played.size, 'played,', Object.keys(spread).length, 'lines,', Object.values(inj).flat().length, 'injured regulars');
   // the run
   if (games.length || teams.some(t => t.pad)) {
-    const t0 = Date.now(), P = simPrep(X, today), A = simRun(P, RUNS), n = teams.length, pc1 = c => +(c / RUNS * 100).toFixed(2);
+    const t0 = Date.now(), P = simPrep(X, today);
+    // each game's chance for the home team over the next week, for the game cards (wp.json)
+    const soon = new Date(Date.parse(today) + 8 * 864e5).toISOString().slice(0, 10);
+    X.wp = Object.fromEntries(leftS.map((g, k) => g.d <= soon ? [g.id, +ncdf(P.mu[k] / (P.mkt[k] ? C.sd : Math.hypot(C.sd, P.sig[P.gh[k]], P.sig[P.ga[k]]))).toFixed(3)] : null).filter(Boolean));
+    const A = simRun(P, RUNS), n = teams.length, pc1 = c => +(c / RUNS * 100).toFixed(2);
     const q = (h, p) => { let s = 0; const tot = RUNS * p; for (let k = 0; k < h.length; k++) { s += h[k]; if (s >= tot) return k; } return h.length - 1; };
     X.odds = { runs: RUNS, at: now.toISOString(), teams: Object.fromEntries(teams.map((t, i) => {
       const nx = A.nx[i], k = P.next[i], g = k >= 0 ? games[k] : null;
@@ -187,5 +191,7 @@ async function build(lg) {
 const out = { updated: now.toISOString(), source: 'ESPN', v: 2 };
 out.nba = await build('nba');
 try { out.wnba = await build('wnba'); } catch (e) { console.log('WNBA skipped:', e.message); }
+const wp = { updated: out.updated }; for (const k of ['nba', 'wnba']) if (out[k]?.wp) { wp[k] = out[k].wp; delete out[k].wp; }
 writeFileSync(process.argv[2] || 'sim.json', JSON.stringify(out));
+writeFileSync((process.argv[2] || 'sim.json').replace(/sim\.json$/, 'wp.json'), JSON.stringify(wp));
 for (const t of out.nba.teams.slice().sort((a, b) => b.r - a.r)) { const o = out.nba.odds?.teams[t.abbr]; console.log(t.abbr.padEnd(5), String(t.r).padStart(6), JSON.stringify(t.parts), o ? `${o.w} (${o.lo}-${o.hi}) po ${o.po} title ${o.title}` : '', t.espn ? `| ESPN ${t.espn.w} po ${t.espn.po} title ${t.espn.title}` : '', t.inj.map(i => `${i.n}:${i.imp}${i.until ? '→' + i.until : i.dtd ? ' dtd' : ' season'}`).join(', ')); }

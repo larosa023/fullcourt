@@ -4,11 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fullcourt</title>
-<style>html,body{margin:0;height:100%;background:#0D0F12}@media (prefers-color-scheme:light){html,body{background:#F4EFE6}}</style>
+<style>html,body{margin:0;height:100%;background:#0D0F12}@media (prefers-color-scheme:light){html,body{background:#F4EFE6}}
+.fc-wait{position:fixed;inset:0;display:grid;place-items:center;opacity:0;animation:fcin .3s ease .5s forwards}
+.fc-wait i{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,107,44,.25);border-top-color:#FF6B2C;animation:fcspin .8s linear infinite}
+@keyframes fcspin{to{transform:rotate(360deg)}}@keyframes fcin{to{opacity:1}}</style>
 <script>
 /* The Windows app's front door. It loads the newest Fullcourt from GitHub Pages, so site changes reach the app the moment
    they're published, with no app update. The page keeps this app's own address, so your saved settings, picks, bets and
-   mock drafts stay put. Offline, or if GitHub Pages is slow (3 s), it opens the copy built into the app (app.html). */
+   mock drafts stay put. Offline, or if GitHub Pages is slow (3 s), it opens the copy built into the app (app.html).
+   The mini scoreboard (mini.html) opens through this same page, so it's always current too. */
 (async () => {
   const REMOTE = 'https://larosa023.github.io/fullcourt/';
   let html = null, base = '';
@@ -28,5 +32,5 @@
 })();
 </script>
 </head>
-<body></body>
+<body><div class="fc-wait" aria-label="Loading"><i></i></div></body>
 </html>

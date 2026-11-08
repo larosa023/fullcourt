@@ -25,5 +25,5 @@ jobs:
         run: |
           cd pub && git init -q && git checkout -q --orphan march-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add march.json cache-*.json && git commit -qm "march $(date -u +%FT%TZ)"
+          git add march.json wp.json cache-*.json && git commit -qm "march $(date -u +%FT%TZ)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" march-data

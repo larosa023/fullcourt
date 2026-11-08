@@ -48,8 +48,9 @@ self.addEventListener('fetch', e => {
   }
 });
 
+// room for every module's script and style plus the fonts (about 140 files), with headroom for the previous update's
 async function trimAssets(c) {
-  try { const keys = await c.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 70))) await c.delete(k); } catch (e) {}
+  try { const keys = await c.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 220))) await c.delete(k); } catch (e) {}
 }
 let trimming = false;
 async function trimData() {

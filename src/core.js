@@ -356,8 +356,12 @@ function placeKnob(seg) {
 
 /* ================= routing ================= */
 const VIEWS = ['scores', 'standings', 'teams', 'leaders', 'compare', 'bets', 'replay', 'cap', 'history', 'draft'];
+// each section keeps its place: coming back to it returns to where you were; tapping the section you're on goes to the top
+const viewY = {};
 function go(view, push = true) {
   if (!VIEWS.includes(view)) view = 'scores';
+  const from = S.view, again = from === view;
+  if (from && !again) viewY[from] = window.scrollY;
   S.view = view;
   closeDrawer();
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
@@ -375,7 +379,12 @@ function go(view, push = true) {
   if (view === 'history') lazy('history').then(m => m.renderHistory()).catch(() => { $('#histBody').innerHTML = `<div class="empty"><b>History didn't load</b><button class="btn" data-retry="history">Try again</button></div>`; });
   navMenu(false);
   $('#nav [data-navmore]')?.toggleAttribute('aria-current', !navTab(view) && !!$(`#navMenu [data-view="${view}"]`));
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  const y = again ? 0 : viewY[view] || 0;
+  window.scrollTo({ top: y, behavior: again && window.scrollY > 0 ? 'smooth' : 'instant' });
+  // sections that draw a moment later (data or code still loading): try again once they've had time to grow
+  let moved = false; const mark = () => { moved = true; };
+  if (y > 0) { addEventListener('touchstart', mark, { once: true, passive: true }); addEventListener('wheel', mark, { once: true, passive: true }); addEventListener('keydown', mark, { once: true }); }
+  if (y > 0) for (const ms of [120, 450, 1100]) setTimeout(() => { if (!moved && S.view === view && Math.abs(window.scrollY - y) > 40 && document.documentElement.scrollHeight >= y + innerHeight) window.scrollTo({ top: y, behavior: 'instant' }); }, ms);
 }
 /* ---- phone menu drawer ---- */
 const drawerEl = $('#drawer'), drawerScrim = $('#drawerScrim'), menuBtn = $('#menuBtn');
@@ -633,6 +642,7 @@ async function loadScores({ silent = false } = {}) {
     updatePulse();
     refreshTicker();
     refreshSit();
+    if (S.games.some(g => g.state === 'pre')) loadPreWP();
     if (S.date === S.today) alertCheck(S.games);
     if (S.date === addDays(etNow().ymd, -1)) { lateLive = S.games.some(g => g.state === 'in'); if (!lateLive && S.date === S.today && checkRollover()) loadScores({ silent: true }); }
     renderWatch(); renderPicks(); renderOut();
@@ -743,6 +753,23 @@ function leaderLine(g) {
   return [a, h].filter(Boolean).sort((x, y) => y.v - x.v)[0];
 }
 
+// Fullcourt's own pregame chances (the Playoff Odds and Bracketology models, built on GitHub): one small file, read at
+// most every 30 minutes, then shown on upcoming games as a thin bar
+let preWPAt = 0;
+function loadPreWP() {
+  if (Date.now() - preWPAt < 30 * 60e3) return; preWPAt = Date.now();
+  const k = LGK, br = IS_C ? 'march-data' : 'sim-data';
+  fetch(`https://raw.githubusercontent.com/larosa023/fullcourt/${br}/wp.json?t=${Math.floor(Date.now() / 1800e3)}`).then(r => r.ok ? r.json() : null).then(d => {
+    const m = d?.[k]; if (!m || LGK !== k) return;
+    S.wpPre = m;
+    if (S.view === 'scores' && S.games.some(g => g.state === 'pre' && m[g.id] != null)) { const back = holdScroll(); renderGames(false); back(); }
+  }).catch(() => { preWPAt = 0; });
+}
+function preWPLine(g) {
+  const h = S.wpPre?.[g.id]; if (!Number.isFinite(h)) return '';
+  const fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100);
+  return `<div class="g-wp pre" title="Fullcourt's projection (team ratings, home court, injuries)"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% · Fullcourt</span></div>`;
+}
 function gameCard(g, i, animate) {
   const live = g.state === 'in', post = g.state === 'post', pre = g.state === 'pre';
   const row = (s, side) => {
@@ -762,8 +789,8 @@ function gameCard(g, i, animate) {
     foot = `<div class="g-foot"><span class="tip">${esc(fmtTime(g.date))}</span><span class="lead">${esc(until || g.venue || '')}</span></div>`;
   } else if (L) {
     foot = `<div class="g-foot">${face(L.a?.id, L.a?.displayName, 'mini-face', 80)}<span class="lead"><b>${esc(L.a?.shortName || L.a?.displayName)}</b> ${esc(L.dv)} ${L.cat?.name === 'points' ? 'pts' : esc(L.cat?.abbreviation || '')} · ${esc(L.team.abbr)}</span></div>`;
-    if (post && g.hasHl) foot = foot.replace('</div>', `<span class="g-hl" title="Highlights available: open the game">${PLAY_ICON}Highlights</span></div>`);
-    if (!IS_C || live) foot = foot.replace(/<\/div>$/, `<span class="g-court" data-court="${g.id}" role="button" tabindex="0" title="Watch on the 2D court" aria-label="Court view">${COURT_ICON}Court</span></div>`);
+    if (post && g.hasHl) foot = foot.replace('</div>', `<span class="g-hl" title="Highlights available: open the game">${PLAY_ICON}<em class="g-lbl">Highlights</em></span></div>`);
+    if (!IS_C || live) foot = foot.replace(/<\/div>$/, `<span class="g-court" data-court="${g.id}" role="button" tabindex="0" title="Watch on the 2D court" aria-label="Court view">${COURT_ICON}<em class="g-lbl">Court</em></span></div>`);
   }
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
@@ -771,7 +798,7 @@ function gameCard(g, i, animate) {
       ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : upsetOf(g) ? `<span class="g-tag up">Upset</span>` : IS_C && isClash(g) ? `<span class="g-tag">Top 25 clash</span>` : cupTag(g) ? `<span class="g-tag cup">${esc(cupTag(g))}</span>` : `<span class="tv">${esc(g.note || g.tv)}</span>`}
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
-    ${pre ? oddsLine(g.odds) : live ? liveLine(g) : ''}
+    ${pre ? oddsLine(g.odds) + preWPLine(g) : live ? liveLine(g) : ''}
     ${live && Number.isFinite(S.wpLive?.[g.id]) ? (() => { const h = S.wpLive[g.id], fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100); return `<div class="g-wp" title="Win probability (ESPN)"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% to win</span></div>`; })() : ''}
     ${foot}
     ${live ? `<span class="prog" style="width:${(progress(g) * 100).toFixed(1)}%"></span>` : ''}
@@ -1190,12 +1217,18 @@ function toggleFull(el) {
   try { localStorage.setItem('fc-full', fullPref ? '1' : '0'); } catch (e) {}
   setFull(el, fullPref);
 }
+// while a panel is open, the page behind it is out of reach (keyboard and screen readers stay in the panel);
+// closing the last one puts focus back where it was
+let sheetFrom = null;
+function bgInert(on) { for (const el of [$('.mast'), $('main'), $('#tabbar')]) if (el) el.inert = on; }
+let sheetN = 0;
 function openSheet(title) {
   closeDrawer();
-  const el = document.createElement('section');
-  el.className = 'sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  if (!stack.length) { sheetFrom = document.activeElement; bgInert(true); }
+  const el = document.createElement('section'), tid = `sheetT${++sheetN}`;
+  el.className = 'sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', tid);
   el.innerHTML = `<div class="sheet-grip" aria-hidden="true"><span></span></div>
-    <header class="sheet-bar"><button class="icon-btn" data-close aria-label="${stack.length ? 'Back' : 'Close'}">${stack.length ? ICON.back : ICON.close}</button><div class="sheet-title">${esc(title)}</div><button class="icon-btn expand-btn" data-expand aria-pressed="false" aria-label="Full screen" title="Full screen">${ICON.expand}</button></header>
+    <header class="sheet-bar"><button class="icon-btn" data-close aria-label="${stack.length ? 'Back' : 'Close'}">${stack.length ? ICON.back : ICON.close}</button><div class="sheet-title" id="${tid}">${esc(title)}</div><button class="icon-btn expand-btn" data-expand aria-pressed="false" aria-label="Full screen" title="Full screen">${ICON.expand}</button></header>
     <div class="sheet-body"><div class="sk" style="height:200px;border-radius:18px"></div><div class="sk" style="height:120px"></div><div class="sk" style="height:300px"></div></div>`;
   setFull(el, fullPref);
   $('#layer').append(el);
@@ -1217,7 +1250,10 @@ function popSheet() {
   s.el.style.transform = ''; s.el.classList.remove('open');
   setTimeout(() => s.el.remove(), 520);
   stack.at(-1)?.el.classList.remove('behind');
-  if (!stack.length) { $('#scrim').classList.remove('on'); document.documentElement.classList.remove('locked'); }
+  if (!stack.length) {
+    $('#scrim').classList.remove('on'); document.documentElement.classList.remove('locked'); bgInert(false);
+    const f = sheetFrom; sheetFrom = null; if (f?.isConnected && !$('.pop:not([hidden])')) try { f.focus({ preventScroll: true }); } catch (e) {}
+  }
 }
 // close panels now, and quietly rewind the history steps they added
 function closeSheets(n) {
@@ -1649,6 +1685,7 @@ async function openTeam(id) {
         : [['Record', `${row.w}-${row.l}`], ['Seed', ordinal(row.seed)], ['GB', row.gb], ['PPG', row.ppg], ['Opp PPG', row.opp], ['Diff', (row.diff > 0 && !String(row.diffD).startsWith('+') ? '+' : '') + row.diffD], ['Home', row.home], ['Away', row.road], ['Last 10', row.l10], ['Streak', row.strk]])
         .map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}
     </div>` : ''}
+    ${!IS_C && row ? `<div class="th-odds" id="tho-${id}" hidden></div>` : ''}
     <div class="card ir-card" id="ir-${id}"><div class="card-h"><h4>Injury report</h4></div><div class="sk" style="height:56px;border-radius:10px"></div></div>
     ${strip.length ? `<div><div class="card-h"><h4 class="h-display" style="font-size:18px;margin:0">Schedule</h4><span class="eyebrow">Drag for more</span></div>
       <div class="hs-wrap"><div class="hs sched drag-x" data-drag>
@@ -1678,6 +1715,9 @@ async function openTeam(id) {
   if (s) { const r = s.parentElement; r.scrollLeft = s.offsetLeft - 12; }
   const txBox = $(`#tx-${id}`, sheet.body);
   if (txBox) fillTeamExtras(id, evs, txBox);
+  // playoff odds from the season simulator, linking to the team's odds page
+  const thoBox = $(`#tho-${id}`, sheet.body);
+  if (thoBox) lazy('sim').then(m => m.teamOddsStrip(tm.abbr)).then(html => { if (html && sheet.alive) { thoBox.innerHTML = html; thoBox.hidden = false; } }).catch(() => {});
   const calBox = $(`#cal-${id}`, sheet.body);
   if (calBox) {
     const info = calInfo(evs);
@@ -1751,7 +1791,7 @@ async function openPlayer(id) {
         ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       </div>
     </div>
-    ${reg ? `<div class="big3">${[['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST']].map(([k, l]) => `<div><span>${l} · ${esc(reg.displayName.replace('Regular Season', 'Season'))}</span><b>${esc(pick(k))}</b></div>`).join('')}</div>` : ''}
+    ${reg ? `<div class="big3">${[['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST']].map(([k, l]) => `<div><span>${l}<em> · ${esc(reg.displayName.replace('Regular Season', 'Season'))}</em></span><b>${esc(pick(k))}</b></div>`).join('')}</div>` : ''}
     ${st?.splits?.length ? `<div class="card"><div class="card-h"><h4>Averages</h4><span class="eyebrow">Per game</span></div><div class="box-wrap drag-x" data-drag><table class="split-tbl">
       <thead><tr><th></th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}</tr></thead>
       <tbody>${st.splits.map(s => `<tr><td><b>${esc(s.displayName)}</b></td>${s.stats.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>
@@ -2310,7 +2350,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-08d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-08e'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2321,9 +2361,26 @@ function lazy(name) {
   if (!modP[name]) {
     const m = MODS[name];
     const css = m?.css ? new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL(m.css, ASSET_BASE).href; l.onload = l.onerror = res; document.head.append(l); }) : null;
-    modP[name] = Promise.all([import(new URL(m.js, ASSET_BASE).href), css]).then(([x]) => x).catch(e => { delete modP[name]; throw e; });
+    modP[name] = Promise.all([import(new URL(m.js, ASSET_BASE).href), css]).then(([x]) => x).catch(e => { delete modP[name]; staleCheck(); throw e; });
   }
   return modP[name];
+}
+// A part that won't load is usually a sign Fullcourt was updated while this page was open (its old files are gone).
+// If the site now has a newer build, reload into it (at most once a minute) instead of leaving a broken button.
+let staleBusy = false;
+async function staleCheck() {
+  if (staleBusy || !navigator.onLine) return; staleBusy = true;
+  try {
+    const last = +sessionStorage.getItem('fc-stale-reload') || 0; if (Date.now() - last < 60e3) return;
+    const mine = [...document.querySelectorAll('script[type=importmap]')].map(s => s.textContent.match(/core\.[\w-]+\.js/)?.[0]).find(Boolean);
+    const h = await (await fetch(new URL('index.html', ASSET_BASE).href + '?t=' + Date.now(), { cache: 'no-store' })).text();
+    const theirs = h.match(/core\.[\w-]+\.js/)?.[0];
+    if (mine && theirs && theirs !== mine) {
+      sessionStorage.setItem('fc-stale-reload', String(Date.now()));
+      toast('Fullcourt was just updated. Reloading…');
+      setTimeout(() => location.reload(), 1200);
+    }
+  } catch (e) {} finally { staleBusy = false; }
 }
 const stub = (name, fn) => (...a) => lazy(name).then(m => m[fn](...a)).catch(err => { console.error(err); toast("Couldn't load that part of Fullcourt. Check your connection and try again."); });
 const openAsk = stub('ask', 'openAsk');
@@ -2350,7 +2407,11 @@ const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
 
 /* ---------------- data helpers ---------------- */
+// the league-wide player table is a big download (every player's season line), so the last one is kept on the device and
+// reused while it's still fresh (same rules as Leaders: 10 minutes, 1 while games are live, and never past a game going final)
+const LT_KEY = () => lsKey('fc-lt');
 async function leagueTable() {
+  if (!S.lt && !S.ltTried) { S.ltTried = true; try { const c = JSON.parse(localStorage.getItem(LT_KEY()) || 'null'); if (c?.rows?.length && c.v === SEASON_QS) S.lt = { t: c.t, rows: c.rows }; } catch (e) {} }
   if (S.lt && !leadStale(S.lt)) return S.lt.rows;
   const d = await getJSON(`${WEB}/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=false&page=1&limit=600&sort=offensive.avgPoints:desc${SEASON_QS}`, { timeout: 25000 });
   const idx = {}; (d.categories || []).forEach(c => { idx[c.name] = c.names; });
@@ -2371,6 +2432,7 @@ async function leagueTable() {
     };
   });
   S.lt = { t: Date.now(), rows };
+  setTimeout(() => { try { localStorage.setItem(LT_KEY(), JSON.stringify({ t: S.lt.t, v: SEASON_QS, rows })); } catch (e) {} }, 0);
   return rows;
 }
 const scoreboardOn = date => getJSON(`${API}/scoreboard?dates=${date}${SB_QS}`).then(d => (d.events || []).map(parseGame));
@@ -2379,12 +2441,17 @@ const scheduleOf = id => getJSON(`${API}/teams/${id}/schedule`);
 // team schedules, kept for 30 minutes (rest flags read many of them at once)
 const schedMemo = new Map();
 const scheduleCached = id => { const m = schedMemo.get(id); if (m && Date.now() - m.t < 30 * 60e3) return m.p; const p = scheduleOf(id).catch(e => { schedMemo.delete(id); throw e; }); schedMemo.set(id, { t: Date.now(), p }); return p; };
-// rest: back-to-back (played the day before) and 3 games in 4 nights, counting the game on `day`
+// rest: back-to-back (played the day before) and 3 games in 4 nights, counting the game on `day`. Who played on each of the three days before a slate, from those days' scoreboards (3 small requests for the
+// whole league, instead of every team's full schedule)
+const teamsOnDay = {};
+function teamsOn(day) {
+  return teamsOnDay[day] ||= scoreboardOn(day).then(gs => new Set(gs.flatMap(g => [String(g.home.id), String(g.away.id)]))).catch(() => { delete teamsOnDay[day]; return null; });
+}
 async function restOf(teamId, day) {
   try {
-    const d = await scheduleCached(teamId);
-    const days = new Set((d.events || []).map(e => ymd(new Date(new Date(e.date).getTime() - 5 * 3600e3))));
-    const b2b = days.has(addDays(day, -1)), n4 = [0, -1, -2, -3].filter(k => days.has(addDays(day, k))).length;
+    const prev = await Promise.all([1, 2, 3].map(k => teamsOn(addDays(day, -k))));
+    if (!prev[0]) return {};
+    const t = String(teamId), b2b = prev[0].has(t), n4 = 1 + prev.filter(s => s?.has(t)).length; // the slate day itself counts
     return { b2b, three4: n4 >= 3 };
   } catch (e) { return {}; }
 }
@@ -2818,10 +2885,17 @@ function preSide(d, sides) {
   let html = '';
   const pr = d.predictor;
   const hp = parseFloat(pr?.homeTeam?.gameProjection), ap = parseFloat(pr?.awayTeam?.gameProjection);
+  // Fullcourt's own number (the Playoff Odds / Bracketology model), next to ESPN's
+  const fh = S.wpPre?.[d.header?.id], fc = Number.isFinite(fh) ? `<p class="wc-fc"><span>Fullcourt's projection</span><b>${esc((fh >= 0.5 ? sides[1] : sides[0]).abbr)} ${Math.round(Math.max(fh, 1 - fh) * 100)}%</b></p>` : '';
   if (Number.isFinite(hp) && Number.isFinite(ap) && hp + ap > 0) {
     const h = hp / (hp + ap) * 100;
     html += `<div class="card"><div class="card-h"><h4>Win chance</h4><span class="eyebrow">ESPN matchup predictor</span></div>
       <div class="wc"><span class="wc-a"><b>${ap.toFixed(1)}%</b>${esc(sides[0].abbr)}</span><span class="wc-h"><b>${hp.toFixed(1)}%</b>${esc(sides[1].abbr)}</span></div>
+      <div class="wc-bar"><i style="width:${(100 - h).toFixed(1)}%;background:var(--sideA)"></i><i style="width:${h.toFixed(1)}%;background:var(--sideB)"></i></div>${fc}</div>`;
+  } else if (fc) {
+    const h = fh * 100;
+    html += `<div class="card"><div class="card-h"><h4>Win chance</h4><span class="eyebrow">Fullcourt's projection</span></div>
+      <div class="wc"><span class="wc-a"><b>${(100 - h).toFixed(0)}%</b>${esc(sides[0].abbr)}</span><span class="wc-h"><b>${h.toFixed(0)}%</b>${esc(sides[1].abbr)}</span></div>
       <div class="wc-bar"><i style="width:${(100 - h).toFixed(1)}%;background:var(--sideA)"></i><i style="width:${h.toFixed(1)}%;background:var(--sideB)"></i></div></div>`;
   }
   const l5 = d.lastFiveGames || [];
@@ -3566,6 +3640,17 @@ if (IS_APP && !IS_MINI) {
     };
     setInterval(siteChk, 10 * 60e3);
     document.addEventListener('visibilitychange', () => { if (document.hidden && newer) location.reload(); else if (!document.hidden) siteChk(); });
+  } else if (window.FC_BASE !== undefined && !/[?&]local\b/.test(location.search) && sessionStorage.getItem('fc-local') !== '1') {
+    // opened the copy built into the app (no connection, or GitHub Pages was slow): once the live site is reachable,
+    // switch to it (right away if the window is hidden or in the tray, otherwise the next time it's hidden)
+    let ready = false;
+    const liveChk = async () => {
+      if (ready) { if (document.hidden) location.reload(); return; }
+      try { const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000); const r = await fetch('https://larosa023.github.io/fullcourt/index.html?t=' + Date.now(), { cache: 'no-store', signal: ctl.signal }); clearTimeout(t); if (r.ok && /core\.[\w-]+\.js/.test(await r.text())) { ready = true; if (document.hidden) location.reload(); } } catch (e) {}
+    };
+    setTimeout(liveChk, 30e3); setInterval(liveChk, 3 * 60e3);
+    window.addEventListener('online', () => setTimeout(liveChk, 3000));
+    document.addEventListener('visibilitychange', () => { if (document.hidden && ready) location.reload(); });
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) chk(); });
   window.addEventListener('focus', chk);
@@ -3608,4 +3693,38 @@ if (IS_MINI) {
   });
   // always today, always Scores
   window.addEventListener('hashchange', () => { if (location.hash !== '#scores' && !document.querySelector('.sheet.open')) history.replaceState(null, '', '#scores'); });
+}
+
+/* ---- pull to refresh, for Fullcourt saved to the home screen (browsers already have their own) ---- */
+if ((matchMedia('(display-mode: standalone)').matches || navigator.standalone) && 'ontouchstart' in window && !IS_APP) {
+  const ind = document.createElement('div'); ind.className = 'ptr'; ind.setAttribute('aria-hidden', 'true'); ind.innerHTML = '<i></i>'; document.body.append(ind);
+  let y0 = null, d = 0, busy = false;
+  const refreshNow = () => {
+    refreshTicker();
+    if (S.view === 'scores') return loadScores({ silent: true });
+    if (S.view === 'standings') { stdPromise = null; return loadStandings(true).then(() => renderStandings()); }
+    if (S.view === 'leaders') return loadLeaders({ silent: true });
+    if (S.view === 'teams') { stdPromise = null; return loadStandings(true).then(() => renderTeams()); }
+    go(S.view, false); return sleep(700);
+  };
+  addEventListener('touchstart', e => {
+    y0 = null;
+    if (busy || window.scrollY > 24 || stack.length || e.touches.length > 1 || document.documentElement.classList.contains('locked')) return;
+    if (e.target.closest?.('.sheet, .pop, input, textarea, select, .hs, [data-drag], .drag-x, #drawer')) return;
+    y0 = e.touches[0].clientY; d = 0;
+  }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (y0 == null) return;
+    d = Math.max(0, e.touches[0].clientY - y0);
+    if (window.scrollY > 24 && d < 8) { y0 = null; return; }
+    ind.style.setProperty('--p', Math.min(1, d / 90).toFixed(3));
+    ind.classList.toggle('on', d > 10); ind.classList.toggle('ready', d >= 90);
+  }, { passive: true });
+  const end = () => {
+    if (y0 == null) return; y0 = null;
+    if (d >= 90) { busy = true; ind.classList.add('spin'); Promise.resolve(refreshNow()).catch(() => {}).finally(() => setTimeout(() => { busy = false; ind.classList.remove('on', 'ready', 'spin'); }, 350)); }
+    else ind.classList.remove('on', 'ready');
+    d = 0;
+  };
+  addEventListener('touchend', end, { passive: true }); addEventListener('touchcancel', end, { passive: true });
 }

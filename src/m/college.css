@@ -65,3 +65,9 @@ button.bk-c:hover { border-color: color-mix(in oklab, var(--accent) 50%, var(--l
   .bk-ff { grid-template-columns: 1fr; }
   #csSeg button { padding-left: 6px; padding-right: 6px; font-size: 12.5px; white-space: nowrap; }
 }
+/* narrow phones: shorter tab labels so all five fit */
+.cs-s { display: none; }
+@media (max-width: 400px) { .cs-l { display: none; } .cs-s { display: inline; } #csSeg button { padding-left: 10px; padding-right: 10px; } }
+/* if the tabs still don't fit (tiny screens, big text), they scroll sideways instead of widening the page */
+#csSeg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+#csSeg::-webkit-scrollbar { display: none; }

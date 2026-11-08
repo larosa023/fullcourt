@@ -45,14 +45,14 @@ async function dayGames(path, d) {
     if (!h || !a || e.season?.type === 3) return null;
     const note = (c.notes || []).map(x => x.headline || '').join(' '), st = c.status?.type?.state;
     const ct = d >= `${SEASON}-03-01` && /tournament|championship/i.test(note) ? 1 : 0;
-    return [h.team.id, a.team.id, +(h.score || 0), +(a.score || 0), c.neutralSite ? 1 : 0, st === 'post' ? 'post' : st === 'in' ? 'in' : 'pre', ct];
+    return [h.team.id, a.team.id, +(h.score || 0), +(a.score || 0), c.neutralSite ? 1 : 0, st === 'post' ? 'post' : st === 'in' ? 'in' : 'pre', ct, e.id];
   }).filter(Boolean);
 }
 // adjusted margin by iteration: m = r_home - r_away + home court
 function adjust(games, ids, hca, prior = {}, K = 0, half = 60) {
   const R = Object.fromEntries(ids.map(id => [id, prior[id] || 0])), by = Object.fromEntries(ids.map(id => [id, []]));
   for (const g of games) {
-    const [h, a, hs, as, nt, , , d] = g; if (!(h in by) || !(a in by)) continue;
+    const [h, a, hs, as, nt, , , , d] = g; if (!(h in by) || !(a in by)) continue;
     const m = Math.max(-25, Math.min(25, hs - as)), hc = nt ? 0 : hca, wt = d ? 0.5 ** ((Date.parse(today) - Date.parse(d)) / 864e5 / half) : 1;
     by[h].push([a, m - hc, wt]); by[a].push([h, -m + hc, wt]);
   }
@@ -89,9 +89,9 @@ async function build(key) {
     if (cache.days[d] && d < new Date(Date.parse(today) - 3 * 864e5).toISOString().slice(0, 10)) continue;
     const g = await dayGames(path, d); if (g) cache.days[d] = g;
   }
-  const all = Object.entries(cache.days).flatMap(([d, gs]) => gs.map(g => [...g, d]));
+  const all = Object.entries(cache.days).flatMap(([d, gs]) => gs.map(g => [...g.slice(0, 7), g[7] ?? null, d])); // [home, away, scores, neutral, state, conf. tournament, event id, date]
   const D1 = new Set(ids), played = all.filter(g => g[5] === 'post' && !g[6] && g[2] !== g[3]);
-  const left = all.filter(g => g[5] !== 'post' && !g[6] && g[7] < (SEL[SEASON] || end) && g[7] >= today);
+  const left = all.filter(g => g[5] !== 'post' && !g[6] && g[8] < (SEL[SEASON] || end) && g[8] >= today);
   // ratings
   const prior = {}; const cAvg = {}; for (const id of ids) { const ci = confOf[id]; (cAvg[ci] = cAvg[ci] || []).push(cache.prior[id]); }
   for (const id of ids) { const p = cache.prior[id]; const ca = (cAvg[confOf[id]] || []).filter(x => x != null); prior[id] = p != null ? 0.75 * p : (ca.length ? ca.reduce((s, x) => s + x, 0) / ca.length * 0.75 - 3 : -6); }
@@ -127,11 +127,14 @@ async function build(key) {
   for (const [h, a, , , nt] of left) { if (h in ix && a in ix) games.push([ix[h], ix[a], nt]); else if (h in ix) nd.push([ix[h], 1]); else if (a in ix) nd.push([ix[a], 0]); }
   const X = { hca: C.hca, sd: C.sd, bubble, women: !!C.women, teams: T, games, nd, confs: confs.map(c => ({ teams: c.teams, size: /ivy/i.test(c.name) ? 4 : Math.min(16, c.teams.length) })) };
   console.log(key, ids.length, 'teams', played.length, 'games played', games.length + nd.length, 'left; bubble rating', bubble.toFixed(1));
+  // each game's chance for the home team over the next few days, for the game cards (wp.json)
+  const soon = new Date(Date.parse(today) + 3 * 864e5).toISOString().slice(0, 10), wp = {};
+  for (const [h, a, , , nt, , , id, d] of left) if (id && d <= soon && h in ix && a in ix) wp[id] = +ncdf((r[h] - r[a] + (nt ? 0 : C.hca)) / Math.hypot(C.sd, T[ix[h]].sig, T[ix[a]].sig)).toFixed(3);
   const active = today >= `${SEASON - 1}-11-01` && today < (SEL[SEASON] || end);
   const out = { season: SEASON, sel: SEL[SEASON] || null, active, sd: C.sd, hca: C.hca, confs: confs.map(c => ({ id: c.id, name: c.name, abbr: c.abbr })) };
   const rank = Object.fromEntries(ids.slice().sort((a, b) => r[b] - r[a]).map((id, i) => [id, i + 1]));
   out.teams = T.map(t => { const I = info[t.id] || {}; return { id: t.id, abbr: I.abbreviation || '', name: I.displayName || I.location || t.id, short: I.location || I.shortDisplayName || I.displayName || '', color: I.color || null, conf: t.conf, w: t.w, l: t.l, cw: t.cw, cl: t.cl, r: +t.r.toFixed(2), rk: rank[t.id], own: +own[t.id].toFixed(1), bpi: bpi[t.id] != null ? +bpi[t.id].toFixed(1) : null, last: cache.prior[t.id] ?? null, sig: t.sig, espn: espn[t.id]?.seed != null ? espn[t.id] : null }; });
-  if (!active) return { out, cache };
+  if (!active) return { out, cache, wp };
   const t0 = Date.now(), P = mPrep(X), A = mRun(P, RUNS), p = c => +(c / RUNS * 100).toFixed(2);
   console.log(key, RUNS, 'seasons in', Date.now() - t0, 'ms');
   out.runs = RUNS; out.at = now.toISOString();
@@ -150,14 +153,14 @@ async function build(key) {
   const H = { ...(old?.season === SEASON ? (await get(`${RAW}/march.json`).catch(() => null))?.[key]?.hist || {} : {}) };
   H[today] = Object.fromEntries(out.teams.filter(t => t.o.make >= 1).map(t => [t.id, [t.o.make, t.o.title, t.o.seed]]));
   out.hist = Object.fromEntries(Object.entries(H).sort().slice(-160));
-  return { out, cache };
+  return { out, cache, wp };
 }
 
-const res = { updated: now.toISOString(), source: 'ESPN' };
+const res = { updated: now.toISOString(), source: 'ESPN' }, WP = { updated: res?.updated };
 const outDir = process.argv[2] || '.';
 for (const key of ['ncaam', 'ncaaw']) {
   try {
-    const { out, cache } = await build(key); res[key] = out;
+    const { out, cache, wp } = await build(key); res[key] = out; WP[key] = wp;
     writeFileSync(`${outDir}/cache-${key}.json`, JSON.stringify(cache));
     const top = out.teams.filter(t => t.o).sort((a, b) => b.o.title - a.o.title).slice(0, 16);
     for (const t of top) console.log(key, t.short.padEnd(16), String(t.r).padStart(6), `#${t.rk}`, `${t.w}-${t.l}`, `make ${t.o.make} seed ${t.o.seed} f4 ${t.o.f4} title ${t.o.title}`, t.espn ? `| ESPN seed ${t.espn.seed} f4 ${t.espn.f4} title ${t.espn.title}` : '', `bpi ${t.bpi} own ${t.own} last ${t.last}`);
@@ -166,3 +169,4 @@ for (const key of ['ncaam', 'ncaaw']) {
 }
 if (!res.ncaam && !res.ncaaw) throw new Error('both failed; keeping the last file');
 writeFileSync(`${outDir}/march.json`, JSON.stringify(res));
+WP.updated = res.updated; writeFileSync(`${outDir}/wp.json`, JSON.stringify(WP));
