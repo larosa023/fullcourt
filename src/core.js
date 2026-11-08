@@ -1780,6 +1780,7 @@ async function openPlayer(id) {
 
   sheet.body.innerHTML = `
     <div class="pl-hero enter" style="--tc:${tc}">
+      ${watchBtnHTML(id, true)}
       <span class="jn">${esc(bio.jersey || p.jersey || '')}</span>
       ${face(id, name, 'face', 700)}
       <div class="txt">
@@ -1807,7 +1808,7 @@ async function openPlayer(id) {
       <div class="career-b"><div class="career-in"></div></div>
     </section>
     <div class="splits-slot"></div>
-    <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button>${watchBtnHTML(id)}</div>`;
+    <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button></div>`;
   loadNicks().then(N => { const x = N.by[id], el = $('.pl-nick', sheet.body); if (x && el) { el.innerHTML = nickLine(x.nick, 3); el.hidden = false; } });
   wireDrag(sheet.body);
   S.watchInfo = S.watchInfo || {};
@@ -3250,15 +3251,17 @@ let watch = [];
 try { watch = JSON.parse(lsGet(lsKey('fc-watch')) || '[]') || []; } catch (e) { watch = []; }
 const isWatched = id => watch.some(w => String(w.id) === String(id));
 const STAR = on => `<svg viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z"/></svg>`;
-function watchBtnHTML(id) {
+function watchBtnHTML(id, hero) {
   const on = isWatched(id);
+  // the player page shows it as a pill in the banner's corner, like a team page's "Your team" button
+  if (hero) return `<button class="fav-btn${on ? ' on' : ''}" data-watch="${esc(id)}" data-whero aria-pressed="${on}">${on ? '★ In your players' : '☆ Add to your players'}</button>`;
   return `<button class="btn ${on ? '' : 'ghost'} watch-btn" data-watch="${esc(id)}" aria-pressed="${on}">${STAR(on)}${on ? 'In your players' : 'Add to your players'}</button>`;
 }
 function toggleWatch(id, info) {
   if (isWatched(id)) watch = watch.filter(w => String(w.id) !== String(id));
   else if (info) watch.push(info);
   lsSet(lsKey('fc-watch'), watch.length ? JSON.stringify(watch) : null);
-  $$(`[data-watch="${id}"]`).forEach(b => { b.outerHTML = watchBtnHTML(id); });
+  $$(`[data-watch="${id}"]`).forEach(b => { b.outerHTML = watchBtnHTML(id, 'whero' in b.dataset); });
   toast(isWatched(id) ? `${info?.name || 'Player'} added to your players on the Scores page` : 'Removed from your players');
   renderWatch(true);
 }
