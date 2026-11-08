@@ -1,0 +1,29 @@
+# Bracketology / March Madness odds, men's and women's: ratings, every game left, 10,000 simulated seasons (ESPN).
+# Twice a day; publishes march.json (plus each league's game cache) to the march-data branch. Not part of the website.
+name: march
+on:
+  push:
+    branches: [main]
+    paths: ['tools/march.mjs', 'src/m/marchengine.js', '.github/workflows/march.yml']
+  schedule:
+    - cron: '29 10,22 * * *' # 5:29 AM and PM ET
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: march, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build
+        run: mkdir pub && node tools/march.mjs pub
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan march-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add march.json cache-*.json && git commit -qm "march $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" march-data

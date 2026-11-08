@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08d', date: 'Nov 8', items: [
+    ['New: Bracketology', 'College Rankings has a Bracketology tab, for the men\'s and women\'s game. Fullcourt plays out the rest of the season 10,000 times, every conference tournament included, picks the field of 68 like the committee (conference champions plus the best at-large resumes) and plays the tournament. You get the projected bracket with the First Four, every team\'s chance to make the field, its likely seed and its odds of each round, the bubble (last four in, first four out), and each conference\'s favorites. Updated twice a day.'],
+    ['Sim the tournament', 'One tap plays the projected bracket once, from the First Four to the title game, upsets and all. Tap any team for its seed range, odds over time and what its rating is built on.'],
+  ] },
   { id: '2026-11-08c', date: 'Nov 8', items: [
     ['Smarter playoff odds', 'Team ratings now blend ESPN\'s Basketball Power Index with Fullcourt\'s own scoring margin, adjusted for who each team played and where, with recent games counting more. Injured players are taken out of the games they\'ll miss (until their expected return), teams get credit for games their regulars sat out, and today\'s games use the betting line. Standings follow the NBA\'s real tiebreakers, and the odds now come from 20,000 simulated seasons.'],
     ['Tap a team in Odds', 'Each team has its own page: projected record and win range, where it\'s likely to finish (seed by seed), its odds over time, how its next game swings them, and a breakdown of why its rating is what it is, with injured players listed. The table also shows each team\'s seed range at a glance.'],
