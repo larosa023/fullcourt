@@ -112,6 +112,8 @@
 .cp-scale { margin-top: 18px; }
 @media (max-width: 760px) {
   .cp-scrow { grid-template-columns: 26px minmax(0, 1fr); padding: 0 12px; }
-  .cp-scale b { font-size: 9px; padding: 1px 4px 2px; } .cp-scale b span { display: none; }
+  .cp-scale b { font-size: 9px; padding: 1px 4px 2px; } .cp-scale b span { display: none; } .cp-scale b i { display: none; }
   .cp-ln em span { display: none; }
 }
+
+.cp-scale b i { font-style: normal; }

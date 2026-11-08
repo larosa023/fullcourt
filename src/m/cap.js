@@ -64,7 +64,7 @@ function capBar(pay, c, after, o = {}) {
 // the shared scale shown above a list of bars
 function capScale(c, max) {
   const lo = 100e6, pc = v => `${(Math.max(0, v - lo) / (max - lo) * 100).toFixed(2)}%`;
-  return `<div class="cp-scale" aria-hidden="true">${[['cap', c.cap, 'Cap'], ['tax', c.tax, 'Tax'], ['a1', c.apron1, '1st apron'], ['a2', c.apron2, '2nd apron']].map(([n, v, l]) => `<b class="${n}" style="left:${pc(v)}">${l}<span>${money(v, 0)}</span></b>`).join('')}</div>`;
+  return `<div class="cp-scale" aria-hidden="true">${[['cap', c.cap, 'Cap'], ['tax', c.tax, 'Tax'], ['a1', c.apron1, '1st<i> apron</i>'], ['a2', c.apron2, '2nd<i> apron</i>']].map(([n, v, l]) => `<b class="${n}" style="left:${pc(v)}">${l}<span>${money(v, 0)}</span></b>`).join('')}</div>`;
 }
 
 const CS = { tab: 'teams', team: '', q: '', sort: 's0', dir: -1, exp: '', tm: '', n: 120 };

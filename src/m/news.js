@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-07l', date: 'Nov 7', items: [
+    ['WNBA History', 'History now covers the WNBA too: games on any date back to 2002, every champion and MVP since 1997, past standings and stat leaders, the all-time career leader boards with a milestone watch, and 74 legends with full profiles, from Cynthia Cooper and Lisa Leslie to Taurasi, Bird and A\'ja Wilson. Switch to the WNBA and open History.'],
+    ['Traded picks in the Mock Draft', 'The NBA mock now uses who actually owns each first-round pick, including protections and swaps (the Thunder, Rockets, Hornets and Grizzlies picks, the Jazz-Cavaliers-Timberwolves group and more), with "via" showing whose pick it was. The WNBA mock now follows the league\'s real 2027 lottery: seven teams, two picks drawn, with Washington holding Chicago\'s pick and Los Angeles holding Phoenix\'s.'],
+    ['Polish', 'Cap lines label cleanly on phones, and a check across every section on phone, desktop, light and dark turned up nothing else broken.'],
+  ] },
   { id: '2026-11-07k', date: 'Nov 7', items: [
     ['New: Mock Draft', 'A mock draft for the NBA and the WNBA (a Draft tab on wide screens, under More on smaller ones, and in the menu on phones). Fullcourt fills every pick from the standings, taking the best player left and leaning toward what each team needs. Change any pick and the rest re-flow around it, run the lottery as many times as you like, and share your first round as an image. Tap any prospect for their college stats and bio. Prospect rankings come from college stats for now, and switch to ESPN\'s big board once ESPN publishes it.'],
   ] },

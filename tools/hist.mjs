@@ -75,6 +75,7 @@ for (const id of ids) {
       draft: f(/Draft:\s*(.+?\d{4} (?:(?:NBA|BAA|ABA|WNBA) )?Draft)/), debut: f(/W?NBA Debut:\s*([A-Za-z]+ \d+, \d{4})/), hof: f(/Hall of Fame:\s*Inducted as Player in (\d{4})/),
       years: f(/Career Length:\s*(\d+) years/), bling, seasons, career,
     };
+    if (!legends[id].hof && bling.includes('Hall of Fame')) legends[id].hof = 'yes'; // the WNBA's pages list it as an accolade
     console.log('legend', id, name, seasons.length);
   } catch (e) { console.log('legend failed', id, e.message); }
 }
