@@ -25,6 +25,25 @@ function dFace(lg, p, cls, w) {
   if (!p.head) return mono;
   return `<img class="${cls}" src="${dHead(lg, p.id, w)}" alt="${esc(p.name)}" loading="lazy" draggable="false" onerror="this.outerHTML=this.dataset.fb" data-fb="${mono.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">`;
 }
+// "Projected" order (NBA): the standings at the end of the season as Playoff Odds sees them (m/sim.js, thousands of
+// simulated seasons), instead of today's. Same rules: the 14 teams outside each conference's top 8 make the lottery.
+let DPROJ = (() => { try { return localStorage.getItem('fc-draftproj') === '1'; } catch (e) { return false; } })();
+const projCache = {};
+async function dGet(lg) {
+  const D = await loadDraft(), L = D[lg]; if (!L || lg !== 'nba' || !DPROJ) return { D, L };
+  if (!projCache[D.updated]) projCache[D.updated] = lazy('sim').then(m => m.projectedRecords('nba')).then(P => dProject(L, P)).catch(() => null);
+  return { D, L: (await projCache[D.updated]) || L };
+}
+function dProject(L, P) {
+  const all = Object.keys(L.teams).filter(a => P[a]); if (all.length < 30) return null;
+  const by = (a, b) => P[a].w - P[b].w;
+  const lottery = [0, 1].flatMap(c => all.filter(a => P[a].conf === c).sort((a, b) => P[b].w - P[a].w).slice(8)).sort(by);
+  const r1 = [...lottery, ...all.filter(a => !lottery.includes(a)).sort(by)], worst = all.slice().sort(by);
+  let i1 = 0, i2 = 0; const order = L.order.map(x => ({ ...x, team: x.round === 1 ? r1[i1++] : worst[i2++ % worst.length] }));
+  const teams = Object.fromEntries(Object.entries(L.teams).map(([a, t]) => { const w = Math.round(P[a]?.w ?? t.w); return [a, { ...t, pw: w, pl: Math.round(P[a] ? P[a].w + P[a].l : t.w + t.l) - w }]; }));
+  return { ...L, order, lottery, teams, proj: true, _k: 'nba-proj', _n: true };
+}
+const dRec = (L, t) => L.proj && t.pw != null ? `${t.pw}-${t.pl} proj.` : `${t.w}-${t.l}`;
 const dPct = v => v == null ? '–' : (v * 100).toFixed(0) + '%';
 const d1 = v => v == null ? '–' : (+v).toFixed(1);
 const TAG_NAME = { shooter: 'Shooter', playmaker: 'Playmaker', rebounder: 'Rebounder', rim: 'Rim protector', defender: 'Disruptor' };
@@ -121,23 +140,22 @@ async function renderDraft() {
   const lg = LGK === 'wnba' ? 'wnba' : LGK === 'nba' ? 'nba' : null;
   if (!lg) { root.innerHTML = `<div class="empty"><b>Mock drafts are for the NBA and WNBA</b><span>College players are the prospects. Pick a league to see its mock draft.</span><div class="dr-pick2"><button class="btn" data-lg="nba">NBA mock draft</button><button class="btn ghost" data-lg="wnba">WNBA mock draft</button></div></div>`; return; }
   if (!root.querySelector('.dr-wrap')) root.innerHTML = '<div class="sk" style="height:520px;border-radius:16px"></div>';
-  let D; try { D = await loadDraft(); } catch (e) { root.innerHTML = `<div class="empty"><b>The mock draft didn't load</b><button class="btn" data-dretry>Try again</button></div>`; return; }
-  const L = D[lg]; if (!L) { root.innerHTML = '<div class="empty"><b>No mock draft yet</b></div>'; return; }
-  const st = dSaved(lg, L.year), picks = dFill(L, st);
+  let D, L; try { ({ D, L } = await dGet(lg)); } catch (e) { root.innerHTML = `<div class="empty"><b>The mock draft didn't load</b><button class="btn" data-dretry>Try again</button></div>`; return; } if (!L) { root.innerHTML = '<div class="empty"><b>No mock draft yet</b></div>'; return; }
+  const st = dSaved(L._k || lg, L.year), picks = dFill(L, st);
   const rounds = [...new Set(L.order.map(x => x.round))], round = Math.min(DS.round, rounds.length);
   const tn = a => L.teams[a] || { short: a, name: a, w: 0, l: 0 };
   const lotIdx = a => L.lottery.indexOf(a);
   const pickOf = Object.fromEntries(picks.filter(x => x.p).map(x => [x.p.id, x]));
   const mine = Object.keys(st.locks).length;
   const srcNote = L.source === 'espn' ? 'Prospect rankings: ESPN\'s big board' : `Prospect rankings: Fullcourt's board from college stats${lg === 'wnba' ? ' (seniors and grad students, the draft-eligible)' : ''}. Early in the season it moves a lot; it switches to ESPN's big board once ESPN publishes one.`;
-  const orderNote = lg === 'nba' ? `Order from this season's standings (${L.lottery.length} lottery teams). First-round trades, protections and swaps are applied (${PICKS.nba[L.year]?.src || 'not tracked yet'}); round 2 shows original owners.` : `${L.official ? `Round 1 follows the WNBA's lottery setup (${L.official}): seven teams by two-season record, two picks drawn, picks 3-7 by record; Chicago's pick belongs to Washington and Phoenix's to Los Angeles.` : `Order from the ${L.standingsSeason} final standings.`} Rounds 2 and 3 go by ${L.standingsSeason} record, original owners.`;
+  const orderNote = lg === 'nba' ? `Order from ${L.proj ? 'projected final standings (Playoff Odds\' simulations; ' : 'this season\'s standings ('}${L.lottery.length} lottery teams). First-round trades, protections and swaps are applied (${PICKS.nba[L.year]?.src || 'not tracked yet'}); round 2 shows original owners.` : `${L.official ? `Round 1 follows the WNBA's lottery setup (${L.official}): seven teams by two-season record, two picks drawn, picks 3-7 by record; Chicago's pick belongs to Washington and Phoenix's to Los Angeles.` : `Order from the ${L.standingsSeason} final standings.`} Rounds 2 and 3 go by ${L.standingsSeason} record, original owners.`;
   const lotNote = st.lot ? (() => { const moves = st.lot.map((a, i) => ({ a, from: lotIdx(a) + 1, to: i + 1 })).filter(m => m.from !== m.to); const own = Object.fromEntries(picks.filter(x => x.round === 1 && x.orig).map(x => [x.orig, x.team])); return `<div class="dr-lot"><b>Lottery result</b>${moves.length ? moves.map(m => `<span>${logo(own[m.a] || m.a, 40)}${esc(tn(own[m.a] || m.a).short)}${own[m.a] && own[m.a] !== m.a ? ` <small>(via ${esc(tn(m.a).short)})</small>` : ''} <em class="${m.to < m.from ? 'up' : 'dn'}">${m.from} → ${m.to}</em></span>`).join('') : `<span>Chalk: the top ${(L.draws || 4) === 2 ? 'two' : 'four'} held their spots.</span>`}<button class="link-btn" data-dlot="undo">Back to standings order</button></div>`; })() : '';
   const row = x => {
     const t = tn(x.team), p = x.p, need = L.needs[x.team] || [], li = lotIdx(x.orig || x.team), via = x.orig && x.orig !== x.team ? tn(x.orig) : null;
     const od = x.round === 1 && li >= 0 && L.odds[li] && !st.lot ? `<span class="dr-odds" title="Chance at the #1 pick">${(L.odds[li] / 10).toFixed(1)}% at #1</span>` : '';
     return `<div class="dr-row${x.mine ? ' mine' : ''}" style="--tc:${t.color ? '#' + t.color : teamColor(x.team)}">
       <span class="dr-no">${x.pick}</span>
-      <div class="dr-tm">${logo(x.team, 64)}<span><b>${esc(t.short || t.name)}</b><small>${via ? `<span class="dr-via" title="${esc(x.how || '')}">via ${esc(via.short || x.orig)} (${via.w}-${via.l})</span>` : `${t.w}-${t.l}`}${od ? ' · ' : ''}${od}</small><span class="dr-needs">${need.map(n => `<i class="${p && fits(n, p) ? 'hit' : ''}">${esc(n)}</i>`).join('')}</span></span></div>
+      <div class="dr-tm">${logo(x.team, 64)}<span><b>${esc(t.short || t.name)}</b><small>${via ? `<span class="dr-via" title="${esc(x.how || '')}">via ${esc(via.short || x.orig)} (${dRec(L, via)})</span>` : dRec(L, t)}${od ? ' · ' : ''}${od}</small><span class="dr-needs">${need.map(n => `<i class="${p && fits(n, p) ? 'hit' : ''}">${esc(n)}</i>`).join('')}</span></span></div>
       ${p ? `<button class="dr-pl" data-dpro="${esc(p.id)}">${dFace(lg, p, 'dr-pf', 200)}<span><b>${esc(p.name)}</b><small>${esc([p.pos, p.ht, p.cls].filter(Boolean).join(' · '))}</small><small class="dr-schl">${dSchool(p.tid, 32)}${esc(p.school || '')}</small></span><span class="dr-ln"><span><strong>${d1(p.pts)}</strong>PTS</span><span><strong>${d1(p.reb)}</strong>REB</span><span><strong>${d1(p.ast)}</strong>AST</span><span><strong>${p.tpa >= .5 ? dPct(p.tp) : '–'}</strong>3P</span></span></button>` : '<span class="dr-pl empty">–</span>'}
       <div class="dr-act">${x.mine ? `<span class="dr-mine">Your pick</span><button class="icon-btn dr-unl" data-dunlock="${x.pick}" aria-label="Let Fullcourt pick" title="Let Fullcourt pick">${ICON.close}</button>` : ''}<button class="btn ghost dr-chg" data-dchange="${x.pick}">Change</button></div>
     </div>`;
@@ -146,6 +164,7 @@ async function renderDraft() {
   root.innerHTML = `<div class="dr-wrap">
     <div class="dr-head">
       <div class="seg dr-lg"><span class="knob"></span><button data-lg="nba" aria-pressed="${lg === 'nba'}">NBA</button><button data-lg="wnba" aria-pressed="${lg === 'wnba'}">WNBA</button></div>
+      ${lg === 'nba' ? `<div class="seg dr-pj" title="Draft order"><span class="knob"></span><button data-dproj="0" aria-pressed="${!L.proj}">Today</button><button data-dproj="1" aria-pressed="${!!L.proj}">Projected</button></div>` : ''}
       <div class="dr-acts">
         <button class="btn" data-dlot="run">${st.lot ? 'Run the lottery again' : 'Run the lottery'}</button>
         ${mine || st.lot ? `<button class="btn ghost" data-dreset>Reset${mine ? ` (${mine} pick${mine === 1 ? '' : 's'})` : ''}</button>` : ''}
@@ -171,7 +190,7 @@ async function renderDraft() {
 }
 
 function dPicker(lg, L, pickNo) {
-  const st = dSaved(lg, L.year), picks = dFill(L, st), x = picks.find(y => y.pick === pickNo), t = L.teams[x.team] || {};
+  const st = dSaved(L._k || lg, L.year), picks = dFill(L, st), x = picks.find(y => y.pick === pickNo), t = L.teams[x.team] || {};
   const taken = new Map(picks.filter(y => y.p && y.pick < pickNo).map(y => [y.p.id, y.pick]));
   const need = L.needs[x.team] || [];
   const sheet = openSheet(`Pick ${pickNo}: ${t.short || x.team}`); sheet.el.classList.add('dr-sheet');
@@ -185,9 +204,9 @@ function dPicker(lg, L, pickNo) {
   $('.dr-q', sheet.body).addEventListener('input', e => draw(e.target.value.trim().toLowerCase()));
   sheet.body.addEventListener('click', e => {
     const b = e.target.closest('[data-dset]'); if (!b) return;
-    const s = dSaved(lg, L.year);
+    const s = dSaved(L._k || lg, L.year);
     for (const [k, v] of Object.entries(s.locks)) if (v === b.dataset.dset) delete s.locks[k]; // a player can only go once
-    s.locks[pickNo] = b.dataset.dset; dSave(lg, L.year, s);
+    s.locks[pickNo] = b.dataset.dset; dSave(L._k || lg, L.year, s);
     closeTop(); renderDraft();
   });
 }
@@ -201,7 +220,7 @@ async function dProfile(lg, L, id) {
   const cat = s?.categories?.find(c => c.name === 'averages') || s?.categories?.[0], lab = cat?.labels || [];
   const col = k => lab.indexOf(k);
   const want = ['GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'FG%', '3P%', 'FT%'].filter(k => col(k) >= 0);
-  const pk = dFill(L, dSaved(lg, L.year)).find(x => x.p?.id === id);
+  const pk = dFill(L, dSaved(L._k || lg, L.year)).find(x => x.p?.id === id);
   const tc = A.team?.color ? '#' + A.team.color : p.color ? '#' + p.color : 'var(--accent)';
   sheet.body.innerHTML = `<div class="hy-hero dr-hero" style="--tc:${tc}">${dFace(lg, { ...p, head: p.head ?? true }, 'hy-hf', 400)}<div>
       <span class="eyebrow">${esc([A.position?.displayName || p.pos, A.displayHeight || p.ht, A.displayWeight || p.wt].filter(Boolean).join(' · '))}</span>
@@ -216,7 +235,7 @@ async function dProfile(lg, L, id) {
 }
 
 async function dShare(lg, L) {
-  const st = dSaved(lg, L.year), picks = dFill(L, st).filter(x => x.round === 1);
+  const st = dSaved(L._k || lg, L.year), picks = dFill(L, st).filter(x => x.round === 1);
   const sh = await lazy('share'), K = await sh.canvasKit(), { x, C, font, text, fit } = K;
   text('MOCK DRAFT', 72, 132, font(800, 92), C.ink);
   text(`${L.year} ${lg.toUpperCase()} · ROUND 1${st.lot ? ' · AFTER THE LOTTERY' : ''}`, 72, 176, font(500, 24, 'mono'), C.muted);
@@ -236,15 +255,16 @@ async function dShare(lg, L) {
 }
 
 function wireDraft(root) {
-  const ctx = async () => { const D = await loadDraft(); const lg = LGK === 'wnba' ? 'wnba' : 'nba'; return { lg, L: D[lg] }; };
+  const ctx = async () => { const lg = LGK === 'wnba' ? 'wnba' : 'nba'; return { lg, L: (await dGet(lg)).L }; };
   root.addEventListener('click', async e => {
     const t = e.target;
+    const pj = t.closest('[data-dproj]'); if (pj) { DPROJ = pj.dataset.dproj === '1'; try { localStorage.setItem('fc-draftproj', DPROJ ? '1' : '0'); } catch (e2) {} renderDraft(); return; }
     if (t.closest('[data-dretry]')) { draftP = null; renderDraft(); return; }
     const rd = t.closest('[data-dround]'); if (rd) { DS.round = +rd.dataset.dround; renderDraft(); return; }
     const ps = t.closest('[data-dpos]'); if (ps) { DS.pos = ps.dataset.dpos; renderDraft(); return; }
-    const lot = t.closest('[data-dlot]'); if (lot) { const { lg, L } = await ctx(); const s = dSaved(lg, L.year); s.lot = lot.dataset.dlot === 'run' ? runLottery(L) : null; dSave(lg, L.year, s); DS.round = 1; renderDraft(); return; }
-    if (t.closest('[data-dreset]')) { const { lg, L } = await ctx(); dSave(lg, L.year, { locks: {}, lot: null }); renderDraft(); return; }
-    const ul = t.closest('[data-dunlock]'); if (ul) { const { lg, L } = await ctx(); const s = dSaved(lg, L.year); delete s.locks[ul.dataset.dunlock]; dSave(lg, L.year, s); renderDraft(); return; }
+    const lot = t.closest('[data-dlot]'); if (lot) { const { lg, L } = await ctx(); const s = dSaved(L._k || lg, L.year); s.lot = lot.dataset.dlot === 'run' ? runLottery(L) : null; dSave(L._k || lg, L.year, s); DS.round = 1; renderDraft(); return; }
+    if (t.closest('[data-dreset]')) { const { lg, L } = await ctx(); dSave(L._k || lg, L.year, { locks: {}, lot: null }); renderDraft(); return; }
+    const ul = t.closest('[data-dunlock]'); if (ul) { const { lg, L } = await ctx(); const s = dSaved(L._k || lg, L.year); delete s.locks[ul.dataset.dunlock]; dSave(L._k || lg, L.year, s); renderDraft(); return; }
     const ch = t.closest('[data-dchange]'); if (ch) { const { lg, L } = await ctx(); dPicker(lg, L, +ch.dataset.dchange); return; }
     const sh = t.closest('[data-dshare]'); if (sh) { const { lg, L } = await ctx(); runShare(() => dShare(lg, L), sh); return; }
   });
@@ -253,5 +273,5 @@ function wireDraft(root) {
 // prospect profiles open from the board, the picks and the picker
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-dpro]'); if (!b) return;
-  e.preventDefault(); const D = await loadDraft(); const lg = LGK === 'wnba' ? 'wnba' : 'nba'; dProfile(lg, D[lg], b.dataset.dpro);
+  e.preventDefault(); const lg = LGK === 'wnba' ? 'wnba' : 'nba'; dProfile(lg, (await dGet(lg)).L, b.dataset.dpro);
 });

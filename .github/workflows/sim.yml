@@ -1,0 +1,29 @@
+# Playoff odds / season simulator inputs: records, team ratings and every game left (ESPN), every few hours.
+# Publishes sim.json to the sim-data branch (not part of the website, so no deploy); the browser runs the simulations.
+name: sim
+on:
+  push:
+    branches: [main]
+    paths: ['tools/sim.mjs', '.github/workflows/sim.yml']
+  schedule:
+    - cron: '13 */3 * * *' # every 3 hours
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: sim, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build
+        run: mkdir pub && node tools/sim.mjs pub/sim.json
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan sim-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add sim.json && git commit -qm "sim $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" sim-data

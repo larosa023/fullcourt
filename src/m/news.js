@@ -1,6 +1,12 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08b', date: 'Nov 8', items: [
+    ['New: Playoff odds', 'Standings has an Odds tab. Fullcourt plays out the rest of the season thousands of times, Play-In and playoffs included, and shows each team\'s projected record, its chances at the playoffs, the Play-In, the #1 seed, the conference finals, the Finals and the title. It updates every few hours as games finish.'],
+    ['Sim the season', 'One tap plays the rest of the season once: final standings, the Play-In, every playoff series and the champion. Tap again for a different outcome.'],
+    ['Projected draft order', 'The NBA Mock Draft can now use the projected final standings instead of today\'s (Today / Projected at the top), with traded picks still applied.'],
+    ['Data status', 'Settings shows whether Fullcourt\'s data, ESPN\'s feeds and the websites are all working. A check runs every 6 hours and flags anything that breaks or goes stale.'],
+  ] },
   { id: '2026-11-08a', date: 'Nov 8', items: [
     ['Coaches and front offices', 'On any NBA or WNBA team page, tap the head coach\'s name. You get their record this season, with the team and in their career, playoff record and titles, every season they\'ve coached, their awards, the jobs that got them here, and, for NBA teams, who runs the front office, their record in charge, and the team\'s recent trades.'],
     ['Arrange the Scores page', 'Settings now has a Scores page section: move My bets, Your players, the games, Top scorers, the Conference race, Pick\'em and Who\'s out up or down, and switch off any you don\'t want (the Conference race can now be hidden too).'],

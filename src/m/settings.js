@@ -50,6 +50,24 @@ function openImport(sheet) {
   $('input', box).onchange = e => { const f = e.target.files?.[0]; if (f) f.text().then(run); };
   box.addEventListener('click', e => { if (e.target.closest('[data-noimp]')) box.remove(); else if (e.target.closest('[data-doimp]')) { const t = $('textarea', box).value; if (t.trim()) run(t); else toast('Paste the copied text or choose a file first'); } });
 }
+// Data status: the health check that runs every 6 hours on GitHub (tools/health.mjs) — data files, background jobs,
+// ESPN's feeds and the three websites.
+let healthP = null;
+async function drawHealth(sheet) {
+  const box = () => $('#setHealth', sheet.body);
+  healthP = healthP || fetch(`https://raw.githubusercontent.com/larosa023/fullcourt/health-data/health.json?t=${Math.floor(Date.now() / 600e3)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const H = await healthP; if (!H) healthP = null;
+  const b = box(); if (!b) return;
+  if (!H) { b.innerHTML = '<h3 class="set-h">Data status</h3><p class="set-note">The status check isn\'t reachable right now.</p>'; return; }
+  const mins = (Date.now() - Date.parse(H.updated)) / 60e3, when = mins < 90 ? `${Math.max(1, Math.round(mins))} min ago` : mins < 2880 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} days ago`;
+  const G = [['data', 'Data files'], ['espn', 'ESPN feeds'], ['jobs', 'Background jobs'], ['sites', 'Websites']];
+  const bad = G.flatMap(([k]) => (H[k] || []).filter(x => !x.ok));
+  b.innerHTML = `<h3 class="set-h">Data status</h3><div class="set-list">
+    <div class="set-row hl-sum ${bad.length ? 'warn' : 'good'}"><span><b>${bad.length ? `${bad.length} thing${bad.length === 1 ? '' : 's'} need${bad.length === 1 ? 's' : ''} attention` : 'Everything is working'}</b><small>Checked ${esc(when)} · every 6 hours</small></span><i class="hl-dot"></i></div>
+    ${G.map(([k, t]) => { const L = H[k] || [], n = L.filter(x => x.ok).length; return L.length ? `<details class="hl-grp"><summary class="set-row"><span><b>${t}</b><small>${n === L.length ? `All ${L.length} OK` : `${L.length - n} of ${L.length} with a problem`}</small></span><i class="hl-dot ${n === L.length ? 'good' : 'warn'}"></i></summary>
+      <ul class="hl-list">${L.slice().sort((a, c) => a.ok - c.ok).map(x => `<li class="${x.ok ? '' : 'bad'}"><i class="hl-dot ${x.ok ? 'good' : 'warn'}"></i><span><b>${esc(x.name)}</b><small>${esc(x.note || '')}</small></span></li>`).join('')}</ul></details>` : ''; }).join('')}
+  </div><p class="set-note">A check on GitHub looks at Fullcourt's data files, background jobs, the ESPN feeds the site reads and the three websites. When something breaks, it opens an issue on GitHub (which emails the owner) and closes it once things are fixed.</p>`;
+}
 function openSettings() {
   const sheet = openSheet('Settings');
   const draw = () => {
@@ -72,6 +90,7 @@ function openSettings() {
         <button class="set-row" role="switch" aria-checked="${isleOn()}" data-isle><span><b>Connect to Isle</b><small>Isle is a Dynamic Island for Windows. It shows your team's live games and the ones you send with the Show on Isle button in a game, at the top of your screen</small></span><i class="sw"><i></i></i></button>
         <a class="set-row" href="https://github.com/larosa023/Isle/releases/latest" target="_blank" rel="noopener"><span><b>Get Isle</b><small>Free, for Windows 10 and 11</small></span><em class="set-val">Open</em></a>
       </div><p class="set-note">${IS_APP ? 'Talks only to Isle on this PC.' : 'Talks only to Isle on this PC. Your browser may ask to allow access to apps on your device the first time.'}</p></section>
+      <section id="setHealth"><h3 class="set-h">Data status</h3><div class="sk" style="height:58px;border-radius:14px"></div></section>
       <section><h3 class="set-h">Your data</h3><p class="set-note">Saved only in this ${IS_APP ? 'app' : 'browser'}, separately for each league (NBA, WNBA and college). Export it to move it between browsers, devices and the Windows app.</p><div class="set-list">
         <button class="set-row" data-dexport><span><b>Export my data</b><small>Tracked bets, stars, favorites, your players, Pick'em and settings, as a file</small></span><em class="set-val">Save</em></button>
         <button class="set-row" data-dcopy><span><b>Copy my data</b><small>The same, as text you can paste into another browser or the Windows app</small></span><em class="set-val">Copy</em></button>
@@ -80,6 +99,7 @@ function openSettings() {
         <button class="set-row" data-clearwatch><span><b>Clear your players</b><small>Remove everyone from the strip on Scores</small></span><em class="set-val danger">Clear</em></button>
       </div></section>
     </div>`;
+    drawHealth(sheet);
   };
   draw();
   const showVer = () => { const el = $('.set-appv', sheet.body); if (el) window.__TAURI__.app.getVersion().then(v => { el.textContent = `You're on version ${v}`; }).catch(() => {}); };

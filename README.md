@@ -23,6 +23,8 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 - **Games**: box score, win probability, game flow, shot chart, filterable play-by-play, team stats, leaders, ESPN highlight clips, a written recap, officials, where to watch, odds and line movement, and pre-game previews
 - **Scores page extras**: Your players (starred players' live lines), Pick'em, Who's out, top scorers, multi-view and This week
 - **Standings** by conference and league, plus the playoff picture
+- **Playoff odds** (Standings → Odds): the rest of the season simulated thousands of times in the browser, with projected records and playoff, Play-In, seed, Finals and title chances, plus "Sim the season" for one full outcome. Inputs (records, ratings, games left) refresh every 3 hours (`tools/sim.mjs`, `sim-data` branch)
+- **Health check** every 6 hours (`tools/health.mjs`): data files fresh and complete, background jobs passing, ESPN feeds still shaped as expected, all three sites on the current build, and GitHub Pages' CORS header for the Windows app. Opens a GitHub issue while something's wrong and closes it when fixed; results are in Settings → Data status (`health-data` branch)
 - **Teams**: roster, injury report, schedule strip and month calendar, and league-wide team rankings
 - **Players**: averages, last-10 trend chart, splits, recent games, collapsible career stats, and share-as-image
 - **Leaders** in 11 categories, plus Fullcourt's own MVP and Rookie races

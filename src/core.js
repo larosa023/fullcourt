@@ -938,6 +938,7 @@ function renderStandings() {
   $('#stdSeason').textContent = wOff ? `${yr} season · final` : `${S.standings.season || 'Current'} season`;
   $('#v-standings .legend').hidden = S.stdConf >= 3;
   if (IS_W) $('#stdLegend').innerHTML = '<span><i class="zone po"></i>Playoff spot (top 8 in the league)</span><span>Tap a team for roster and schedule</span>';
+  if (S.stdConf === 5) { lazy('sim').then(m => m.renderOdds(wrap)).catch(() => { wrap.innerHTML = '<div class="empty" style="border:0"><b>Playoff odds didn\'t load</b><button class="btn" data-retry="standings">Try again</button></div>'; }); return; }
   if (S.stdConf !== 4 && !wrap.classList.contains('tbl-wrap')) { wrap.classList.add('tbl-wrap', 'drag-x'); wrap.dataset.drag = ''; }
   if (S.stdConf === 4) { if (!wrap.querySelector('.cup')) wrap.innerHTML = '<div class="sk" style="height:420px"></div>'; lazy('cup').then(m => m.renderCup(wrap)).catch(() => { wrap.innerHTML = '<div class="empty" style="border:0"><b>The NBA Cup didn\'t load</b><button class="btn" data-retry="standings">Try again</button></div>'; }); return; }
   if (S.stdConf === 3) { wrap.innerHTML = '<div class="sk" style="height:420px"></div>'; lazy('playoff').then(m => { if (S.stdConf === 3) { wrap.innerHTML = m.playoffBracket(); dragScroll(wrap); } }).catch(() => { wrap.innerHTML = '<div class="empty"><b>Couldn\'t load the bracket</b>Check your connection.</div>'; }); return; }
@@ -2309,7 +2310,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-08a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-08b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

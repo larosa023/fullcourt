@@ -1,0 +1,38 @@
+# Health check every 6 hours: stale or broken data files, failed background jobs, ESPN feeds that changed shape, and
+# the three websites (current build, and GitHub Pages' CORS header for the Windows app). Keeps one GitHub issue open
+# while something's wrong (GitHub emails the repo owner) and closes it when everything's fine. Results also go to the
+# health-data branch, which Settings → Data status reads.
+name: health
+on:
+  push:
+    branches: [main]
+    paths: ['tools/health.mjs', '.github/workflows/health.yml']
+  schedule:
+    - cron: '47 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+  actions: read
+concurrency: { group: health, cancel-in-progress: false }
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # right after a push, give the three sites a few minutes to deploy first
+          if [ "${{ github.event_name }}" = "push" ]; then sleep 240; fi
+          mkdir pub && node tools/health.mjs pub/health.json
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan health-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add health.json && git commit -qm "health $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" health-data
