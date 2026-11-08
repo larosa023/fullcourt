@@ -7,6 +7,8 @@
 const IS_APP = !!window.__TAURI__;
 // the app's mini scoreboard window loads the same page as mini.html: today's scores and tracked bets, compact
 const IS_MINI = IS_APP && /\/mini\.html$/.test(location.pathname);
+// where this build's files live: the Windows app may run the newest site straight from GitHub Pages (desktop/loader.html)
+const ASSET_BASE = window.FC_BASE || document.baseURI;
 if (IS_MINI && location.hash !== '#scores') history.replaceState(null, '', '#scores');
 if (IS_APP) {
   const T = window.__TAURI__;
@@ -212,6 +214,18 @@ function etNow() {
 let lateLive = false;
 const etToday = () => { const n = etNow(); return n.hour < ROLLOVER_HOUR && lateLive ? addDays(n.ymd, -1) : n.ymd; };
 
+/* Scores page layout: the order of its sections (set in Settings), applied by moving them into place */
+const HOME_MAIN = ['bets', 'watch', 'games', 'perf'], HOME_SIDE = ['race', 'picks', 'out'];
+const HOME_EL = { bets: '#betBlock', watch: '#watchBlock', games: '#games', perf: '#perfBlock', race: '#racePanel', picks: '#pickPanel', out: '#outPanel' };
+function homeOrder() {
+  let o = null; try { o = JSON.parse(localStorage.getItem('fc-home') || 'null'); } catch (e) {}
+  const fix = (list, def) => { const l = (Array.isArray(list) ? list : []).filter(k => def.includes(k)); return [...new Set([...l, ...def])]; };
+  return { main: fix(o?.main, HOME_MAIN), side: fix(o?.side, HOME_SIDE) };
+}
+function applyHome() {
+  const o = homeOrder();
+  for (const list of [o.main, o.side]) { const els = list.map(k => $(HOME_EL[k])).filter(Boolean); els.forEach(el => el.parentElement.append(el)); }
+}
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2600);
@@ -1626,7 +1640,7 @@ async function openTeam(id) {
       ${logo(tm.abbr, 108, 'lg small')}
       <p>${esc(t.standingSummary || (row ? (IS_C ? `${S.teams[id]?.confShort || ''}` : `${ordinal(row.seed)} in the ${row.conf ? 'West' : 'East'}`) : ''))}</p>
       <h2 class="h-display">${esc(tm.name)}</h2>
-      <p>${esc(t.recordSummary || (row ? `${row.w}-${row.l}` : ''))}${roster.coach?.[0] ? ` · Head coach ${esc(roster.coach[0].firstName)} ${esc(roster.coach[0].lastName)}` : ''}</p>
+      <p>${esc(t.recordSummary || (row ? `${row.w}-${row.l}` : ''))}${roster.coach?.[0] ? ` · Head coach ${IS_C ? `${esc(roster.coach[0].firstName)} ${esc(roster.coach[0].lastName)}` : `<button class="th-coach" data-coach="${esc(tm.abbr)}" data-coachteam="${esc(id)}" title="Coach and front office">${esc(roster.coach[0].firstName)} ${esc(roster.coach[0].lastName)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>`}` : ''}</p>
     </div>
     ${row ? `<div class="statline">
       ${(IS_C
@@ -2295,7 +2309,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-07n'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-08a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2305,8 +2319,8 @@ const modP = {};
 function lazy(name) {
   if (!modP[name]) {
     const m = MODS[name];
-    const css = m?.css ? new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = m.css; l.onload = l.onerror = res; document.head.append(l); }) : null;
-    modP[name] = Promise.all([import(new URL(m.js, document.baseURI).href), css]).then(([x]) => x).catch(e => { delete modP[name]; throw e; });
+    const css = m?.css ? new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = new URL(m.css, ASSET_BASE).href; l.onload = l.onerror = res; document.head.append(l); }) : null;
+    modP[name] = Promise.all([import(new URL(m.js, ASSET_BASE).href), css]).then(([x]) => x).catch(e => { delete modP[name]; throw e; });
   }
   return modP[name];
 }
@@ -3430,6 +3444,7 @@ document.addEventListener('click', e => {
   const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game, g.dataset.legpid ? { focus: g.dataset.legpid } : {}); return; }
   const tm = el.closest('[data-team]'); if (tm) { openTeam(tm.dataset.team); return; }
   const p = el.closest('[data-player]'); if (p) { openPlayer(p.dataset.player); return; }
+  const co = el.closest('[data-coach]'); if (co) { lazy('coach').then(m => m.openCoach(co.dataset.coach, co.dataset.coachteam, co.textContent.trim())); return; }
   const nl = el.closest('[data-nickleg]'); if (nl) { closeSearch(); lazy('history').then(m => m.openLegend({ br: nl.dataset.nickleg })); return; }
   const d = el.closest('[data-date]'); if (d) { pickDate(d.dataset.date); return; }
   const r = el.closest('[data-rail]'); if (r) { const rail = $('#rail'); rail.scrollBy({ left: +r.dataset.rail * rail.clientWidth * 0.7, behavior: reduced ? 'auto' : 'smooth' }); return; }
@@ -3465,6 +3480,7 @@ function boot() {
 renderLeadChips();
 renderMini();
 renderFavLink();
+applyHome();
 go(location.hash.slice(1) || 'scores', false);
 wireDrag();
 $$('.seg').forEach(placeKnob);
@@ -3538,6 +3554,18 @@ async function appUpdateCheck(manual = false) {
 if (IS_APP && !IS_MINI) {
   let lastChk = 0; const chk = () => { if (Date.now() - lastChk < 60e3) return; lastChk = Date.now(); appUpdateCheck(); };
   setTimeout(chk, 5000); setInterval(chk, 10 * 60e3);
+  // running the newest site from GitHub Pages: when a newer one is published, reload into it (right away if the window
+  // is hidden or in the tray, otherwise the next time you come back to it)
+  if (window.FC_LIVE) {
+    const mine = [...document.querySelectorAll('script[type=importmap]')].map(s => s.textContent.match(/core\.[\w-]+\.js/)?.[0]).find(Boolean);
+    let newer = false;
+    const siteChk = async () => {
+      if (newer) { if (document.hidden) location.reload(); return; }
+      try { const h = await (await fetch(window.FC_BASE + 'index.html?t=' + Date.now(), { cache: 'no-store' })).text(); const theirs = h.match(/core\.[\w-]+\.js/)?.[0]; if (mine && theirs && theirs !== mine) { newer = true; if (document.hidden) location.reload(); } } catch (e) {}
+    };
+    setInterval(siteChk, 10 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (document.hidden && newer) location.reload(); else if (!document.hidden) siteChk(); });
+  }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) chk(); });
   window.addEventListener('focus', chk);
 }

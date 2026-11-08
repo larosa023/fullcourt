@@ -531,6 +531,9 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .th-band .lg.small { width: 54px; height: 54px; margin-bottom: auto; filter: drop-shadow(0 4px 10px rgb(0 0 0 / .3)); }
 .th-band h2 { font-size: 40px; margin: 0; }
 .th-band p { margin: 0; font-size: 13.5px; opacity: .85; }
+.th-coach { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px 1px 7px; margin-left: 2px; border-radius: 8px; font: inherit; font-weight: 650; color: inherit; background: rgb(255 255 255 / .14); text-decoration: underline; text-decoration-color: rgb(255 255 255 / .4); text-underline-offset: 3px; }
+.th-coach:hover { background: rgb(255 255 255 / .24); }
+.th-coach svg { width: 12px; height: 12px; }
 .statline { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .statline div { background: var(--surface); padding: 10px 12px; }
 .statline span { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
@@ -1371,7 +1374,7 @@ a.wt:hover { border-color: var(--accent); transform: translateY(-1px); }
 .watch .card-h .eyebrow { text-transform: none; letter-spacing: .02em; }
 /* settings: hide what's switched off */
 html.no-odds .odds-line, html.no-odds .game .ml, html.no-odds .odds-card, html.no-odds .mvt { display: none !important; }
-html.no-bets #betBlock, html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
+html.no-race #racePanel, html.no-bets #betBlock, html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
 .set-btn svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .mast .set-btn { display: none; } }
 

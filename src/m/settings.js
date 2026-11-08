@@ -1,13 +1,17 @@
 /* ---------------- settings ---------------- */
 const PREFS = [
   ['odds', 'Betting odds', 'Moneylines, spreads, totals and line movement on score cards and in games'],
-  ['bets', 'My bets', 'Bets you track from Ask, on the Scores page'],
-  ['watch', 'Your players', 'The strip of starred players at the top of Scores'],
-  ['perf', 'Top scorers', 'The scorers and players-to-watch strip under the games'],
-  ['picks', "Pick'em", 'Pick the winner of each game and track your record'],
-  ['out', "Who's out", 'Injury report for the day on the Scores page'],
   ['ticker', 'Score ticker', 'The scrolling scores under the header on a computer'],
 ];
+// the Scores page's sections, in the order you choose (Settings > Scores page); games can't be hidden
+const HOME_ROWS = { bets: ['My bets', 'Bets you track from Ask'], watch: ['Your players', 'The strip of players you starred'], games: ['Games', 'The day\'s games'], perf: ['Top scorers', 'Scorers and players to watch, under the games'],
+  race: ['Conference race', 'The standings beside the games'], picks: ["Pick'em", 'Pick the winner of each game and track your record'], out: ["Who's out", 'The day\'s injury report'] };
+const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>', DN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+function homeSection(p) {
+  const o = homeOrder();
+  const list = (keys, col) => keys.map((k, i) => { const [t, d] = HOME_ROWS[k], on = p[k] !== false; return `<div class="set-row hm-row${on ? '' : ' off'}"><span><b>${esc(t)}</b><small>${esc(d)}</small></span><span class="hm-ctl"><button class="hm-mv" data-hmove="${col}:${k}:-1" aria-label="Move ${esc(t)} up"${i ? '' : ' disabled'}>${UP}</button><button class="hm-mv" data-hmove="${col}:${k}:1" aria-label="Move ${esc(t)} down"${i < keys.length - 1 ? '' : ' disabled'}>${DN}</button>${k === 'games' ? '<i class="sw hm-fix" title="Always shown"><i></i></i>' : `<button class="hm-sw" role="switch" aria-checked="${on}" data-pref="${k}" aria-label="Show ${esc(t)}"><i class="sw"><i></i></i></button>`}</span></div>`; }).join('');
+  return `<section><h3 class="set-h">Scores page</h3><p class="set-note hm-sub">Main column</p><div class="set-list">${list(o.main, 'main')}</div><p class="set-note hm-sub">Beside the games${'' }</p><div class="set-list">${list(o.side, 'side')}</div><p class="set-note">Move sections up or down and switch off the ones you don't want. On phones the side panels come after the games.</p></section>`;
+}
 const readPrefs = () => { try { return JSON.parse(localStorage.getItem('fc-prefs') || '{}') || {}; } catch (e) { return {}; } };
 function setPref(k, on) {
   const p = readPrefs();
@@ -51,6 +55,7 @@ function openSettings() {
   const draw = () => {
     const p = readPrefs();
     sheet.body.innerHTML = `<div class="set">
+      ${homeSection(p)}
       <section><h3 class="set-h">Show on the site</h3><div class="set-list">
         ${PREFS.map(([k, t, d]) => { const on = p[k] !== false; return `<button class="set-row" role="switch" aria-checked="${on}" data-pref="${k}"><span><b>${esc(t)}</b><small>${esc(d)}</small></span><i class="sw"><i></i></i></button>`; }).join('')}
       </div></section>
@@ -62,7 +67,7 @@ function openSettings() {
         <button class="set-row" data-openmini><span><b>Mini scoreboard</b><small>A small always-on-top window with today's games and your tracked bets</small></span><em class="set-val">Open</em></button>
         <button class="set-row" data-appcheck><span><b>Check for updates</b><small class="set-appv">Fullcourt for Windows</small></span><em class="set-val">Check</em></button>
         <a class="set-row" href="https://github.com/larosa023/fullcourt/releases" target="_blank" rel="noopener"><span><b>Release notes</b><small>Every version on GitHub</small></span><em class="set-val">Open</em></a>
-      </div><p class="set-note">The app also checks by itself when it opens, every 10 minutes while it runs (even in the tray), and when you come back to it.</p></section>` : ''}
+      </div><p class="set-note">${window.FC_LIVE ? 'Running the newest Fullcourt straight from the web: new features and fixes arrive on their own (when you open the app, or the next time it\'s minimized or in the tray), with no update needed. ' : window.FC_BASE ? 'Running the copy built into the app (it couldn\'t reach the newest one when it opened). ' : ''}App updates are only for the Windows side (the window, tray and mini scoreboard). The app checks for those by itself when it opens, every 10 minutes while it runs (even in the tray), and when you come back to it.</p></section>` : ''}
       <section><h3 class="set-h">Isle</h3><div class="set-list">
         <button class="set-row" role="switch" aria-checked="${isleOn()}" data-isle><span><b>Connect to Isle</b><small>Isle is a Dynamic Island for Windows. It shows your team's live games and the ones you send with the Show on Isle button in a game, at the top of your screen</small></span><i class="sw"><i></i></i></button>
         <a class="set-row" href="https://github.com/larosa023/Isle/releases/latest" target="_blank" rel="noopener"><span><b>Get Isle</b><small>Free, for Windows 10 and 11</small></span><em class="set-val">Open</em></a>
@@ -100,8 +105,10 @@ function openSettings() {
       else { val.textContent = "Couldn't check"; val.classList.add('danger'); toast("Couldn't reach GitHub. Try again in a minute"); }
       return;
     }
+    const hm = e.target.closest('[data-hmove]');
+    if (hm) { const [col, k, d] = hm.dataset.hmove.split(':'), o = homeOrder(), l = o[col], i = l.indexOf(k), j = i + +d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; lsSet('fc-home', JSON.stringify(o)); applyHome(); draw(); return; }
     const r = e.target.closest('[data-pref]');
-    if (r) { const on = r.getAttribute('aria-checked') !== 'true'; setPref(r.dataset.pref, on); r.setAttribute('aria-checked', on); return; }
+    if (r) { const on = r.getAttribute('aria-checked') !== 'true'; setPref(r.dataset.pref, on); r.setAttribute('aria-checked', on); r.closest('.hm-row')?.classList.toggle('off', !on); return; }
     const st = e.target.closest('[data-settheme]');
     if (st) { openThemeMenu(st); const t = setInterval(() => { if (!$('.theme-menu')) { clearInterval(t); if (sheet.alive) draw(); } }, 300); return; }
     if (e.target.closest('[data-dexport]')) { toast(await saveDataFile()); return; }

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fullcourt</title>
+<style>html,body{margin:0;height:100%;background:#0D0F12}@media (prefers-color-scheme:light){html,body{background:#F4EFE6}}</style>
+<script>
+/* The Windows app's front door. It loads the newest Fullcourt from GitHub Pages, so site changes reach the app the moment
+   they're published, with no app update. The page keeps this app's own address, so your saved settings, picks, bets and
+   mock drafts stay put. Offline, or if GitHub Pages is slow (3 s), it opens the copy built into the app (app.html). */
+(async () => {
+  const REMOTE = 'https://larosa023.github.io/fullcourt/';
+  let html = null, base = '';
+  const local = /[?&]local\b/.test(location.search) || sessionStorage.getItem('fc-local') === '1';
+  if (!local && navigator.onLine !== false) {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
+      const r = await fetch(REMOTE + 'index.html?t=' + Date.now(), { signal: ctl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      if (r.ok) { const h = await r.text(); if (/"core":"\.\/assets\//.test(h)) { html = h; base = REMOTE; } }
+    } catch (e) {}
+  }
+  if (!html) html = await (await fetch('app.html')).text();
+  if (base) html = html.replace(/(["'(])\.\/(assets|fonts|data|ocr)\//g, `$1${base}$2/`);
+  html = html.replace(/<head>/i, `<head><script>window.FC_BASE=${JSON.stringify(base || location.href.replace(/[^/]*([?#].*)?$/, ''))};window.FC_LIVE=${base ? 'true' : 'false'}<\/script>`);
+  document.open(); document.write(html); document.close();
+})();
+</script>
+</head>
+<body></body>
+</html>

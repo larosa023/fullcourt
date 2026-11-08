@@ -1034,7 +1034,7 @@ let ocrP = null;
 function loadOCR() {
   if (window.Tesseract) return Promise.resolve(window.Tesseract);
   return ocrP || (ocrP = new Promise((res, rej) => {
-    const s = document.createElement('script'); s.src = new URL('ocr/tesseract.min.js', document.baseURI).href; s.async = true;
+    const s = document.createElement('script'); s.src = new URL('ocr/tesseract.min.js', ASSET_BASE).href; s.async = true;
     s.onload = () => res(window.Tesseract); s.onerror = () => { ocrP = null; rej(new Error('ocr')); };
     document.head.append(s);
   }));
@@ -1060,7 +1060,7 @@ async function readImage(file, onProgress) {
   const T = await loadOCR();
   if (!ocrWorker) {
     ocrWorker = await T.createWorker('eng', 1, {
-      workerPath: new URL('ocr/worker.min.js', document.baseURI).href, corePath: new URL('ocr/', document.baseURI).href, langPath: new URL('ocr/', document.baseURI).href, workerBlobURL: false, gzip: true,
+      workerPath: new URL('ocr/worker.min.js', ASSET_BASE).href, corePath: new URL('ocr/', ASSET_BASE).href, langPath: new URL('ocr/', ASSET_BASE).href, workerBlobURL: false, gzip: true,
       logger: m => { if (m.status === 'recognizing text') onProgress?.(0.35 + 0.65 * (m.progress || 0)); else if (/loading|initializ/.test(m.status)) onProgress?.(0.3 * (m.progress || 0)); },
     });
   }

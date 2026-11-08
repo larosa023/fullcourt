@@ -27,6 +27,7 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 - **Players**: averages, last-10 trend chart, splits, recent games, collapsible career stats, and share-as-image
 - **Leaders** in 11 categories, plus Fullcourt's own MVP and Rookie races
 - **Replay**: a feed of every finished game's highlights, newest first, filterable by team and date, with each game's top plays
+- **Coaches and front offices**: tap a head coach on a team page for their record, seasons, awards and path, plus the front office's record and the team's recent trades (`tools/coach.mjs`, weekly, `coach-data` branch)
 - **Mock Draft**: NBA and WNBA mock drafts with a lottery simulator, team needs, a big board, prospect profiles and a share card. Order, needs and the prospect board refresh daily (`tools/draft.mjs`, published to the `draft-data` branch)
 - **History** (NBA and WNBA): games on this date back to 2001, every champion and MVP, past standings and leaders, all-time career leader boards with a milestone watch, and profiles for any player past or present. Career leaders and legend profiles refresh weekly from Basketball-Reference (`tools/hist.mjs`, published to the `hist-data` branch)
 - **Capsheet** (Cap tab): every NBA team's cap sheet, contract details, options and guarantees, payroll vs the cap, tax and aprons. Contracts refresh weekly from Basketball-Reference and ESPN (`tools/cap.mjs`, published to the `cap-data` branch)

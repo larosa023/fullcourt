@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08a', date: 'Nov 8', items: [
+    ['Coaches and front offices', 'On any NBA or WNBA team page, tap the head coach\'s name. You get their record this season, with the team and in their career, playoff record and titles, every season they\'ve coached, their awards, the jobs that got them here, and, for NBA teams, who runs the front office, their record in charge, and the team\'s recent trades.'],
+    ['Arrange the Scores page', 'Settings now has a Scores page section: move My bets, Your players, the games, Top scorers, the Conference race, Pick\'em and Who\'s out up or down, and switch off any you don\'t want (the Conference race can now be hidden too).'],
+    ['The Windows app updates itself', 'From this version on, the app runs the newest Fullcourt straight from the web, so new features and fixes show up on their own without installing anything. Your saved data stays where it is, and if you\'re offline it opens the copy built into the app.'],
+  ] },
   { id: '2026-11-07n', date: 'Nov 7', items: [
     ['Photo fix', 'Legend cards in History now always show the photo the player\'s profile shows. Some, like Gary Payton\'s, were falling back to initials.'],
   ] },

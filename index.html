@@ -62,9 +62,9 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"./assets/core.0f79558448.js"}}</script>
-<link rel="modulepreload" href="./assets/core.0f79558448.js">
-<link rel="stylesheet" href="./assets/core.6c93f7dedd.css">
+<script type="importmap">{"imports":{"core":"./assets/core.85b4653be1.js"}}</script>
+<link rel="modulepreload" href="./assets/core.85b4653be1.js">
+<link rel="stylesheet" href="./assets/core.d757f59bf3.css">
 </head>
 <body>
 
@@ -156,7 +156,7 @@
         </div>
       </div>
       <aside class="side" id="side">
-        <div class="panel">
+        <div class="panel" id="racePanel">
           <h3><span>Conference race</span><button class="link-btn" data-view="standings">Full table</button></h3>
           <div class="seg" id="miniSeg" style="margin-bottom:10px"><span class="knob"></span><button data-conf="0" aria-pressed="true">East</button><button data-conf="1" aria-pressed="false">West</button></div>
           <div id="miniStd"></div>
@@ -326,6 +326,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="./assets/core.0f79558448.js"></script>
+<script type="module" src="./assets/core.85b4653be1.js"></script>
 </body>
 </html>
