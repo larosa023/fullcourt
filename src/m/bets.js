@@ -450,7 +450,7 @@ async function shareCard(card, file = 'fullcourt-bet.png') {
     });
     y += 150;
   }
-  font(500, 22, mono); x.fillStyle = C.mute; x.fillText('nbafullcourty.netlify.app', pad, H - 44);
+  font(500, 22, mono); x.fillStyle = C.mute; x.fillText(SHARE_TAG, pad, H - 44);
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   if (!blob) { toast("Couldn't make the image"); return; }
   const f = new File([blob], file, { type: 'image/png' });

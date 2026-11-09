@@ -5,6 +5,8 @@
    on the website it doesn't, so none of this runs there. In the app: outside links open in the normal browser,
    alerts go to Windows notifications, and a banner offers new versions from GitHub Releases. */
 const IS_APP = !!window.__TAURI__;
+// the address printed on share images: where this copy of Fullcourt actually lives
+const SHARE_TAG = IS_APP ? 'Fullcourt for Windows' : location.host + (location.hostname.endsWith('github.io') ? '/fullcourt' : '');
 // the app's mini scoreboard window loads the same page as mini.html: today's scores and tracked bets, compact
 const IS_MINI = IS_APP && /\/mini\.html$/.test(location.pathname);
 // where this build's files live: the Windows app may run the newest site straight from GitHub Pages (desktop/loader.html)

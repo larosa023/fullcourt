@@ -15,7 +15,7 @@ async function canvasKit() {
   const foot = () => {
     x.fillStyle = C.line; x.fillRect(72, 968, 936, 2);
     text('FULL', 72, 1024, font(800, 34), C.ink); const w = (x.measureText('FULL').width); text('COURT', 72 + w, 1024, `italic ${font(800, 34)}`, C.accent);
-    text('nbafullcourty.netlify.app', 1008, 1022, font(500, 22, 'mono'), C.muted, 'right');
+    text(SHARE_TAG, 1008, 1022, font(500, 22, 'mono'), C.muted, 'right');
   };
   return { c, x, C, font, text, fit, size, foot };
 }
