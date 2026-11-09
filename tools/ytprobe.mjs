@@ -1,31 +1,30 @@
 // one-off diagnostics for the highlights job (removed after use)
-const K = process.env.YT_KEY || '';
 const UA = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'accept-language': 'en-US,en;q=0.9' };
-console.log('key present:', !!K, 'length', K.length);
-let REF = '';
-for (const ref of ['', 'https://nbafullcourty.netlify.app/', 'https://fullcourt-46z.pages.dev/', 'https://larosa023.github.io/', 'https://larosa023.github.io/fullcourt/', 'http://localhost/', 'https://tauri.localhost/']) {
-  const r = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&id=UCWJ2lWNubArHWmf3FIHbfcQ&key=${K}`, { headers: ref ? { referer: ref } : {} });
-  const j = await r.json().catch(() => ({}));
-  console.log('API referer', JSON.stringify(ref), r.status, j.error?.message || j.items?.[0]?.snippet?.title);
-  if (r.ok && !REF) REF = ref || 'none';
+const get = async u => { const r = await fetch(u, { headers: UA }); return [r.status, await r.text()]; };
+for (const h of ['BigTenNetwork', 'btn', 'BTN', 'bigten', 'BigTen', 'FOXCollegeHoops', 'foxcollegehoops', 'FOXCBB', 'CBBonFOX', 'FOXSportsCollegeHoops', 'ACCNetwork', 'SECNetworkVideo', 'secnetwork']) {
+  const [s, t] = await get(`https://www.youtube.com/@${h}`);
+  console.log(`@${h}`, s, t.match(/"externalId":"(UC[\w-]{22})"/)?.[1] || '', t.match(/<meta property="og:title" content="([^"]+)"/)?.[1] || '');
 }
-const api = async path => { const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}&key=${K}`, { headers: REF && REF !== 'none' ? { referer: REF } : {} }); return r.ok ? r.json() : null; };
-const handles = ['NBA', 'ACCDigitalNetwork', 'theACC', 'Big12Conference', 'BigTenNetwork', 'B1GPlus', 'FOXCollegeHoops', 'FOXSports', 'SEC', 'SECNetwork', 'secsports', 'BIGEASTConference', 'BigEast', 'NCAAMarchMadness', 'NCAA', 'ESPN', 'espnwbb', 'ESPNCollegeBasketball'];
-for (const h of handles) {
-  let id = '', name = '';
-  try { const r = await fetch(`https://www.youtube.com/@${h}`, { headers: UA }); const t = await r.text(); id = t.match(/"externalId":"(UC[\w-]{22})"/)?.[1] || t.match(/<meta itemprop="identifier" content="(UC[\w-]{22})"/)?.[1] || t.match(/channel_id=(UC[\w-]{22})/)?.[1] || ''; name = t.match(/<meta property="og:title" content="([^"]+)"/)?.[1] || ''; console.log(`@${h}`, r.status, id, name); } catch (e) { console.log(`@${h}`, 'ERR', e.message); }
-  if (!id) continue;
-  if (REF) {
-    let page = '', n = 0;
-    do {
-      const j = await api(`playlists?part=snippet,contentDetails&channelId=${id}&maxResults=50${page ? `&pageToken=${page}` : ''}`); if (!j) { console.log('  playlists API failed'); break; }
-      for (const p of j.items || []) { const t = p.snippet.title; if (/women|wbb|full game|highlight|condensed/i.test(t)) console.log('  PL', p.id, p.contentDetails.itemCount, p.snippet.publishedAt?.slice(0, 10), t); }
-      page = j.nextPageToken; n++;
-    } while (page && n < 6);
-    const u = await api(`playlistItems?part=snippet&maxResults=8&playlistId=UU${id.slice(2)}`);
-    for (const it of u?.items || []) console.log('  upload', it.snippet.publishedAt?.slice(0, 16), it.snippet.title);
-  } else {
-    const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`, { headers: UA }); const t = await r.text();
-    console.log('  feed', r.status, (t.match(/<title>([^<]+)/g) || []).slice(1, 9).join(' / '));
+const CH = { NBA: 'UCWJ2lWNubArHWmf3FIHbfcQ', ACC: 'UC0hy7TcR1gGD8nQBqrF2FaA', Big12: 'UCLnfOCTbfqMy_3ah8OmTHEQ', SEC: 'UC60q_WUDde_NK-ze3frvtiA', BigEast: 'UCAcXdiimhsuivSn2PxtsRFw', FOX: 'UCwNqHDsnBCKT-olwJwIFyfg', NCAA: 'UC0nOdMq78X8ifkIxnIoqfHQ' };
+const KNOWN = { BTNwbb: 'PL2RRF9GtC9s32jHtkN74wyLXRtTR5Ash8', B12wbb2526: 'PLhh7fyF6r5qXCuhDgwdKKfCIzXkgF4fqx', ACCwbb2627: 'PLd1lJof_DUHc' };
+for (const [n, pl] of Object.entries(KNOWN)) {
+  const [s, t] = await get(`https://www.youtube.com/feeds/videos.xml?playlist_id=${pl}`);
+  const e = [...t.matchAll(/<entry>[\s\S]*?<title>([^<]+)<\/title>[\s\S]*?<published>([^<]+)/g)].map(m => m[2].slice(0, 10) + ' ' + m[1]);
+  console.log('KNOWN', n, pl, s, e.length, '\n   ' + e.slice(0, 6).join('\n   '));
+}
+for (const [n, id] of Object.entries(CH)) {
+  const [s, t] = await get(`https://www.youtube.com/feeds/videos.xml?playlist_id=UU${id.slice(2)}`);
+  const e = [...t.matchAll(/<entry>[\s\S]*?<title>([^<]+)<\/title>/g)].map(m => m[1]);
+  console.log(n, 'uploads feed', s, e.length, '|', e.slice(0, 5).join(' / '));
+  for (const tab of ['playlists', 'playlists?view=1&sort=lad']) {
+    const [s2, t2] = await get(`https://www.youtube.com/channel/${id}/${tab}`);
+    const found = new Map();
+    for (const m of t2.matchAll(/"(?:playlistId|contentId)":"(PL[\w-]{10,40})"/g)) {
+      const after = t2.slice(m.index, m.index + 4000);
+      const title = after.match(/"title":\{"(?:simpleText|content)":"([^"]+)"/)?.[1] || after.match(/"content":"([^"]+)"/)?.[1] || '';
+      if (!found.has(m[1])) found.set(m[1], title);
+    }
+    const hits = [...found].filter(([, t]) => /women|wbb|full game|game highlights|highlights/i.test(t));
+    console.log(' ', tab, s2, 'playlists seen', found.size, '\n    ' + hits.slice(0, 15).map(([p, t]) => p + ' ' + t).join('\n    '));
   }
 }
