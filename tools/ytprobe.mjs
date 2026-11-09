@@ -1,12 +1,11 @@
-// one-off: channel ids and title formats for women's highlight sources (removed after use)
+// one-off: official school channels and their women's video titles (removed after use)
 const K = process.env.YT_KEY, H = { referer: 'https://nbafullcourty.netlify.app/' };
 const api = async p => { const r = await fetch(`https://www.googleapis.com/youtube/v3/${p}&key=${K}`, { headers: H }); const j = await r.json(); if (!r.ok) console.log('API', r.status, j.error?.message); return j; };
-// channels from the last probe, by name
-const want = /^(Big Ten Women's Basketball|Women's Sports on FOX|ESPN|LSU Tiger TV|UCLA Athletics|Michigan Athletics|MarylandAthletics|USCAthletics|UK Sports Video)$/;
-const seen = new Map();
-const Q = ["Texas Longhorns women's basketball highlights", "Vanderbilt women's basketball highlights", "Ole Miss women's basketball highlights", "Oklahoma women's basketball highlights", "South Carolina Gamecocks women's basketball highlights", "Tennessee Lady Vols basketball highlights", "Alabama women's basketball highlights", "LSU women's basketball highlights", "Kentucky women's basketball highlights", "Big Ten Women's Basketball highlights", "Women's Sports on FOX college basketball highlights", "ESPN full game highlights women's college basketball", "Notre Dame women's basketball highlights", "TCU women's basketball highlights", "Duke women's basketball highlights"];
-for (const q of Q) {
-  const j = await api(`search?part=snippet&type=video&maxResults=10&order=date&publishedAfter=2026-11-03T00:00:00Z&q=${encodeURIComponent(q)}`);
-  console.log(`== ${q}`);
-  for (const i of j.items || []) { const ch = i.snippet.channelTitle; console.log(`   ${i.snippet.publishedAt.slice(0, 10)} | ${ch} [${i.snippet.channelId}] | ${i.snippet.title.replace(/&#39;/g, "'").replace(/&amp;/g, '&')}`); }
+const handles = ['GamecockAthletics', 'gamecocksonline', 'TexasLonghorns', 'texaslonghorns', 'LSUTigerTV', 'LSU', 'Vols', 'UTVolsAthletics', 'ladyvols', 'VanderbiltAthletics', 'VandyBoys', 'vucommodores', '12thManProductions', 'TexasAMAthletics', 'GeorgiaBulldogs', 'UGAAthletics', 'GatorsVideo', 'FloridaGators', 'ArkRazorbacks', 'arkansasrazorbacks', 'AuburnTigers', 'MizzouAthletics', 'OleMissRebels', 'HailState', 'OU_WBB', 'SoonerSports', 'AlabamaAthletics', 'UKAthletics', 'TCUAthletics', 'DukeWBB', 'NotreDameAthletics', 'UConnHuskies', 'UConnWBB', 'BaylorAthletics', 'BigEastConference', 'theamerican', 'SunBelt'];
+for (const h of handles) {
+  const c = await api(`channels?part=snippet,contentDetails&forHandle=${h}`); const ch = c.items?.[0]; if (!ch) { console.log(`@${h}: none`); continue; }
+  const up = await api(`playlistItems?part=snippet&maxResults=50&playlistId=${ch.contentDetails.relatedPlaylists.uploads}`);
+  const w = (up.items || []).map(i => i.snippet.title).filter(t => /women|wbb|w\. basketball|lady vols|lady/i.test(t) && /highlight|condensed|full game|recap/i.test(t));
+  console.log(`@${h}: ${ch.id} "${ch.snippet.title}" · ${w.length} women's highlight titles in last 50`);
+  for (const t of w.slice(0, 3)) console.log('     ', t);
 }
