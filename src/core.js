@@ -1754,7 +1754,8 @@ async function openTeam(id) {
     if (box) box.innerHTML = irCardHTML(list);
   }).catch(() => { const box = $(`#ir-${id}`, sheet.body); if (box) box.innerHTML = '<div class="card-h"><h4>Injury report</h4></div><p class="ir-clear">The injury report is unavailable right now.</p>'; });
   const s = $('.sg.next', sheet.body);
-  if (s) { const r = s.parentElement; r.scrollLeft = s.offsetLeft - 12; }
+  // bring the next game into view, measured against the strip itself (offsetLeft counts from the page, which overshot and clipped it)
+  if (s) { const r = s.parentElement; r.scrollLeft = Math.max(0, s.getBoundingClientRect().left - r.getBoundingClientRect().left + r.scrollLeft - 30); }
   const txBox = $(`#tx-${id}`, sheet.body);
   if (txBox) fillTeamExtras(id, evs, txBox);
   // playoff odds from the season simulator, linking to the team's odds page

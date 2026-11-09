@@ -540,7 +540,7 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .statline div { background: var(--surface); padding: 8px 12px; }
 .statline span { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
 .statline b { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
-.sched { padding: 2px 2px 6px; scroll-snap-type: x proximity; }
+.sched { padding: 2px 2px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 30px; }
 .sg { flex: none; width: 128px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; scroll-snap-align: start; display: grid; gap: 6px; transition: transform .2s var(--ease); }
 .sg:hover { transform: translateY(-2px); }
 .sg .d { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
