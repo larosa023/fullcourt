@@ -41,7 +41,7 @@ async function api(path) {
   if (!apiOK) return null;
   const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}&key=${KEY}`, { headers: { referer: REFERER } });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { console.log('API', r.status, j.error?.message || ''); apiOK = false; return null; }
+  if (!r.ok) { console.log('API', r.status, j.error?.message || '', '→ the YT_KEY key needs the YouTube Data API v3 allowed, and no website restriction (it runs on GitHub, not on a site)'); apiOK = false; return null; }
   return j;
 }
 
@@ -78,11 +78,27 @@ async function videos(s) {
     }
     if (out.length) return out;
   }
-  const r = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${pl}`, { headers: UA });
-  const t = r.ok ? await r.text() : '';
-  for (const m of t.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) out.push({ id: m[1].match(/<yt:videoId>([^<]+)/)?.[1], title: dec(m[1].match(/<title>([^<]+)/)?.[1] || ''), at: m[1].match(/<published>([^<]+)/)?.[1] });
-  console.log(`  feed ${s.src} ${pl}: ${r.status}, ${out.length} videos`);
+  out.push(...await feed(`playlist_id=${pl}`, `${s.src} playlist ${pl}`));
+  if (out.length) return out;
+  // the playlist feed doesn't work for every playlist, so fall back on the channel's latest uploads, picked out by title
+  // (the conferences put "Women's Basketball" in every women's video title)
+  const up = await uploads(s.ch, s.src);
+  return up.filter(v => s.lg === 'nba' ? /full game highlights/i.test(v.title) : /women.s basketball/i.test(v.title) && !!KIND(v.title));
+}
+async function feed(q, label) {
+  const out = [];
+  try {
+    const r = await fetch(`https://www.youtube.com/feeds/videos.xml?${q}`, { headers: UA });
+    const t = r.ok ? await r.text() : '';
+    for (const m of t.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) out.push({ id: m[1].match(/<yt:videoId>([^<]+)/)?.[1], title: dec(m[1].match(/<title>([^<]+)/)?.[1] || ''), at: m[1].match(/<published>([^<]+)/)?.[1] });
+    console.log(`  feed ${label}: ${r.status}, ${out.length} videos`);
+  } catch (e) { console.log(`  feed ${label}: ${e.message}`); }
   return out;
+}
+const upCache = new Map();
+function uploads(ch, src) {
+  if (!upCache.has(ch)) upCache.set(ch, feed(`playlist_id=UU${ch.slice(2)}`, `${src} uploads`).then(v => v.length ? v : feed(`channel_id=${ch}`, `${src} channel`)));
+  return upCache.get(ch);
 }
 
 /* ---------- NBA: "LAKERS at PISTONS | FULL GAME HIGHLIGHTS | November 8, 2026" ---------- */
@@ -162,11 +178,13 @@ async function main() {
   const games = { ...(prev.games || {}) }, ncaaw = { ...(prev.ncaaw || {}) };
   const stats = {};
   const misses = [];
+  const done = new Set();
   for (const s of SOURCES) {
     const vids = await videos(s);
     const k = `${s.lg} ${s.src}`; stats[k] = stats[k] || { seen: 0, added: 0 };
     for (const v of vids) {
-      if (!v.id) continue;
+      if (!v.id || done.has(v.id)) continue; // several sources can share a channel's uploads
+      done.add(v.id);
       stats[k].seen++;
       if (s.lg === 'nba' ? nbaVideo(v, games) : await ncaawVideo(v, ncaaw, s.src, misses, s.kind)) stats[k].added++;
     }
