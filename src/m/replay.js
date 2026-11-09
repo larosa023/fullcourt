@@ -7,12 +7,24 @@ const RP = { days: new Map(), team: '', date: '', cursor: null, back: 0, busy: f
 const RP_MAX_BACK = 45; // how far back the feed scrolls (days)
 const RP_FIRST = 8; // games to show before waiting for a scroll
 
-// full game highlights (the NBA's YouTube uploads), matched to games by a GitHub job: tools/yt.mjs, branch yt-data
+// YouTube videos matched to games by a GitHub job (tools/yt.mjs, branch yt-data): the NBA's full game highlights,
+// and for women's college the conferences' full game replays, condensed games and highlights
 const RP_YT = 'https://raw.githubusercontent.com/larosa023/fullcourt/yt-data/highlights.json';
 let rpYtP = null, rpYtAt = 0;
-const rpYt = () => { if (!rpYtP || Date.now() - rpYtAt > 10 * 60e3) { rpYtAt = Date.now(); rpYtP = fetch(`${RP_YT}?t=${Math.floor(Date.now() / 600e3)}`).then(r => (r.ok ? r.json() : { games: {} })).then(j => j.games || {}).catch(() => ({})); } return rpYtP; };
+const rpYt = () => { if (!rpYtP || Date.now() - rpYtAt > 10 * 60e3) { rpYtAt = Date.now(); rpYtP = fetch(`${RP_YT}?t=${Math.floor(Date.now() / 600e3)}`).then(r => (r.ok ? r.json() : { games: {} })).then(j => ({ games: j.games || {}, ncaaw: j.ncaaw || {} })).catch(() => ({ games: {}, ncaaw: {} })); } return rpYtP; };
 const rpNick = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const rpFull = g => { const Y = RP.yt || {}; return Y[`${g.day}|${rpNick(g.away.name)}|${rpNick(g.home.name)}`] || Y[`${g.day}|${rpNick(g.home.name)}|${rpNick(g.away.name)}`] || null; };
+const rpFull = g => { const Y = RP.yt?.games || {}; return Y[`${g.day}|${rpNick(g.away.name)}|${rpNick(g.home.name)}`] || Y[`${g.day}|${rpNick(g.home.name)}|${rpNick(g.away.name)}`] || null; };
+const RP_KIND = { full: 'Full game', cond: 'Condensed', ext: 'Extended', hl: 'Highlights' };
+// every YouTube video for a game, best first
+const rpVids = g => {
+  if (LGK === 'ncaaw') { const e = RP.yt?.ncaaw?.[g.id] || {}; return ['full', 'cond', 'ext', 'hl'].filter(k => e[k]?.id).map(k => ({ id: e[k].id, title: `${e[k].title}${e[k].src ? ` (${e[k].src} on YouTube)` : ''}`, label: RP_KIND[k] })); }
+  const f = rpFull(g); if (!f) return [];
+  return [f.id && { id: f.id, title: f.title, label: 'Full game' }, f.ext && { id: f.ext, title: f.extTitle || 'Extended highlights', label: 'Extended' }].filter(Boolean);
+};
+const rpChips = g => rpVids(g).map(v => `<button class="chip sm rp-full" data-rpfull="${esc(v.id)}" title="${esc(v.title)}">${PLAY_ICON}${esc(v.label)}</button>`).join('');
+const rpHas = g => !!g.hl || rpVids(g).length > 0;
+// for a game page: does Replay have a video for this game?
+async function rpHasVideo(id) { RP.yt = RP.yt || await rpYt(); return LGK === 'ncaaw' && !!RP.yt?.ncaaw?.[id]; }
 const rpVideo = h => { const s = h?.links?.source || {}; const mp4 = s.HD?.href || s.href || s.full?.href || ''; return mp4 ? { id: String(h.id), title: h.headline || 'Game highlights', dur: h.duration || 0, thumb: h.thumbnail || '', mp4 } : null; };
 const rpKey = day => `fc-rp:${LGK}:${day}`;
 function rpDay(day) {
@@ -20,7 +32,7 @@ function rpDay(day) {
   const isPast = day < S.today;
   if (isPast) { try { const c = sessionStorage.getItem(rpKey(day)); if (c) { const v = Promise.resolve(JSON.parse(c)); RP.days.set(day, v); return v; } } catch (e) {} }
   const p = getJSON(`${API}/scoreboard?dates=${day}${SB_QS}`, { retries: 1 }).then(d => {
-    const games = (d.events || []).map(e => { const g = parseGame(e); return { id: g.id, date: g.date, day, detail: statusText(g), note: g.note, away: g.away, home: g.home, hl: rpVideo(e.competitions?.[0]?.highlights?.[0]) }; }).filter(g => g.hl);
+    const games = (d.events || []).map(e => { const g = parseGame(e); return { id: g.id, date: g.date, day, state: g.state, detail: statusText(g), note: g.note, away: g.away, home: g.home, hl: rpVideo(e.competitions?.[0]?.highlights?.[0]) }; }).filter(g => g.hl || (LGK === 'ncaaw' && g.state === 'post')); // women's college: YouTube may have a video when ESPN doesn't
     games.sort((a, b) => new Date(b.date) - new Date(a.date));
     if (isPast) { try { sessionStorage.setItem(rpKey(day), JSON.stringify(games)); } catch (e) {} }
     return games;
@@ -36,15 +48,18 @@ function rpScore(g) {
 }
 function rpCard(g) {
   return `<article class="rp-card${RP.focus === g.id ? ' focus' : ''}" data-rpg="${esc(g.id)}">
-    <div class="rp-stage">
+    <div class="rp-stage">${g.hl ? `
       <img src="${esc(g.hl.thumb)}" alt="" loading="lazy" decoding="async">
       <button class="rp-play" data-rpplay aria-label="Play ${esc(g.hl.title)}"><span class="clip-btn">${PLAY_ICON}</span></button>
-      <span class="rp-dur">${durText(g.hl.dur)}</span>
+      <span class="rp-dur">${durText(g.hl.dur)}</span>` : (v => `
+      <img src="https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'">
+      <button class="rp-play" data-rpfull="${esc(v.id)}" aria-label="Play ${esc(v.title)}"><span class="clip-btn">${PLAY_ICON}</span></button>
+      <span class="rp-dur">${esc(v.label)}</span>`)(rpVids(g)[0] || { id: '', title: '', label: '' })}
     </div>
     <div class="rp-body">
       ${rpScore(g)}
       <div class="rp-act">
-        ${rpFull(g) ? `<button class="chip sm rp-full" data-rpfull="${esc(rpFull(g).id)}" title="${esc(rpFull(g).title)}">${PLAY_ICON}Full game</button>` : ''}
+        ${rpChips(g)}
         <button class="chip sm" data-rpclips aria-expanded="false">Top plays</button>
         <button class="chip sm" data-game="${esc(g.id)}">Box score</button>
         ${g.note ? `<span class="rp-note">${esc(g.note)}</span>` : ''}
@@ -68,8 +83,9 @@ async function renderReplay() {
   rpTeams();
   if (!root._wired) { root._wired = true; wireReplay(root); }
   RP.cursor = RP.date || S.today; RP.back = 0; RP.done = false; RP.shown = 0;
-  if (!IS_C && !IS_W) RP.yt = await Promise.race([rpYt(), sleep(2500).then(() => RP.yt || {})]); // don't hold the feed up for it
-  rpYt().then(y => { if (y === RP.yt) return; RP.yt = y; $$('.rp-card', root).forEach(c => { if (c.querySelector('[data-rpfull]')) return; const g = c._g; const f = g && rpFull(g); if (f) $('.rp-act', c).insertAdjacentHTML('afterbegin', `<button class="chip sm rp-full" data-rpfull="${esc(f.id)}">${PLAY_ICON}Full game</button>`); }); });
+  // NBA: don't hold the feed up for it; women's college waits a little longer, since some games are only in Replay because of it
+  if (LGK === 'nba' || LGK === 'ncaaw') RP.yt = await Promise.race([rpYt(), sleep(LGK === 'ncaaw' ? 5000 : 2500).then(() => RP.yt || null)]);
+  rpYt().then(y => { if (y === RP.yt) return; RP.yt = y; $$('.rp-card', root).forEach(c => { if (c.querySelector('.rp-act [data-rpfull]')) return; const g = c._g; if (g) $('.rp-act', c).insertAdjacentHTML('afterbegin', rpChips(g)); }); });
   await rpLoadMore(true);
   if (RP.focus) { const c = $(`.rp-card[data-rpg="${RP.focus}"]`, root); if (c) c.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
   // infinite scroll: load older days as the bottom comes into view
@@ -100,7 +116,7 @@ async function rpLoadMore(first = false) {
       const lists = await Promise.all(days.map(rpDay));
       if (!feed.isConnected) return;
       days.forEach((day, i) => {
-        const games = lists[i].filter(rpMatch); if (!games.length) return;
+        const games = lists[i].filter(g => rpMatch(g) && rpHas(g)); if (!games.length) return;
         feed.insertAdjacentHTML('beforeend', `${rpDayHead(day)}<div class="rp-grid">${games.map(rpCard).join('')}</div>`);
         games.forEach(g => { const c = feed.querySelector(`.rp-card[data-rpg="${g.id}"]`); if (c) c._g = g; });
         RP.shown += games.length;
@@ -136,7 +152,7 @@ function rpPlayFull(card, id) {
   rpStopYt(card);
   card._stage ||= stage.innerHTML;
   // starts muted (YouTube allows autoplay only when muted); unmute in the player
-  stage.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1" title="Full game highlights" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
+  stage.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1" title="Game video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
   $$('[data-rpfull]', card).forEach(b => b.setAttribute('aria-pressed', 'true'));
   if (!$('.rp-yt', card)) $('.rp-act', card).insertAdjacentHTML('beforeend', `<a class="rp-yt" href="https://www.youtube.com/watch?v=${encodeURIComponent(id)}" target="_blank" rel="noopener">YouTube ↗</a>`);
 }

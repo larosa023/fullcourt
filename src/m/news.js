@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08h', date: 'Nov 8', items: [
+    ['Women\'s college game videos in Replay', 'Replay now finds women\'s college game videos from the ACC, Big 12 and Big East YouTube channels: full game replays and condensed games (ACC), extended highlights (Big 12) and highlights. Each game gets a button for every video there is, and games ESPN has no clip for still show up when a conference does. A game\'s page shows Watch in Replay when there\'s a video.'],
+    ['More NBA full game highlights', 'NBA full game highlights now come from the NBA\'s nightly full game highlights list, so far more games have them, plus an Extended button when the NBA posts a longer cut.'],
+  ] },
   { id: '2026-11-08g', date: 'Nov 8', items: [
     ['Career highs on player pages', 'Every NBA, WNBA and college player page now has Career highs: their best game for points, rebounds, assists, 3-pointers, steals and blocks, with the opponent, score and date. Tap one to open that game. NBA and WNBA show regular season and playoffs separately, and you also get career counts of 30, 40 and 50-point games, double-doubles and triple-doubles.'],
   ] },

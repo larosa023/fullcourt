@@ -51,6 +51,17 @@ for (const D of DATA) {
   } catch (e) { add('data', D.name, false, `couldn't read ${D.file}: ${e.message}`); }
 }
 
+// the highlights file can be fresh while finding nothing (YouTube's feeds break now and then), so check the newest video
+try {
+  const d = await json(`${RAW}/yt-data/highlights.json?t=${now}`);
+  const newest = xs => Math.max(0, ...xs.map(x => Date.parse(x || '') || 0));
+  const nbaAt = newest(Object.values(d.games || {}).map(g => g.at));
+  const wAt = newest(Object.values(d.ncaaw || {}).flatMap(g => ['full', 'cond', 'ext', 'hl'].map(k => g[k]?.at)));
+  const how = d.api ? 'YouTube API' : 'public feeds (the YouTube API key isn\'t working)';
+  if (nbaOn) { const h = (now - nbaAt) / 3600e3; add('data', 'NBA game videos', h <= 36, nbaAt ? `newest video ${ago(h)} · via ${how}` : `none found · via ${how}`); }
+  if (M >= 11 || M <= 3) { const h = (now - wAt) / 3600e3; add('data', "Women's college game videos", h <= 96, wAt ? `newest video ${ago(h)} · via ${how}` : `none found · via ${how}`); }
+} catch (e) { add('data', 'Game videos', false, `couldn't read the highlights file: ${e.message}`); }
+
 // ---------- workflows ----------
 try {
   const wf = (await (await ghApi('/actions/workflows?per_page=100')).json()).workflows || [];
