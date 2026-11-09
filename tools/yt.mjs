@@ -193,7 +193,9 @@ function fit(name, team) {
   const n0 = norm(name); if (!n0) return 0;
   const n = ALIAS[n0] || n0;
   const dir = { e: 'eastern', w: 'western', n: 'northern', s: 'southern', c: 'central', se: 'southeastern', sw: 'southwestern', ne: 'northeastern', nw: 'northwestern' };
-  const n2 = n.replace(/^(se|sw|ne|nw|e|w|n|s|c) /, (m, d) => dir[d] + ' ');
+  // state abbreviations the conferences use: "Southern Ill.", "Central Conn. St."
+  const ST = { ill: 'illinois', conn: 'connecticut', ky: 'kentucky', tenn: 'tennessee', miss: 'mississippi', mich: 'michigan', wash: 'washington', fla: 'florida', ala: 'alabama', ark: 'arkansas', ind: 'indiana', minn: 'minnesota', wis: 'wisconsin', mo: 'missouri', okla: 'oklahoma', neb: 'nebraska', colo: 'colorado', ariz: 'arizona', ore: 'oregon', ga: 'georgia', tex: 'texas', va: 'virginia' };
+  const n2 = n.replace(/^(se|sw|ne|nw|e|w|n|s|c) /, (m, d) => dir[d] + ' ').replace(/\b(ill|conn|ky|tenn|miss|mich|wash|fla|ala|ark|ind|minn|wis|mo|okla|neb|colo|ariz|ore|ga|tex|va)\b/g, w => ST[w]);
   const alts = new Set([n, n2, n.replace(/\bst\b/g, 'state'), n2.replace(/\bst\b/g, 'state'), n.replace(/^st\b/, 'saint'), n.replace(/\bsaint\b/g, 'st')]);
   const vs = [team.location, team.shortDisplayName, team.abbreviation, team.displayName, `${team.location} ${team.name}`].map(norm).filter(Boolean);
   // initials: "UT Rio Grande Valley" → utrgv, "Long Island University" → liu
