@@ -518,6 +518,15 @@ async function answer(raw) {
   // one player
   if (players.length === 1) {
     const p = players[0];
+    // game finder ("Luka 40-point games", "Jokic 30 and 10", "Brunson triple-doubles in his career", "Tatum best scoring games")
+    if (time?.kind !== 'date' && time?.kind !== 'lastN') {
+      const q = gfParse(nn, dd, td);
+      const ddAsk = (q.dd || q.td) && (time?.kind === 'career' || has(/ (games|career|ever|all time|list|show|times|playoffs?|postseason|this season|this year) /));
+      if (q.conds.length || q.best || ddAsk) {
+        const scope = has(/ (playoffs?|postseason) /) ? 'post' : has(/ (this season|this year|so far) /) ? 'season' : has(/ regular season /) ? 'reg' : undefined;
+        return aGameFinder(p, q, { scope, opp: teams[0] && has(/ (vs|versus|against|v) /) ? teams[0] : null, stat: st });
+      }
+    }
     if (teams.length && has(/ (vs|versus|against|v) /)) return aPlayerLastN(p, 82, st, teams[0]);
     if (time?.kind === 'date') return aPlayerOnDate(p, time.date, st);
     if (time?.kind === 'lastN') { const r = await aPlayerLastN(p, time.n, st); r.ctx = { ...r.ctx, time }; return r; }
@@ -545,6 +554,111 @@ async function answer(raw) {
   return { text: `I couldn't match that to a player, team or stat. Try naming a player or team, a stat (points, rebounds, assists, threes…) and a time (last night, last 5 games, this season).`, examples: true, miss: true };
 }
 
+/* ---------------- game finder: "Luka 40-point games", "Jokic 30 and 10", "Wemby 5+ blocks in the playoffs" ----------------
+   Every season of the player's game log, filtered by the conditions in the question. */
+const GF_WORDS = [['pts', 'points?|pts|pt'], ['reb', 'rebounds?|rebs?|boards'], ['ast', 'assists?|asts?|dimes'], ['tpm', 'threes|three pointers?|3 pointers?|3s|3pm|treys'],
+  ['stl', 'steals?|stls?'], ['blk', 'blocks?|blks?|rejections'], ['tov', 'turnovers?|tovs?']];
+const GF_LABEL = { pts: 'points', reb: 'rebounds', ast: 'assists', tpm: 'threes', stl: 'steals', blk: 'blocks', tov: 'turnovers' };
+const gfLogs = new Map();
+// what the question asks for: conditions ("40 plus points"), double/triple-doubles, or a player's best games
+function gfParse(nn, dd, td) {
+  const conds = [];
+  const used = new Set();
+  const add = (k, v) => { if (!used.has(k) && v > 0 && v < 100) { used.add(k); conds.push([k, v]); } };
+  for (const [k, w] of GF_WORDS) {
+    const re = new RegExp(` (?:at least |over |more than )?(\\d{1,2}) (?:plus |or more )?(?:${w})(?: or more)?(?= |$)`, 'g');
+    for (const m of nn.matchAll(re)) add(k, +m[1] + (/^ (over|more than) /.test(m[0]) ? 1 : 0)); // "over 30" means 31+
+  }
+  // bare numbers: "30 and 10", "30 10 10" (from 30/10/10) → points, rebounds, assists
+  const bare = nn.match(/ (\d{2}) (?:and )?(\d{1,2})(?: (?:and )?(\d{1,2}))?(?! (?:plus |or more )?(?:points?|pts|pt|rebounds?|rebs?|boards|assists?|asts?|dimes|threes|3s|steals?|blocks?|games?|seasons?|minutes))(?= |$)/);
+  if (bare && !conds.length) ['pts', 'reb', 'ast'].forEach((k, i) => bare[i + 1] && add(k, +bare[i + 1]));
+  else if (bare && conds.length === 1 && conds[0][0] !== 'pts' && +bare[1] >= 10) add('pts', +bare[1]);
+  const best = / (best|biggest|highest|top) (scoring )?games? | career highs? | most (points|rebounds|assists|threes|steals|blocks|boards|dimes) in a (single )?game | (single )?game highs? /.test(nn);
+  return { conds, dd: dd && !conds.length, td: td && !conds.length, best: best && !conds.length };
+}
+async function gfLog(pid) {
+  if (gfLogs.has(pid)) return gfLogs.get(pid);
+  const pr = (async () => {
+    const first = await getJSON(`${WEB}/athletes/${pid}/gamelog`);
+    const f = (first.filters || []).find(x => x.name === 'season');
+    const cur = String(f?.value || f?.options?.[0]?.value || '');
+    const seasons = (f?.options || []).map(o => String(o.value)).filter(x => x && x !== cur);
+    const logs = [[cur, first]];
+    let i = 0, failed = 0;
+    await Promise.all([0, 1, 2, 3].map(async () => { while (i < seasons.length) { const y = seasons[i++]; try { logs.push([y, await getJSON(`${WEB}/athletes/${pid}/gamelog?season=${y}`)]); } catch (e) { failed++; } } }));
+    const games = [];
+    for (const [season, d] of logs) {
+      const lab = d.labels || [];
+      for (const st of d.seasonTypes || []) {
+        const nm = st.displayName || '';
+        if (/preseason|play-?in|all-?star/i.test(nm)) continue;
+        const type = !IS_C && /post|playoff/i.test(nm) ? 'post' : 'reg';
+        for (const c of st.categories || []) for (const e of c.events || []) {
+          const m = d.events?.[e.eventId] || {};
+          if (/^(team |world$|usa|rising|all-?star)/i.test(m.opponent?.displayName || '')) continue;
+          const v = k => e.stats?.[lab.indexOf(k)];
+          const sp = k => String(v(k) || '0-0').split('-').map(Number);
+          const g = { id: e.eventId, d: m.gameDate || '', season, type, o: m.opponent?.abbreviation || '', oid: m.opponent?.id, at: m.atVs || 'vs', r: m.gameResult || '', sc: m.score || '',
+            min: +v('MIN') || 0, pts: +v('PTS') || 0, reb: +v('REB') || 0, ast: +v('AST') || 0, stl: +v('STL') || 0, blk: +v('BLK') || 0, tov: +v('TO') || 0, fg: sp('FG'), tp: sp('3PT') };
+          g.tpm = g.tp[0];
+          if (!(g.min > 0) && !(g.pts > 0)) continue;
+          games.push(g);
+        }
+      }
+    }
+    games.sort((a, b) => b.d.localeCompare(a.d));
+    return { games, cur, failed };
+  })();
+  gfLogs.set(pid, pr);
+  pr.catch(() => gfLogs.delete(pid));
+  return pr;
+}
+const gfTen = g => ['pts', 'reb', 'ast', 'stl', 'blk'].filter(k => g[k] >= 10).length;
+async function aGameFinder(p, q, opts = {}) {
+  const { games, cur, failed } = await gfLog(p.id);
+  const scope = opts.scope; // 'season' | 'post' | 'reg' | undefined (career)
+  let pool = games.filter(g => (scope === 'season' ? g.season === cur : scope === 'post' ? g.type === 'post' : scope === 'reg' ? g.type === 'reg' : true)
+    && (!opts.opp || g.oid === opts.opp.id || g.o === opts.opp.abbr));
+  const where = `${scope === 'season' ? ' this season' : scope === 'post' ? ' in the playoffs' : scope === 'reg' ? ' in the regular season' : IS_C ? ' in college' : ' in ' + HIS + ' career'}${opts.opp ? ` against the ${esc(opts.opp.short || opts.opp.name)}` : ''}`;
+  if (!pool.length) return { text: `I couldn't find any games for ${esc(p.name)}${where}.`, ctx: { pid: p.id } };
+  let hits, what, sortK = null;
+  if (q.best) {
+    sortK = opts.stat && GF_LABEL[opts.stat] ? opts.stat : 'pts';
+    hits = [...pool].sort((a, b) => b[sortK] - a[sortK] || b.d.localeCompare(a.d)).slice(0, 10);
+    what = `best ${sortK === 'pts' ? 'scoring' : GF_LABEL[sortK].replace(/s$/, '')} games`;
+  } else {
+    const test = q.td ? g => gfTen(g) >= 3 : q.dd ? g => gfTen(g) >= 2 : g => q.conds.every(([k, v]) => g[k] >= v);
+    hits = pool.filter(test);
+    const parts = q.conds.map(([k, v]) => `${v}+ ${GF_LABEL[k]}`);
+    what = q.td ? 'triple-doubles' : q.dd ? 'double-doubles' : parts.length > 2 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts.join(' and ');
+  }
+  const regN = hits.filter(g => g.type === 'reg').length, postN = hits.length - regN;
+  const split = !q.best && !scope && postN && regN ? ` (${regN} regular season, ${postN} playoff${postN === 1 ? '' : 's'})` : '';
+  const curN = !q.best && scope !== 'season' ? hits.filter(g => g.season === cur && g.type === 'reg').length : 0;
+  const day = g => g.d ? new Date(g.d).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const line = g => `${q.conds.length ? q.conds.map(([k]) => `${g[k]} ${GF_LABEL[k]}`).join(', ') : sortK ? `${g[sortK]} ${GF_LABEL[sortK]}` : `${g.pts}-${g.reb}-${g.ast}`} ${g.at === '@' ? 'at' : 'vs'} ${esc(g.o)} on ${day(g)}`;
+  let text;
+  if (q.best) text = `${esc(p.name)}'s ${what}${where}: the top one is <b>${line(hits[0])}</b>.`;
+  else if (!hits.length) {
+    const near = q.conds.length === 1 ? Math.max(...pool.map(g => g[q.conds[0][0]])) : null;
+    text = `${esc(p.name)} has ${q.td || q.dd ? `no ${what}` : `no games with ${what}`}${where}${near != null ? `. ${HIS[0].toUpperCase() + HIS.slice(1)} best is ${near} ${GF_LABEL[q.conds[0][0]]}` : ''} (${plural(pool.length, 'game')} checked).`;
+  } else {
+    text = q.td || q.dd ? `${esc(p.name)} has <b>${plural(hits.length, q.td ? 'triple-double' : 'double-double')}</b>${where}${split}.` : `${esc(p.name)} has <b>${plural(hits.length, 'game')} with ${what}</b>${where}${split}.`;
+    if (curN && scope !== 'season') text += ` ${curN} of them came this season.`;
+    text += ` The latest: ${line(hits[0])}.`;
+  }
+  if (failed) text += ` (Some seasons didn't load, so this may be missing a few games.)`;
+  const show = q.best ? hits : hits.slice(0, 30);
+  const hl = k => (q.conds.some(([c]) => c === k) || sortK === k) ? 'hl' : '';
+  const rowsH = show.map(g => `<tr data-game="${g.id}"><td>${esc(day(g))}${g.type === 'post' ? ' <small>PO</small>' : ''}</td><td>${g.at === '@' ? '@' : 'vs'} ${esc(g.o)}</td><td class="${g.r === 'W' ? 'w' : 'l'}">${esc(g.r)} ${esc(g.sc)}</td><td>${g.min}</td><td class="${hl('pts')}">${g.pts}</td><td class="${hl('reb')}">${g.reb}</td><td class="${hl('ast')}">${g.ast}</td><td class="${hl('stl')}">${g.stl}</td><td class="${hl('blk')}">${g.blk}</td><td class="${hl('tpm')}">${g.tp[0]}-${g.tp[1]}</td></tr>`);
+  const note = !q.best && hits.length > show.length ? `<p class="ask-note">Showing the ${show.length} most recent of ${hits.length}.</p>` : '';
+  return {
+    text,
+    html: hits.length ? card(pRow(p, null, `${plural(pool.length, 'game')} checked`) + table(['Date', 'Opp', 'Result', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PT'], rowsH) + note) : card(pRow(p, null, `${plural(pool.length, 'game')} checked`)),
+    ctx: { pid: p.id, teamId: p.teamId },
+  };
+}
+
 /* ---------------- chat UI ---------------- */
 const ASK_EXAMPLES = IS_C ? [
   'Who scored the most points last night?',
@@ -552,6 +666,7 @@ const ASK_EXAMPLES = IS_C ? [
   LGK === 'ncaaw' ? 'UConn record' : 'Duke record',
   LGK === 'ncaaw' ? 'When does South Carolina play next?' : 'When does Kentucky play next?',
   LGK === 'ncaaw' ? 'JuJu Watkins last 5 games' : 'Florida leading scorer',
+  LGK === 'ncaaw' ? 'JuJu Watkins 30-point games' : 'Who scored 30 last night?',
   'Who had a double-double last night?',
   'Most threes per game',
   'Points leaders',
@@ -563,6 +678,7 @@ const ASK_EXAMPLES = IS_C ? [
   'Liberty record',
   'When do the Fever play next?',
   'Caitlin Clark vs Paige Bueckers',
+  "A'ja Wilson 30-point games",
   'Who had a double-double last night?',
   'Most threes per game',
   'East standings',
@@ -579,6 +695,8 @@ const ASK_EXAMPLES = IS_C ? [
   'Who had a double-double last night?',
   'Most threes per game',
   'Brunson vs the Pistons',
+  'Luka 40-point games',
+  'Jokic 30 and 10 this season',
   'East standings',
   'Hornets leading scorer',
   'Best props tonight',
@@ -747,6 +865,8 @@ function looksLikeBet(q) {
   const s = ' ' + cleanSlip(q).toLowerCase() + ' ';
   if (/^\s*(track|add|log|save)\b.*\b(bet|parlay|slip|leg)s?\b/.test(s) || /^\s*(bet|parlay|my slip)\s*[:\-]/.test(s)) return true;
   if (/^\s*(who|what|whats|how|when|where|why|did|does|do|is|are|was|were|will|can|should|which)\b/.test(s) || /\?\s*$/.test(s)) return false;
+  // a game-finder question ("Wemby games with 5+ blocks", "Luka 40+ point games in his career"), not a bet
+  if (String(q).split(/\n/).filter(l => l.trim()).length === 1 && /\b(games?|times|career|ever|all[ -]time|in a game|single game|this season|playoffs?)\b/.test(s)) return false;
   const lines = String(q).split(/\n/).filter(l => l.trim()).length;
   const prop = /\b(over|under|o|u|more|less|higher|lower) \d+(\.\d)?\b|\b\d+(\.\d)?\+ |\b\d+(\.\d)? [a-z+ ]{2,30} (more|less|higher|lower)\b/.test(s);
   const spread = /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(s) && !/(^|\s)[+-]\d{3,4}(\s|$)/.test(s.replace(/(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/g, ' '));

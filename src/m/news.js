@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09a', date: 'Nov 9', items: [
+    ['Find any player\'s games in Ask', 'Ask Fullcourt can now search a player\'s whole career: "Luka 40-point games", "Jokic 30 and 10 this season", "LeBron 30/10/10", "Wemby games with 5+ blocks", "Brunson triple-doubles", "Tatum best scoring games" or "Luka most assists in a game". Add "this season", "in the playoffs" or "vs the Celtics" to narrow it. You get the count, the latest one and a list of the games; tap a game to open it.'],
+  ] },
   { id: '2026-11-08j', date: 'Nov 8', items: [
     ['WNBA full game highlights in Replay', 'WNBA games now get the league\'s full game highlights from YouTube in Replay, including the playoffs and Finals, and a game\'s page shows Watch in Replay. This past season\'s last weeks are in now; next season fills in from May.'],
   ] },
