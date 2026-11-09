@@ -41,6 +41,17 @@ const SOURCES = [
   { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLSPy3Xok-53RkJ8DpqGA6FQSOIY5HepSB', find: /^\d{4} (wnba )?(season|full game) highlights$/i },
   { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLIHqPSYoErfw', find: /^\d{4} wnba playoffs(?!.*(press|player))/i },
   { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLD2CSiF5zblA', find: /^\d{4} wnba finals(?!.*(press|player))/i },
+  // women's college beyond the conference playlists: channels whose latest uploads are read and picked out by title
+  { lg: 'ncaaw', src: 'Big Ten', ch: 'UCpPY0eWJiNWxth5b2vz5Rwg', uploads: true, need: /\| (extended )?highlights \| big ten women/i },
+  { lg: 'ncaaw', src: 'FOX', ch: 'UCBsHu3el3JpEzy85g5_s0iQ', uploads: true, need: /highlights \| women.s college basketball/i },
+  { lg: 'ncaaw', src: 'American', ch: 'UCL0lloeftexqjO8DXVMkOkA', uploads: true, need: /^wbb game highlights/i },
+  { lg: 'ncaaw', src: 'Sun Belt', ch: 'UCwRkms-Zb61HtMDIjmKofmw', uploads: true, need: /highlights \|.*women.s basketball/i },
+  // ESPN posts men's and women's games alike: matched against both schedules, skipped when it could be either
+  { lg: 'college', src: 'ESPN', ch: 'UCiWLfSweyRNmLpgEHekhoAg', uploads: true, need: /\| (full game highlights|full highlights?|highlights) \| espn (college basketball|cbb)/i },
+  // official school channels for SEC and other teams the conference channels miss; their titles only name the opponent
+  ...[['LSU', 'UCmAewehDFJLJXzsLXrYA6aQ', '99'], ['Florida', 'UC97IlakvONh8RBUODRuk4mA', '57'], ['Mississippi State', 'UCeDDInREzm0nJNnCNFSmVwA', '344'], ['Ole Miss', 'UCp47rvbbB-HzCH96MU6yplQ', '145'],
+    ['Oklahoma', 'UC-CQSza3tFofjQJpKoJuvOA', '201'], ['Alabama', 'UCUQis-AjFEA1AgRbnTbuBqA', '333'], ['Kentucky', 'UCA0m2HDyoTvx2vXoYSdsJsA', '96'], ['UConn', 'UCCpTipFQZJNTTpIFx-j-aSg', '41']]
+    .map(([src, ch, school]) => ({ lg: 'ncaaw', src, ch, school, uploads: true, kind: 'hl', need: /(?=.*(women|wbb|w\. basketball))(?=.*(highlight|condensed|full game|\d+,\s.*\d+\s*$))/i })),
   // men's college: the same channels' men's playlists
   { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: 'PLPGY7v2Rzaao', kind: 'full', find: /(?<!wo)men.s basketball full game replay/i },
   { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: '', kind: 'cond', find: /(?<!wo)men.s basketball condensed games?/i },
@@ -77,6 +88,7 @@ async function seasonPlaylists(ch) {
 }
 
 async function videos(s) {
+  if (s.uploads) return (await uploads(s.ch, s.src)).filter(v => s.need.test(v.title));
   let pl = s.pl;
   if (apiOK) {
     const pls = await seasonPlaylists(s.ch);
@@ -113,8 +125,25 @@ async function feed(q, label) {
 }
 const upCache = new Map();
 function uploads(ch, src) {
-  if (!upCache.has(ch)) upCache.set(ch, feed(`playlist_id=UU${ch.slice(2)}`, `${src} uploads`).then(v => v.length ? v : feed(`channel_id=${ch}`, `${src} channel`)));
+  if (!upCache.has(ch)) upCache.set(ch, (async () => {
+    if (apiOK) {
+      const j = await api(`playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=UU${ch.slice(2)}`);
+      if (j?.items) return j.items.map(it => ({ id: it.contentDetails?.videoId, title: it.snippet?.title || '', at: it.contentDetails?.videoPublishedAt || it.snippet?.publishedAt }));
+    }
+    const v = await feed(`playlist_id=UU${ch.slice(2)}`, `${src} uploads`);
+    return v.length ? v : feed(`channel_id=${ch}`, `${src} channel`);
+  })());
   return upCache.get(ch);
+}
+// video lengths in seconds (API only): shorts are skipped and long "highlights" count as extended
+const durCache = new Map();
+async function durations(ids) {
+  const need = [...new Set(ids)].filter(id => id && !durCache.has(id));
+  for (let i = 0; apiOK && i < need.length; i += 50) {
+    const j = await api(`videos?part=contentDetails&id=${need.slice(i, i + 50).join(',')}`);
+    for (const it of j?.items || []) { const m = String(it.contentDetails?.duration || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); durCache.set(it.id, m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0); }
+  }
+  return durCache;
 }
 
 /* ---------- NBA: "LAKERS at PISTONS | FULL GAME HIGHLIGHTS | November 8, 2026" ---------- */
@@ -148,10 +177,10 @@ async function wnbaVideo(v, out, misses) {
 }
 
 /* ---------- women's college: "No. 10 Iowa vs. No. 2 UConn Highlights | 2026-27 BIG EAST Women's Basketball" ---------- */
-const KIND = t => /full game replay|full game/i.test(t) ? 'full' : /condensed/i.test(t) ? 'cond' : /extended/i.test(t) ? 'ext' : /highlights/i.test(t) ? 'hl' : '';
+const KIND = t => /full game replay|\bfull game\b(?!\s*highlight)/i.test(t) ? 'full' : /condensed/i.test(t) ? 'cond' : /extended|full (game )?highlights?/i.test(t) ? 'ext' : /highlights?/i.test(t) ? 'hl' : '';
 const norm = s => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/['’.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function names(title) {
-  let t = title.split(/\s+\|\s+/)[0];
+  let t = title.split(/\s+\|\s+/)[0].replace(/^.*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '').replace(/^[^:|]*highlights?\s*:\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '');
   t = t.replace(/\s*(full game replay|full game|condensed game|condensed|extended highlights|game highlights|highlights)\s*$/i, '');
   const parts = t.split(/\s+(?:vs\.?|at|@)\s+/i);
   if (parts.length !== 2) return null;
@@ -163,7 +192,9 @@ const ALIAS = { 'usc upstate': 'south carolina upstate' };
 function fit(name, team) {
   const n0 = norm(name); if (!n0) return 0;
   const n = ALIAS[n0] || n0;
-  const alts = new Set([n, n.replace(/\bst\b/g, 'state'), n.replace(/^st\b/, 'saint'), n.replace(/\bsaint\b/g, 'st')]);
+  const dir = { e: 'eastern', w: 'western', n: 'northern', s: 'southern', c: 'central', se: 'southeastern', sw: 'southwestern', ne: 'northeastern', nw: 'northwestern' };
+  const n2 = n.replace(/^(se|sw|ne|nw|e|w|n|s|c) /, (m, d) => dir[d] + ' ');
+  const alts = new Set([n, n2, n.replace(/\bst\b/g, 'state'), n2.replace(/\bst\b/g, 'state'), n.replace(/^st\b/, 'saint'), n.replace(/\bsaint\b/g, 'st')]);
   const vs = [team.location, team.shortDisplayName, team.abbreviation, team.displayName, `${team.location} ${team.name}`].map(norm).filter(Boolean);
   // initials: "UT Rio Grande Valley" → utrgv, "Long Island University" → liu
   const ini = String(team.location || '').split(/[\s-]+/).filter(Boolean).map(w => /^[A-Z&]{2,3}$/.test(w) ? w : w[0]).join('').toLowerCase().replace(/[^a-z]/g, '');
@@ -181,9 +212,8 @@ async function wGames(ymd, lg = 'ncaaw') {
   if (!sbCache.has(ck)) sbCache.set(ck, fetch(`${ESPN_C(lg)}/scoreboard?dates=${ymd}${lg === 'wnba' ? '' : '&groups=50&limit=500'}`).then(r => r.json()).then(j => (j.events || []).map(e => ({ id: e.id, ymd, state: e.status?.type?.state, teams: (e.competitions?.[0]?.competitors || []).map(c => c.team || {}) }))).catch(() => []));
   return sbCache.get(ck);
 }
-async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw') {
-  const kind = KIND(v.title) || plKind; const nm = names(v.title);
-  if (!kind || !nm || !v.at) { misses.push(`(no teams) ${v.title}`); return false; }
+// the ESPN game a college video is of: both teams named, played in the few days before it went up
+async function collegeGame(v, nm, lg) {
   const pub = new Date(v.at);
   let best = null, tie = false;
   for (let back = 0; back <= 4; back++) {
@@ -191,20 +221,68 @@ async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw') {
     for (const g of await wGames(day, lg)) {
       if (g.state === 'pre' || g.teams.length !== 2) continue;
       const a = Math.min(fit(nm[0], g.teams[0]), fit(nm[1], g.teams[1])), b = Math.min(fit(nm[0], g.teams[1]), fit(nm[1], g.teams[0]));
-      const s = Math.max(a, b); if (!s) continue;
-      const score = s * 10 - back; // closer to the upload wins ties
+      const sc = Math.max(a, b); if (!sc) continue;
+      const score = sc * 10 - back; // closer to the upload wins ties
       if (!best || score > best.score) { best = { g, score }; tie = false; } else if (score === best.score && g.id !== best.g.id) tie = true;
     }
     if (best && best.score >= 30 - back) break;
   }
-  if (!best || tie) { misses.push(`${tie ? '(two games fit) ' : ''}${v.title}`); return false; }
-  const e = out[best.g.id] = out[best.g.id] || { d: best.g.ymd };
-  const isNew = !e[kind];
+  return tie ? 'tie' : best?.g || null;
+}
+// a school channel's video ("HIGHLIGHTS: Women's Basketball vs. North Alabama"): that school's latest game before it went up,
+// preferring one whose opponent the title names
+const mentions = (title, team) => { const t = ` ${norm(title)} `; return [team.location, team.shortDisplayName, team.displayName, (team.abbreviation || '').length >= 3 ? team.abbreviation : ''].filter(Boolean).some(x => t.includes(` ${norm(x)} `)); };
+async function schoolGame(v, school, lg) {
+  const pub = new Date(v.at);
+  const found = [];
+  for (let back = 0; back <= 3; back++) for (const g of await wGames(etYmd(pub.getTime() - back * 864e5), lg)) {
+    if (g.state !== 'post' || !g.teams.some(t => String(t.id) === String(school))) continue;
+    const opp = g.teams.find(t => String(t.id) !== String(school));
+    found.push({ g, named: opp && mentions(v.title, opp) });
+  }
+  const named = found.filter(x => x.named);
+  return named.length === 1 ? named[0].g : !named.length && found.length === 1 ? found[0].g : null;
+}
+function store(out, g, kind, v, src) {
+  const e = out[g.id] = out[g.id] || { d: g.ymd };
+  if (e[kind]) return false; // the first source wins (conference channels are listed before school channels)
   e[kind] = { id: v.id, title: v.title, src, at: v.at };
-  return isNew;
+  return true;
+}
+// kind from the title, then the video's length when known (a 13-minute "Highlights" is an extended cut)
+function kindOf(v, plKind) {
+  let k = KIND(v.title) || plKind;
+  const d = durCache.get(v.id);
+  if (d) { if (k === 'hl' && d >= 420) k = 'ext'; if ((k === 'hl' || k === 'ext') && d >= 2400) k = 'full'; }
+  return k;
+}
+async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw', s = {}) {
+  if (!v.at) return false;
+  const d = durCache.get(v.id); if (s.uploads && d != null && d > 0 && d < 60) return false; // shorts
+  const kind = kindOf(v, plKind);
+  if (!kind) { misses.push(`(no kind) ${v.title}`); return false; }
+  if (s.school) {
+    const g = await schoolGame(v, s.school, lg);
+    if (!g) { misses.push(`(school game not found) ${src}: ${v.title}`); return false; }
+    return store(out, g, kind, v, src);
+  }
+  const nm = names(v.title);
+  if (!nm) { misses.push(`(no teams) ${v.title}`); return false; }
+  const g = await collegeGame(v, nm, lg);
+  if (!g || g === 'tie') { misses.push(`${g === 'tie' ? '(two games fit) ' : ''}${v.title}`); return false; }
+  return store(out, g, kind, v, src);
+}
+// ESPN: men's or women's? whichever schedule has the game; neither if both do (unless the title says)
+async function eitherVideo(v, col, src, misses) {
+  const nm = names(v.title); if (!nm || !v.at) { misses.push(`(no teams) ${v.title}`); return false; }
+  const w = await collegeGame(v, nm, 'ncaaw'), m = await collegeGame(v, nm, 'ncaam');
+  const W = w && w !== 'tie' ? w : null, M = m && m !== 'tie' ? m : null;
+  const pick = WOMEN.test(v.title) ? (W && ['ncaaw', W]) : MEN.test(v.title) ? (M && ['ncaam', M]) : W && !M ? ['ncaaw', W] : M && !W ? ['ncaam', M] : null;
+  if (!pick) { misses.push(`${W && M ? '(men\'s or women\'s?) ' : ''}${v.title}`); return false; }
+  return store(col[pick[0]], pick[1], kindOf(v, 'hl'), v, src);
 }
 
-export { names, fit, ncaawVideo, nbaVideo, wnbaVideo, KIND };
+export { names, fit, ncaawVideo, nbaVideo, wnbaVideo, eitherVideo, KIND, durCache };
 if (!process.env.YT_TEST) await main();
 async function main() {
   let prev = { games: {}, ncaaw: {}, ncaam: {}, wnba: {} };
@@ -215,12 +293,13 @@ async function main() {
   const done = new Set();
   for (const s of SOURCES) {
     const vids = await videos(s);
+    if (s.lg !== 'nba' && s.lg !== 'wnba') await durations(vids.filter(v => !done.has(v.id)).map(v => v.id));
     const k = `${s.lg} ${s.src}`; stats[k] = stats[k] || { seen: 0, added: 0 };
     for (const v of vids) {
       if (!v.id || done.has(v.id)) continue; // several sources can share a channel's uploads
       done.add(v.id);
       stats[k].seen++;
-      if (s.lg === 'nba' ? nbaVideo(v, games) : s.lg === 'wnba' ? await wnbaVideo(v, col.wnba, misses) : await ncaawVideo(v, col[s.lg], s.src, misses, s.kind, s.lg)) stats[k].added++;
+      if (s.lg === 'nba' ? nbaVideo(v, games) : s.lg === 'wnba' ? await wnbaVideo(v, col.wnba, misses) : s.lg === 'college' ? await eitherVideo(v, col, s.src, misses) : await ncaawVideo(v, col[s.lg], s.src, misses, s.kind, s.lg, s)) stats[k].added++;
     }
   }
   // keep 60 days
