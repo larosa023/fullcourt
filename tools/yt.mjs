@@ -5,14 +5,14 @@
 //   games from the few days before it went up.
 // Reads the YouTube Data API when the YT_KEY secret works (and finds each season's new playlists by name); otherwise
 // YouTube's public playlist feeds (the latest 15 videos each), which YouTube sometimes breaks.
-// Output: highlights.json { updated, games: { "YYYYMMDD|away|home": NBA video }, ncaaw / ncaam: { eventId: { full|cond|ext|hl: video } } }
+// Output: highlights.json { updated, games: { "YYYYMMDD|away|home": NBA video }, wnba: { eventId: { fgh: video } }, ncaaw / ncaam: { eventId: { full|cond|ext|hl: video } } }
 import { writeFileSync } from 'node:fs';
 const PREV = 'https://raw.githubusercontent.com/larosa023/fullcourt/yt-data/highlights.json';
 const KEY = process.env.YT_KEY || '';
 // the key only accepts calls from the site's address
 const REFERER = 'https://nbafullcourty.netlify.app/';
 const UA = { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' };
-const ESPN_C = lg => `https://site.api.espn.com/apis/site/v2/sports/basketball/${lg === 'ncaam' ? 'mens' : 'womens'}-college-basketball`;
+const ESPN_C = lg => `https://site.api.espn.com/apis/site/v2/sports/basketball/${lg === 'wnba' ? 'wnba' : lg === 'ncaam' ? 'mens-college-basketball' : 'womens-college-basketball'}`;
 const MEN = /(?<!wo)men.s basketball/i, WOMEN = /women.s basketball/i; // "women's basketball" contains "men's basketball"
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const nick = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -22,6 +22,8 @@ const dec = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;
 const now = new Date();
 const sy = now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
 const SEASON = `${sy}-${String((sy + 1) % 100).padStart(2, '0')}`;
+// the WNBA's season is one calendar year (May to October); its playlists are named "2026 …"
+const WYEAR = String(now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1);
 
 // pl: this season's playlist (used when the API can't look it up by name); find: how to recognise next season's
 const SOURCES = [
@@ -35,6 +37,10 @@ const SOURCES = [
   // no playlist yet this season; picked up by name once one appears (needs the API)
   { lg: 'ncaaw', src: 'Big Ten', ch: 'UC4LeRw7pIZ_kseS4Krn_DQA', pl: '', find: /women.s basketball.*highlights|highlights.*women.s basketball/i },
   { lg: 'ncaaw', src: 'SEC', ch: 'UC60q_WUDde_NK-ze3frvtiA', pl: '', find: /women.s basketball.*(game highlights|condensed|full game)/i },
+  // WNBA: "Las Vegas Aces vs. Phoenix Mercury | FULL GAME HIGHLIGHTS | September 24, 2026" (regular season, playoffs, Finals)
+  { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLSPy3Xok-53RkJ8DpqGA6FQSOIY5HepSB', find: /^\d{4} (wnba )?(season|full game) highlights$/i },
+  { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLIHqPSYoErfw', find: /^\d{4} wnba playoffs(?!.*(press|player))/i },
+  { lg: 'wnba', src: 'WNBA', ch: 'UCO9a_ryN_l7DIDS-VIt-zmw', pl: 'PLD2CSiF5zblA', find: /^\d{4} wnba finals(?!.*(press|player))/i },
   // men's college: the same channels' men's playlists
   { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: 'PLPGY7v2Rzaao', kind: 'full', find: /(?<!wo)men.s basketball full game replay/i },
   { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: '', kind: 'cond', find: /(?<!wo)men.s basketball condensed games?/i },
@@ -74,7 +80,7 @@ async function videos(s) {
   let pl = s.pl;
   if (apiOK) {
     const pls = await seasonPlaylists(s.ch);
-    const hit = pls.find(p => s.find.test(p.title) && (s.lg === 'nba' ? p.title.includes(SEASON) : p.title.includes(SEASON)));
+    const hit = pls.find(p => s.find.test(p.title) && (s.lg === 'wnba' ? p.title.startsWith(WYEAR) : p.title.includes(SEASON)));
     if (hit) pl = hit.id;
   }
   if (!pl) return [];
@@ -93,7 +99,7 @@ async function videos(s) {
   // the playlist feed doesn't work for every playlist, so fall back on the channel's latest uploads, picked out by title
   // (the conferences put "Women's Basketball" or "Men's Basketball" in every video title)
   const up = await uploads(s.ch, s.src);
-  return up.filter(v => s.lg === 'nba' ? /full game highlights/i.test(v.title) : (s.lg === 'ncaam' ? MEN.test(v.title) && !WOMEN.test(v.title) : WOMEN.test(v.title)) && !!KIND(v.title));
+  return up.filter(v => s.lg === 'nba' || s.lg === 'wnba' ? /full game highlights/i.test(v.title) : (s.lg === 'ncaam' ? MEN.test(v.title) && !WOMEN.test(v.title) : WOMEN.test(v.title)) && !!KIND(v.title));
 }
 async function feed(q, label) {
   const out = [];
@@ -127,6 +133,20 @@ function nbaVideo(v, games) {
   return isNew;
 }
 
+/* ---------- WNBA: full team names and the game's date are in the title; matched to that day's ESPN games ---------- */
+async function wnbaVideo(v, out, misses) {
+  if (!/full game highlights/i.test(v.title)) return false;
+  const nm = names(v.title.split(/\s+\|\s+/)[0]);
+  const d = v.title.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})/i);
+  if (!nm || !d) { misses.push(v.title); return false; }
+  const ymd = `${d[3]}${String(MONTHS.indexOf(d[1].toLowerCase()) + 1).padStart(2, '0')}${d[2].padStart(2, '0')}`;
+  for (const day of [ymd, etYmd(Date.parse(`${d[3]}-${ymd.slice(4, 6)}-${ymd.slice(6)}T12:00:00Z`) + 864e5)]) {
+    const hit = (await wGames(day, 'wnba')).find(g => g.teams.length === 2 && Math.min(fit(nm[0], g.teams[0]), fit(nm[1], g.teams[1])) + Math.min(fit(nm[0], g.teams[1]), fit(nm[1], g.teams[0])) > 0);
+    if (hit) { const e = out[hit.id] = out[hit.id] || { d: hit.ymd }; const isNew = !e.fgh; e.fgh = { id: v.id, title: v.title, src: 'WNBA', at: v.at }; return isNew; }
+  }
+  misses.push(v.title); return false;
+}
+
 /* ---------- women's college: "No. 10 Iowa vs. No. 2 UConn Highlights | 2026-27 BIG EAST Women's Basketball" ---------- */
 const KIND = t => /full game replay|full game/i.test(t) ? 'full' : /condensed/i.test(t) ? 'cond' : /extended/i.test(t) ? 'ext' : /highlights/i.test(t) ? 'hl' : '';
 const norm = s => String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/['’.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -158,7 +178,7 @@ const etYmd = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/
 const sbCache = new Map();
 async function wGames(ymd, lg = 'ncaaw') {
   const ck = `${lg}${ymd}`;
-  if (!sbCache.has(ck)) sbCache.set(ck, fetch(`${ESPN_C(lg)}/scoreboard?dates=${ymd}&groups=50&limit=500`).then(r => r.json()).then(j => (j.events || []).map(e => ({ id: e.id, ymd, state: e.status?.type?.state, teams: (e.competitions?.[0]?.competitors || []).map(c => c.team || {}) }))).catch(() => []));
+  if (!sbCache.has(ck)) sbCache.set(ck, fetch(`${ESPN_C(lg)}/scoreboard?dates=${ymd}${lg === 'wnba' ? '' : '&groups=50&limit=500'}`).then(r => r.json()).then(j => (j.events || []).map(e => ({ id: e.id, ymd, state: e.status?.type?.state, teams: (e.competitions?.[0]?.competitors || []).map(c => c.team || {}) }))).catch(() => []));
   return sbCache.get(ck);
 }
 async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw') {
@@ -184,12 +204,12 @@ async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw') {
   return isNew;
 }
 
-export { names, fit, ncaawVideo, nbaVideo, KIND };
+export { names, fit, ncaawVideo, nbaVideo, wnbaVideo, KIND };
 if (!process.env.YT_TEST) await main();
 async function main() {
-  let prev = { games: {}, ncaaw: {}, ncaam: {} };
+  let prev = { games: {}, ncaaw: {}, ncaam: {}, wnba: {} };
   try { const r = await fetch(`${PREV}?t=${Date.now()}`); if (r.ok) prev = await r.json(); } catch (e) {}
-  const games = { ...(prev.games || {}) }, col = { ncaaw: { ...(prev.ncaaw || {}) }, ncaam: { ...(prev.ncaam || {}) } };
+  const games = { ...(prev.games || {}) }, col = { ncaaw: { ...(prev.ncaaw || {}) }, ncaam: { ...(prev.ncaam || {}) }, wnba: { ...(prev.wnba || {}) } };
   const stats = {};
   const misses = [];
   const done = new Set();
@@ -200,7 +220,7 @@ async function main() {
       if (!v.id || done.has(v.id)) continue; // several sources can share a channel's uploads
       done.add(v.id);
       stats[k].seen++;
-      if (s.lg === 'nba' ? nbaVideo(v, games) : await ncaawVideo(v, col[s.lg], s.src, misses, s.kind, s.lg)) stats[k].added++;
+      if (s.lg === 'nba' ? nbaVideo(v, games) : s.lg === 'wnba' ? await wnbaVideo(v, col.wnba, misses) : await ncaawVideo(v, col[s.lg], s.src, misses, s.kind, s.lg)) stats[k].added++;
     }
   }
   // keep 60 days
@@ -210,6 +230,6 @@ async function main() {
   console.log(`source: ${apiOK ? 'YouTube API' : 'public feeds'} · season ${SEASON}`);
   for (const [k, v] of Object.entries(stats)) console.log(`${k}: ${v.seen} videos, ${v.added} new`);
   if (misses.length) console.log(`not matched (${misses.length}):\n  ` + [...new Set(misses)].slice(0, 40).join('\n  '));
-  console.log(`total: NBA ${Object.keys(games).length} games, women's college ${Object.keys(col.ncaaw).length}, men's college ${Object.keys(col.ncaam).length}`);
-  writeFileSync(process.argv[2] || 'highlights.json', JSON.stringify({ updated: new Date().toISOString(), api: apiOK, games, ncaaw: col.ncaaw, ncaam: col.ncaam }));
+  console.log(`total: NBA ${Object.keys(games).length} games, WNBA ${Object.keys(col.wnba).length}, women's college ${Object.keys(col.ncaaw).length}, men's college ${Object.keys(col.ncaam).length}`);
+  writeFileSync(process.argv[2] || 'highlights.json', JSON.stringify({ updated: new Date().toISOString(), api: apiOK, games, wnba: col.wnba, ncaaw: col.ncaaw, ncaam: col.ncaam }));
 }

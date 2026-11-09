@@ -1356,7 +1356,7 @@ async function openGame(id, opts = {}) {
         </div>
         <div class="gh-status"><span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtLocal(g.date, { weekday: 'long', month: 'short', day: 'numeric' }) : statusText(g))}${toPill(sit, tid => sides.find(x => x.id === tid)?.abbr || '')}</span>
         <span>${esc([d.gameInfo?.venue?.fullName, d.gameInfo?.venue?.address?.city].filter(Boolean).join(', '))}${d.gameInfo?.attendance ? ` · ${Number(d.gameInfo.attendance).toLocaleString()} fans` : ''}</span>
-        ${g.state === 'post' && (d.videos || []).length ? `<button class="gh-hl" data-replay="${esc(id)}|${etYmd(comp.date)}">${PLAY_ICON}Highlights in Replay</button>` : g.state === 'post' && IS_C ? `<span data-hlslot="${esc(id)}|${etYmd(comp.date)}" hidden></span>` : ''}</div>
+        ${g.state === 'post' && (d.videos || []).length ? `<button class="gh-hl" data-replay="${esc(id)}|${etYmd(comp.date)}">${PLAY_ICON}Highlights in Replay</button>` : g.state === 'post' && (IS_C || IS_W) ? `<span data-hlslot="${esc(id)}|${etYmd(comp.date)}" hidden></span>` : ''}</div>
       </div>`;
 
     let side = header, main = '';
@@ -1384,7 +1384,7 @@ async function openGame(id, opts = {}) {
       </div><div class="pane" id="gpane"></div></div>`;
     }
     sheet.body.innerHTML = `<div class="g-layout"><div class="g-side">${side}</div><div class="g-main">${main}</div></div>`;
-    // college: ESPN often has no video, but a conference's YouTube video may be in Replay
+    // college and WNBA: ESPN often has no video, but a YouTube one may be in Replay
     const hls = $('[data-hlslot]', sheet.body);
     if (hls) lazy('replay').then(m => m.rpHasVideo(id)).then(ok => { if (ok && hls.isConnected) hls.outerHTML = `<button class="gh-hl" data-replay="${hls.dataset.hlslot}">${PLAY_ICON}Watch in Replay</button>`; }).catch(() => {});
     clipCard = wireClips(sheet.body, clips, clipCard);
@@ -2360,7 +2360,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-08i'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-08j'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08j', date: 'Nov 8', items: [
+    ['WNBA full game highlights in Replay', 'WNBA games now get the league\'s full game highlights from YouTube in Replay, including the playoffs and Finals, and a game\'s page shows Watch in Replay. This past season\'s last weeks are in now; next season fills in from May.'],
+  ] },
   { id: '2026-11-08i', date: 'Nov 8', items: [
     ['Men\'s college game videos in Replay', 'Men\'s college Replay now has the same conference videos as the women\'s: ACC full game replays and highlights, Big 12 extended highlights and highlights, and Big East highlights, matched to each game. Game pages show Watch in Replay when there\'s one.'],
   ] },
