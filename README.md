@@ -20,8 +20,8 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 ## What's on it
 
 - **Live scores** for NBA and WNBA (switch leagues in the header), refreshing every 15 seconds during games, with timeouts left, bonus and who's on the court
-- **Games**: box score, win probability, game flow, shot chart, filterable play-by-play, team stats, leaders, ESPN highlight clips, a written recap, officials, where to watch, odds and line movement, and pre-game previews
-- **Scores page extras**: Your players (starred players' live lines), Pick'em, Who's out, top scorers, multi-view and This week. Upcoming games show Fullcourt's own win chance (from the Playoff Odds and Bracketology models, `wp.json` on the `sim-data` and `march-data` branches)
+- **Games**: box score, win probability, game flow, shot chart, filterable play-by-play, team stats, leaders, ESPN highlight clips, a written recap, officials, where to watch, odds and line movement, pre-game previews, and head to head (the last few seasons of meetings, from both teams' schedules)
+- **Scores page extras**: Your players (starred players' live lines), Pick'em, Who's out, top scorers, multi-view and This week. Upcoming games show Fullcourt's own win chance (from the Playoff Odds and Bracketology models, `wp.json` on the `sim-data` and `march-data` branches); live games without ESPN's win probability show a live estimate built from that pregame number, the score and the time left
 - **Standings** by conference and league, plus the playoff picture
 - **Playoff odds** (Standings → Odds): the rest of the season simulated 20,000 times on GitHub every 3 hours (`tools/sim.mjs` running `src/m/simengine.js`, `sim-data` branch). Ratings blend ESPN's BPI with an opponent-adjusted, recency-weighted margin; injuries come off until each player's expected return; today's games use the betting line; NBA tiebreakers decide seeds. Per-team sheets show seed range, odds over time, next-game swing and the rating breakdown; "Sim the season" plays one full outcome on the page with the same engine
 - **Bracketology** (college Rankings → Bracketology, men's and women's): the rest of the season, every conference tournament, Selection Sunday (68 teams by an S-curve) and the tournament simulated 10,000 times twice a day (`tools/march.mjs` running `src/m/marchengine.js`, `march-data` branch). Ratings: opponent- and home-adjusted margin pulled toward last season, blended with ESPN's BPI for the men. Projected bracket, odds table, bubble, conference favorites, per-team sheets and "Sim the tournament"
@@ -36,7 +36,7 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 - **Capsheet** (Cap tab): every NBA team's cap sheet, contract details, options and guarantees, payroll vs the cap, tax and aprons. Contracts refresh weekly from Basketball-Reference and ESPN (`tools/cap.mjs`, published to the `cap-data` branch)
 - **Deadline** (Cap → Trade machine): build 2–4 team trades and check them against 2026-27 salary matching, aprons and roster rules; save or share them
 - **Chalk** (game sheet → Court): a live or replayed 2D court with shots, a running shot chart and a synced play log
-- **Ask Fullcourt**: stats questions in plain English, and **Compare** for head-to-head players
+- **Ask Fullcourt**: stats questions in plain English, including career game searches ("Luka 40-point games"), player and team splits (opponent, home/road, wins/losses, back-to-backs, a season, a month, the playoffs) and with/without a teammate; and **Compare** for head-to-head players
 - Favorite team with game alerts, Settings to hide parts you don't use, What's new, light/dark mode, keyboard shortcuts, and a home-screen app that keeps your last scores when you lose signal
 - All dates and times in Eastern (ET). "Today" switches to the next day at 4 AM ET, so late West Coast games stay on the night they were played.
 

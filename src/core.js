@@ -476,7 +476,7 @@ function parseGame(e) {
   const away = side(c.competitors.find(x => x.homeAway === 'away'));
   return {
     id: e.id, date: e.date, state: t.state, detail: t.shortDetail, desc: t.description, name: t.name,
-    period: st.period, clock: st.displayClock, completed: t.completed, home, away,
+    period: st.period, clock: st.displayClock, completed: t.completed, home, away, neutral: !!c.neutralSite,
     venue: c.venue?.fullName, city: [c.venue?.address?.city, c.venue?.address?.state].filter(Boolean).join(', '),
     tv: [...new Set((c.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
     note: c.notes?.[0]?.headline || '',
@@ -644,7 +644,7 @@ async function loadScores({ silent = false } = {}) {
     updatePulse();
     refreshTicker();
     refreshSit();
-    if (S.games.some(g => g.state === 'pre')) loadPreWP();
+    if (S.games.some(g => g.state === 'pre' || g.state === 'in')) loadPreWP();
     if (S.date === S.today) alertCheck(S.games);
     if (S.date === addDays(etNow().ymd, -1)) { lateLive = S.games.some(g => g.state === 'in'); if (!lateLive && S.date === S.today && checkRollover()) loadScores({ silent: true }); }
     renderWatch(); renderPicks(); renderOut();
@@ -763,9 +763,39 @@ function loadPreWP() {
   const k = LGK, br = IS_C ? 'march-data' : 'sim-data';
   fetch(`https://raw.githubusercontent.com/larosa023/fullcourt/${br}/wp.json?t=${Math.floor(Date.now() / 1800e3)}`).then(r => r.ok ? r.json() : null).then(d => {
     const m = d?.[k]; if (!m || LGK !== k) return;
-    S.wpPre = m;
+    // the file only has games not yet played, so keep each game's pregame number (3 days) for the live estimate
+    let kept = {}; try { kept = JSON.parse(lsGet(lsKey('fc-wppre')) || '{}'); } catch (e) {}
+    const now = Date.now();
+    for (const [id, v] of Object.entries(m)) kept[id] = [v, now];
+    for (const [id, [, t]] of Object.entries(kept)) if (now - t > 3 * 864e5) delete kept[id];
+    try { lsSet(lsKey('fc-wppre'), JSON.stringify(kept)); } catch (e) {}
+    S.wpPre = Object.fromEntries(Object.entries(kept).map(([id, [v]]) => [id, v]));
     if (S.view === 'scores' && S.games.some(g => g.state === 'pre' && m[g.id] != null)) { const back = holdScroll(); renderGames(false); back(); }
   }).catch(() => { preWPAt = 0; });
+}
+// Fullcourt's live chance when ESPN has none: the pregame projection as an expected margin, shrinking as time runs out,
+// plus the current margin; the spread of outcomes narrows with the time left (a normal model of the final margin)
+const LIVE_SD = LGK === 'nba' ? 12.5 : 11;
+const LIVE_PER = LGK === 'ncaam' ? [2, 20] : [4, LGK === 'nba' ? 12 : 10];
+const LIVE_HCA = LGK === 'nba' ? 2.3 : IS_C ? 3 : 2;
+function nCdf(x) { const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
+function nInv(p) { // Acklam
+  const a = [-39.6968302866538, 220.946098424521, -275.928510446969, 138.357751867269, -30.6647980661472, 2.50662827745924], b = [-54.4760987982241, 161.585836858041, -155.698979859887, 66.8013118877197, -13.2806815528857], c = [-0.00778489400243029, -0.322396458041136, -2.40075827716184, -2.54973253934373, 4.37466414146497, 2.93816398269878], dd = [0.00778469570904146, 0.32246712907004, 2.445134137143, 3.75440866190742];
+  if (p < 0.02425) { const q = Math.sqrt(-2 * Math.log(p)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((dd[0] * q + dd[1]) * q + dd[2]) * q + dd[3]) * q + 1); }
+  if (p > 1 - 0.02425) return -nInv(1 - p);
+  const q = p - 0.5, r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+function fcLiveWP(g) {
+  if (g.state !== 'in') return null;
+  const [np, len] = LIVE_PER, per = +g.period || 1, T = np * len;
+  let left = (per <= np ? (np - per) * len : 0) + clockSecs(g.clock) / 60;
+  const margin = (+g.home.score || 0) - (+g.away.score || 0);
+  const p0 = Number.isFinite(S.wpPre?.[g.id]) ? S.wpPre[g.id] : nCdf((g.neutral ? 0 : LIVE_HCA) / LIVE_SD);
+  const m0 = LIVE_SD * nInv(Math.min(0.995, Math.max(0.005, p0)));
+  if (left <= 0.01) { if (margin) return margin > 0 ? 0.995 : 0.005; left = 5; } // tied at the buzzer: overtime
+  // late possessions swing more than the clock alone suggests (fouling, free throws, a last shot): a floor of about 2.5 minutes of spread
+  const frac = left / T, spread = LIVE_SD * Math.sqrt(frac + 2.5 / T);
+  return Math.min(0.995, Math.max(0.005, nCdf((margin + m0 * frac) / spread)));
 }
 function preWPLine(g) {
   const h = S.wpPre?.[g.id]; if (!Number.isFinite(h)) return '';
@@ -801,7 +831,7 @@ function gameCard(g, i, animate) {
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
     ${pre ? oddsLine(g.odds) + preWPLine(g) : live ? liveLine(g) : ''}
-    ${live && Number.isFinite(S.wpLive?.[g.id]) ? (() => { const h = S.wpLive[g.id], fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100); return `<div class="g-wp" title="Win probability (ESPN)"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% to win</span></div>`; })() : ''}
+    ${live ? (() => { const es = Number.isFinite(S.wpLive?.[g.id]), h = es ? S.wpLive[g.id] : fcLiveWP(g); if (!Number.isFinite(h)) return ''; const fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100); return `<div class="g-wp" title="${es ? 'Win probability (ESPN)' : "Fullcourt's live estimate (pregame projection, score and time left)"}"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% to win${es ? '' : ' · Fullcourt'}</span></div>`; })() : ''}
     ${foot}
     ${live ? `<span class="prog" style="width:${(progress(g) * 100).toFixed(1)}%"></span>` : ''}
   </button>`;
@@ -1383,7 +1413,10 @@ async function openGame(id, opts = {}) {
         ${[['box', 'Box score'], ['court', 'Court'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
       </div><div class="pane" id="gpane"></div></div>`;
     }
+    // head to head over the last few seasons (filled in once the team schedules load; kept so refreshes don't flicker)
+    { const k = `${sides[0].id}|${sides[1].id}|${id}`, h = S.h2hHTML?.[k]; if (h !== '') side += `<section class="card h2h-card" data-h2h="${k}"${h ? '' : ' hidden'}>${h || ''}</section>`; }
     sheet.body.innerHTML = `<div class="g-layout"><div class="g-side">${side}</div><div class="g-main">${main}</div></div>`;
+    { const h2 = $('[data-h2h]', sheet.body); if (h2 && !S.h2hHTML?.[h2.dataset.h2h]) lazy('h2h').then(m => m.fillH2H(h2)).catch(() => {}); }
     // college and WNBA: ESPN often has no video, but a YouTube one may be in Replay
     const hls = $('[data-hlslot]', sheet.body);
     if (hls) lazy('replay').then(m => m.rpHasVideo(id)).then(ok => { if (ok && hls.isConnected) hls.outerHTML = `<button class="gh-hl" data-replay="${hls.dataset.hlslot}">${PLAY_ICON}Watch in Replay</button>`; }).catch(() => {});
@@ -2360,7 +2393,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-09b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-09c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

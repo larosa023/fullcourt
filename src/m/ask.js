@@ -63,6 +63,7 @@ const STOP = new Set(('how many much what whats who whos whose which when where 
   'east eastern west western conference conf rank ranked ranking where place first second seed seeds back over under o u favored favorite underdog win won lose lost beat result final ' +
   'night week month october november december january february march april monday tuesday wednesday thursday friday saturday sunday s 1st 2nd 3rd th ' +
   'since home road away wins losses victories defeats playoff playoffs postseason regular facing during may june july august september only when ' +
+  'without sits sat sitting missing misses injured inactive history meetings series close clutch possession conference after rest backs b2b b2bs teams ' +
   'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys rebounding assisting passing blocking stealing playmaking').split(' '));
 
 /* ---------------- parsing ---------------- */
@@ -463,7 +464,7 @@ async function answer(raw) {
   const total = has(/ (total|totals|in total|overall) /);
 
   // split for "A vs B"
-  const chunks = rest.split(/ (?:vs|versus|v|against|compared to|compare to|or|and|with) /).map(s => s.trim()).filter(Boolean);
+  const chunks = rest.split(/ (?:vs|versus|v|against|compared to|compare to|or|and|with|without|when|w o) /).map(s => s.trim()).filter(Boolean);
   const players = [];
   const restNoTime = rest;
   if (chunks.length > 1) { for (const c of chunks) { const p = matchPlayer(c, rows); if (p && !players.some(x => x.id === p.id)) players.push(p); } }
@@ -494,6 +495,14 @@ async function answer(raw) {
     if (teams.length) return aTeamRecord(teams[0]);
     return aStandings(null);
   }
+  // team splits ("Knicks in back-to-backs", "Celtics at home vs the West", "Knicks vs Celtics history")
+  if (teams.length && !players.length && !has(/ (next game|play next|schedule|odds|spread|line|tonight|today) /)) {
+    if (teams.length >= 2) { const at = t => Math.min(...[t.name, t.short, teamNick(t.id), t.loc, t.abbr].filter(Boolean).map(x => { const i = nn.indexOf(' ' + nameKey(x) + ' '); return i < 0 ? 1e9 : i; })); teams.sort((x, y) => at(x) - at(y)); }
+    const two = teams.length >= 2 && has(/ (record|history|head to head|h2h|series|meetings?|all time|vs|versus|against) /) && has(/ (record|history|head to head|h2h|series|meetings?|all time|since|last season|playoffs?) /);
+    const tf = tFilters(nn, has, two ? teams[1] : null);
+    const { season, ...rest2 } = tf;
+    if (two || Object.keys(rest2).length || (season && season !== 'cur')) return aTeamSplits(teams[0], tf);
+  }
   // standings / records
   if (!players.length && has(/ (standings?|seeds?|seeded|first place|1st place|playoff picture|games back|gb|ranked|ranking|record|place|where (are|do|is) the|best team|worst team|top team) /) && !st) {
     if (teams.length) return aTeamRecord(teams[0]);
@@ -513,18 +522,23 @@ async function answer(raw) {
   if (!players.length && !teams.length && !st && !dd && !td && has(/ (games|scores?|playing|on tap|results?|who won|matchups?|slate|schedule) /))
     return aDayGames(time?.kind === 'date' ? time.date : has(/ (who won|results?) /) ? lastNight() : S.today);
 
-  // two players
+  // two players: with/without ("Tatum when Brown is out"), otherwise a comparison
+  if (players.length >= 2 && OUT_RE.test(nn)) return aPlayerWithout(players[0], players[1], gfFilters(nn, has, null));
   if (players.length >= 2) return aCompare(players[0], players[1], st, rows);
 
   // one player
   if (players.length === 1) {
     const p = players[0];
+    // the team with and without him ("Knicks without Brunson", "Lakers when LeBron sits")
+    if (teams.length && OUT_RE.test(nn) && !has(/ (vs|versus|against) /)) { const t = teams.find(x => x.id === p.teamId) || teams[0]; return aTeamWithout(t, p, tFilters(nn, has, null)); }
     // game finder ("Luka 40-point games", "Jokic 30 and 10", "Brunson triple-doubles in his career", "Tatum best scoring games")
     if (time?.kind !== 'date' && time?.kind !== 'lastN') {
       const q = gfParse(nn, dd, td);
       const ddAsk = (q.dd || q.td) && (time?.kind === 'career' || has(/ (games|career|ever|all time|list|show|times|playoffs?|postseason|this season|this year) /));
       const opp = teams.find(t => t.id !== p.teamId) && has(/ (vs|versus|against|v|facing|playing|when playing) /) ? teams.find(t => t.id !== p.teamId) : null;
       const f = gfFilters(nn, has, opp);
+      // "Knicks when Brunson scores 30+": only his games for that team
+      const own = !opp && teams.find(t => String(t.id) === String(p.teamId)); if (own) f.team = own;
       if (q.conds.length || q.best || ddAsk) return aGameFinder(p, q, { f, stat: st });
       // a split: opponent, home/road, wins/losses, a past season, the playoffs, a month ("this season" alone is the normal season answer)
       const { season, ...rest } = f;
@@ -572,6 +586,7 @@ function gfParse(nn, dd, td) {
     const re = new RegExp(` (?:at least |over |more than )?(\\d{1,2}) (?:plus |or more )?(?:${w})(?: or more)?(?= |$)`, 'g');
     for (const m of nn.matchAll(re)) add(k, +m[1] + (/^ (over|more than) /.test(m[0]) ? 1 : 0)); // "over 30" means 31+
   }
+  { const sc = nn.match(/ scor(?:es|ed|ing|e)? (?:at least |over |more than )?(\d{1,2})(?: plus| or more)?(?= |$)/); if (sc) add('pts', +sc[1] + (/ (over|more than) \d/.test(sc[0]) ? 1 : 0)); }
   // bare numbers: "30 and 10", "30 10 10" (from 30/10/10) → points, rebounds, assists
   const bare = nn.match(/ (\d{2}) (?:and )?(\d{1,2})(?: (?:and )?(\d{1,2}))?(?! (?:plus |or more )?(?:points?|pts|pt|rebounds?|rebs?|boards|assists?|asts?|dimes|threes|3s|steals?|blocks?|games?|seasons?|minutes))(?= |$)/);
   if (bare && !conds.length) ['pts', 'reb', 'ast'].forEach((k, i) => bare[i + 1] && add(k, +bare[i + 1]));
@@ -601,7 +616,7 @@ async function gfLog(pid) {
           if (/^(team |world$|usa|rising|all-?star)/i.test(m.opponent?.displayName || '')) continue;
           const v = k => e.stats?.[lab.indexOf(k)];
           const sp = k => String(v(k) || '0-0').split('-').map(Number);
-          const g = { id: e.eventId, d: m.gameDate || '', season, type, o: m.opponent?.abbreviation || '', oid: m.opponent?.id, at: m.atVs || 'vs', r: m.gameResult || '', sc: m.score || '',
+          const g = { id: e.eventId, d: m.gameDate || '', season, type, tid: String(m.team?.id || ''), o: m.opponent?.abbreviation || '', oid: m.opponent?.id, at: m.atVs || 'vs', r: m.gameResult || '', sc: m.score || '',
             min: +v('MIN') || 0, pts: +v('PTS') || 0, reb: +v('REB') || 0, ast: +v('AST') || 0, stl: +v('STL') || 0, blk: +v('BLK') || 0, tov: +v('TO') || 0, fg: sp('FG'), tp: sp('3PT'), ft: sp('FT') };
           g.tpm = g.tp[0];
           if (!(g.min > 0) && !(g.pts > 0)) continue;
@@ -643,6 +658,7 @@ const gfAny = f => Object.keys(f).length > 0;
 function gfApply(games, f, cur) {
   const prev = String(+cur - 1);
   return games.filter(g => (!f.opp || g.oid === f.opp.id || g.o === f.opp.abbr)
+    && (!f.team || g.tid === String(f.team.id))
     && (!f.loc || (f.loc === 'away') === (g.at === '@'))
     && (!f.res || g.r === f.res)
     && (!f.scope || g.type === f.scope)
@@ -652,6 +668,7 @@ function gfApply(games, f, cur) {
 }
 function gfWhere(f) {
   const bits = [];
+  if (f.team) bits.push(`with the ${esc(teamNick(f.team.id))}`);
   if (f.opp) bits.push(`against the ${esc(f.opp.short || f.opp.name)}`);
   if (f.loc) bits.push(f.loc === 'home' ? 'at home' : 'on the road');
   if (f.res) bits.push(f.res === 'W' ? 'in wins' : 'in losses');
@@ -734,6 +751,7 @@ async function aGameFinder(p, q, opts = {}) {
   } else {
     text = q.td || q.dd ? `${esc(p.name)} has <b>${plural(hits.length, q.td ? 'triple-double' : 'double-double')}</b>${where}${split}.` : `${esc(p.name)} has <b>${plural(hits.length, 'game')} with ${what}</b>${where}${split}.`;
     if (curN && scope !== 'season') text += ` ${curN} of them came this season.`;
+    { const w = hits.filter(g => g.r === 'W').length, l = hits.filter(g => g.r === 'L').length; if (w + l) text += ` ${HIS[0].toUpperCase() + HIS.slice(1)} team${hits.some(g => g.tid !== hits[0].tid) ? 's' : ''} went ${w}-${l} in them.`; }
     text += ` The latest: ${line(hits[0])}.`;
   }
   if (failed) text += ` (Some seasons didn't load, so this may be missing a few games.)`;
@@ -745,6 +763,139 @@ async function aGameFinder(p, q, opts = {}) {
     text,
     html: hits.length ? card(pRow(p, null, `${plural(pool.length, 'game')} checked`) + table(['Date', 'Opp', 'Result', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PT'], rowsH) + note) : card(pRow(p, null, `${plural(pool.length, 'game')} checked`)),
     ctx: { pid: p.id, teamId: p.teamId },
+  };
+}
+
+/* ---------------- team splits and with/without ----------------
+   "Knicks in back-to-backs", "Celtics at home vs the West", "Knicks without Brunson", "Tatum when Brown is out" */
+const HIM = IS_F ? 'her' : 'him';
+const OUT_RE = / (without|w o|sits|sat|sitting|is out|was out|are out|out|missing|misses|injured|inactive|doesn t play|didn t play|does not play|did not play|not playing|with and without|with or without|on off) /;
+function tFilters(nn, has, opp) {
+  const f = gfFilters(nn, has, opp);
+  delete f.res; // a team's record already shows wins and losses
+  if (has(/ (back to backs?|b2bs?|second night|second game of a back to back|on no rest|zero days rest) /)) f.b2b = true;
+  const cm = nn.match(/ (?:vs|versus|against) (?:the )?(east|west)(?:ern)?(?: conference)? (?:teams? )?/); if (cm && !IS_C) f.oconf = cm[1] === 'east' ? 0 : 1;
+  if (has(/ (close games?|one possession games?|clutch games?|games decided by 5 or less) /)) f.close = true;
+  if (has(/ after (a )?loss(es)? /)) f.after = 'L'; else if (has(/ after (a )?wins? /)) f.after = 'W';
+  return f;
+}
+function tApply(games, f, cur) {
+  const prev = String(+cur - 1);
+  const older = [...games].sort((a, b) => a.d.localeCompare(b.d));
+  const before = new Map(older.map((g, i) => [g.id, older[i - 1]]));
+  return games.filter(g => (!f.opp || g.oid === String(f.opp.id))
+    && (!f.loc || (f.loc === 'home') === g.home)
+    && (!f.scope || g.type === f.scope)
+    && (!f.season || g.season === (f.season === 'cur' ? cur : f.season === 'prev' ? prev : f.season))
+    && (!f.since || g.d.slice(0, 4) >= f.since)
+    && (f.month == null || new Date(g.d).getMonth() === f.month)
+    && (!f.b2b || g.b2b)
+    && (f.oconf == null || S.teams[g.oid]?.conf === f.oconf)
+    && (!f.close || Math.abs(g.pf - g.pa) <= 5)
+    && (!f.after || before.get(g.id)?.r === f.after));
+}
+function tWhere(f) {
+  let w = gfWhere({ ...f, opp: null });
+  const bits = [];
+  if (f.opp) bits.push(`against the ${esc(f.opp.short || f.opp.name)}`);
+  if (f.b2b) bits.push('on the second night of back-to-backs');
+  if (f.oconf != null) bits.push(`against the ${f.oconf === 0 ? 'East' : 'West'}`);
+  if (f.close) bits.push('in games decided by 5 or fewer');
+  if (f.after) bits.push(f.after === 'L' ? 'after a loss' : 'after a win');
+  return (bits.length ? ' ' + bits.join(' ') : '') + w;
+}
+// which seasons a team question needs
+async function tSeasonsFor(H, teamId, f) {
+  const cur = await H.tlSeasonNow(teamId);
+  let ys = [cur];
+  if (f.season === 'prev') ys = [String(+cur - 1)];
+  else if (f.season && f.season !== 'cur') ys = [f.season];
+  else if (f.since) { const from = +f.since + (IS_W ? 0 : 1); ys = []; for (let y = +cur; y >= from && ys.length < 6; y--) ys.push(String(y)); }
+  else if (f.opp && !f.season) ys = [cur, String(+cur - 1), String(+cur - 2)];
+  const logs = await Promise.all(ys.map(y => H.tLog(teamId, y)));
+  return { cur, games: H.tlMarkB2B(logs.flat().sort((a, b) => b.d.localeCompare(a.d))) };
+}
+function tAvg(gs) {
+  const n = gs.length, w = gs.filter(g => g.r === 'W').length;
+  const pf = gs.reduce((a, g) => a + g.pf, 0) / n, pa = gs.reduce((a, g) => a + g.pa, 0) / n;
+  return { n, w, l: n - w, rec: `${w}-${n - w}`, pf: pf.toFixed(1), pa: pa.toFixed(1), diff: (pf - pa >= 0 ? '+' : '') + (pf - pa).toFixed(1) };
+}
+const tAvgRow = (label, a) => `<tr><td>${esc(label)}</td><td>${a.n}</td><td>${a.rec}</td><td>${a.pf}</td><td>${a.pa}</td><td class="${+a.diff >= 0 ? 'w' : 'l'}">${a.diff}</td></tr>`;
+const T_AVG_HEAD = ['', 'GP', 'W-L', 'PTS', 'OPP', '+/-'];
+const tLogRows = gs => gs.map(g => `<tr data-game="${g.id}"><td>${esc(gfDay(g))}${g.type === 'post' ? ' <small>PO</small>' : ''}</td><td>${g.home ? 'vs' : '@'} ${esc(g.o)}</td><td class="${g.r === 'W' ? 'w' : 'l'}">${g.r} ${g.pf}-${g.pa}</td><td>${g.pf - g.pa > 0 ? '+' : ''}${g.pf - g.pa}</td></tr>`);
+const T_LOG_HEAD = ['Date', 'Opp', 'Result', '+/-'];
+const tName = t => `the ${esc(teamNick(t.id))}`;
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+async function aTeamSplits(t, f) {
+  const H = await lazy('h2h');
+  const { cur, games } = await tSeasonsFor(H, t.id, f);
+  const base = tApply(games, { season: f.season, scope: f.scope, since: f.since, teamId: t.id }, cur);
+  f.teamId = t.id;
+  const pool = tApply(games, f, cur);
+  const where = tWhere(f) + (!f.season && !f.since && !f.opp ? ' this season' : '');
+  const past = (f.season && f.season !== 'cur') || f.since || f.opp;
+  if (!pool.length) return { text: `${cap(tName(t))} haven't played a game${where}.`, html: card(tRow(t, null, t.rec || '')), ctx: { teamId: t.id } };
+  const a = tAvg(pool);
+  let text = `${cap(tName(t))} ${past ? 'went' : 'are'} <b>${a.rec}</b>${where}, scoring ${a.pf} and allowing ${a.pa} per game (${a.diff}).`;
+  if (f.opp) { const last = pool[0]; text += ` Last meeting: ${last.r === 'W' ? 'won' : 'lost'} ${last.pf}-${last.pa} on ${esc(gfDay(last))}.`; }
+  const rows = [tAvgRow('This split', a)];
+  if (base.length > pool.length) rows.push(tAvgRow(f.opp ? 'All games in those seasons' : 'All games', tAvg(base)));
+  const show = pool.slice(0, 40);
+  return {
+    text,
+    html: card(tRow(t, null, `${a.rec}${where}`) + table(T_AVG_HEAD, rows) + `<p class="ask-note">Games${pool.length > show.length ? ` (latest ${show.length} of ${pool.length})` : ''}</p>` + table(T_LOG_HEAD, tLogRows(show))),
+    ctx: { teamId: t.id },
+  };
+}
+// the team with and without a player
+async function aTeamWithout(t, p, f) {
+  const H = await lazy('h2h');
+  const [{ cur, games }, plog] = await Promise.all([tSeasonsFor(H, t.id, f), gfLog(p.id)]);
+  f.teamId = t.id;
+  const pool = tApply(games, f, cur);
+  const played = new Set(plog.games.filter(g => g.min > 0 && g.tid === String(t.id)).map(g => String(g.id)));
+  const withG = pool.filter(g => played.has(g.id)), without = pool.filter(g => !played.has(g.id));
+  const where = tWhere(f) + (!f.season && !f.since ? ' this season' : '');
+  const last = p.name.split(' ').slice(1).join(' ') || p.name;
+  if (!pool.length) return { text: `${cap(tName(t))} haven't played a game${where}.`, ctx: { teamId: t.id, pid: p.id } };
+  const aw = withG.length ? tAvg(withG) : null, ao = without.length ? tAvg(without) : null;
+  if (!aw && String(p.teamId) !== String(t.id)) return { text: `${esc(p.name)} hasn't played for ${tName(t)}${where}${S.teams[p.teamId] ? ` (${HES} with the ${esc(teamNick(p.teamId))} now)` : ''}.`, ctx: { teamId: t.id, pid: p.id } };
+  const past = (f.season && f.season !== 'cur') || f.since;
+  let text = `${cap(tName(t))} ${past ? 'went' : 'are'} <b>${aw ? aw.rec : '0-0'} with ${esc(p.name)}</b> and <b>${ao ? ao.rec : '0-0'} without ${HIM}</b>${where}.`;
+  if (aw) text += ` With ${HIM}: ${aw.pf} scored, ${aw.pa} allowed (${aw.diff}).`;
+  if (ao) text += ` Without: ${ao.pf} scored, ${ao.pa} allowed (${ao.diff}).`;
+  if (!ao) text += ` ${HE} hasn't missed a game${where}.`;
+  const rows = [aw && tAvgRow(`With ${last}`, aw), ao && tAvgRow(`Without ${last}`, ao)].filter(Boolean);
+  return {
+    text,
+    html: card(tRow(t, null, `with and without ${p.name}`) + table(T_AVG_HEAD, rows) + (without.length ? `<p class="ask-note">Games without ${esc(last)}</p>` + table(T_LOG_HEAD, tLogRows(without.slice(0, 40))) : '')),
+    ctx: { teamId: t.id, pid: p.id },
+  };
+}
+// a player's numbers with and without a teammate
+async function aPlayerWithout(a, b, f) {
+  const [la, lb] = await Promise.all([gfLog(a.id), gfLog(b.id)]);
+  const cur = la.cur;
+  const scoped = !f.season && !f.since && !f.scope ? { ...f, season: 'cur' } : f;
+  const pool = gfApply(la.games, scoped, cur);
+  // only seasons and teams where the two were teammates
+  const mates = new Set(lb.games.map(g => `${g.season}|${g.tid}`));
+  const together = pool.filter(g => mates.has(`${g.season}|${g.tid}`));
+  const bPlayed = new Set(lb.games.filter(g => g.min > 0).map(g => String(g.id)));
+  const withG = together.filter(g => bPlayed.has(String(g.id))), without = together.filter(g => !bPlayed.has(String(g.id)));
+  const where = gfWhere(scoped);
+  const bl = b.name.split(' ').slice(1).join(' ') || b.name;
+  if (!together.length) return { text: `${esc(a.name)} and ${esc(b.name)} haven't been teammates${where}${S.teams[b.teamId] && String(a.teamId) !== String(b.teamId) ? ` (${esc(b.name.split(' ').slice(1).join(' ') || b.name)} plays for the ${esc(teamNick(b.teamId))})` : ''}.`, ctx: { pid: a.id } };
+  if (!without.length) return { text: `${esc(b.name)} has played in all ${plural(together.length, 'game')} ${esc(a.name)} has played${where}, so there's nothing to compare yet.`, html: card(pRow(a, null, `with ${b.name}`) + table(GF_AVG_HEAD, [gfAvgRow(`With ${bl}`, gfAvg(withG))])), ctx: { pid: a.id } };
+  const aw = withG.length ? gfAvg(withG) : null, ao = gfAvg(without);
+  let text = `Without ${esc(b.name)}${where}, ${esc(a.name)} is averaging <b>${ao.pts} points, ${ao.reb} rebounds and ${ao.ast} assists</b> in ${plural(ao.n, 'game')} on ${ao.fgp}% shooting (team ${ao.rec}).`;
+  if (aw) text += ` With ${esc(bl)}: ${aw.pts} / ${aw.reb} / ${aw.ast} in ${plural(aw.n, 'game')} (${aw.rec}).`;
+  return {
+    text,
+    html: card(pRow(a, null, `with and without ${b.name}`) + table(GF_AVG_HEAD, [aw && gfAvgRow(`With ${bl}`, aw), gfAvgRow(`Without ${bl}`, ao)].filter(Boolean))
+      + `<p class="ask-note">Games without ${esc(bl)}</p>` + table(GF_LOG_HEAD, gfLogRows(without.slice(0, 40)))),
+    ctx: { pid: a.id, teamId: a.teamId },
   };
 }
 
@@ -786,6 +937,10 @@ const ASK_EXAMPLES = IS_C ? [
   'Most threes per game',
   'Brunson stats vs the Spurs',
   'Luka at home this season',
+  'Knicks in back-to-backs',
+  'Lakers without LeBron',
+  'Tatum when Brown is out',
+  'Knicks vs Celtics history',
   'Tatum in the playoffs',
   'Luka 40-point games',
   'Jokic 30 and 10 this season',
@@ -958,7 +1113,7 @@ function looksLikeBet(q) {
   if (/^\s*(track|add|log|save)\b.*\b(bet|parlay|slip|leg)s?\b/.test(s) || /^\s*(bet|parlay|my slip)\s*[:\-]/.test(s)) return true;
   if (/^\s*(who|what|whats|how|when|where|why|did|does|do|is|are|was|were|will|can|should|which)\b/.test(s) || /\?\s*$/.test(s)) return false;
   // a game-finder question ("Wemby games with 5+ blocks", "Luka 40+ point games in his career"), not a bet
-  if (String(q).split(/\n/).filter(l => l.trim()).length === 1 && /\b(games?|times|career|ever|all[ -]time|in a game|single game|this season|playoffs?)\b/.test(s)) return false;
+  if (String(q).split(/\n/).filter(l => l.trim()).length === 1 && /\b(games?|times|career|ever|all[ -]time|in a game|single game|this season|playoffs?|when|without|with)\b/.test(s)) return false;
   const lines = String(q).split(/\n/).filter(l => l.trim()).length;
   const prop = /\b(over|under|o|u|more|less|higher|lower) \d+(\.\d)?\b|\b\d+(\.\d)?\+ |\b\d+(\.\d)? [a-z+ ]{2,30} (more|less|higher|lower)\b/.test(s);
   const spread = /(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/.test(s) && !/(^|\s)[+-]\d{3,4}(\s|$)/.test(s.replace(/(^|\s)[+-]\d{1,2}(\.5)?(\s|$)/g, ' '));

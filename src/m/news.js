@@ -1,6 +1,12 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09c', date: 'Nov 9', items: [
+    ['Team questions in Ask', 'Ask about any team split this season or any past one: "Knicks in back-to-backs", "Celtics at home vs the West", "Spurs after a loss", "Knicks in close games", "Thunder last season in the playoffs" or "Knicks vs Celtics history". You get the record, points for and against, and every game.'],
+    ['With and without', '"Knicks without Brunson", "Sixers when LeBron sits" and "Maxey without Embiid" show the team\'s record or the player\'s numbers with and without a teammate, plus the games he missed. Game searches show the team\'s record too ("Knicks when Brunson scores 30+").'],
+    ['Head to head on game pages', 'Every game page now shows the two teams\' meetings over the last four seasons (five in college), playoffs and NCAA Tournament included: who leads, average scores and each result. Tap one to open it.'],
+    ['Live win chance on more games', 'Live games that ESPN has no win probability for, which is most college games, now show Fullcourt\'s own live estimate on the card. It starts from the pregame projection and updates with the score and the time left.'],
+  ] },
   { id: '2026-11-09b', date: 'Nov 9', items: [
     ['Deeper player questions in Ask', 'Ask about any split of a player\'s career and get the per-game averages, a season-by-season table and the full game log: "Brunson stats vs the Spurs", "Luka at home this season", "Tatum in the playoffs", "Curry on the road last season", "Shai in wins", "Jokic in November", "Luka 2023-24" or "Wemby since 2025". Mix them ("Brunson vs the Celtics in the playoffs") or add them to a game search ("Luka 40-point games at home").'],
   ] },
