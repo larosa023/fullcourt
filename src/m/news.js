@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08i', date: 'Nov 8', items: [
+    ['Men\'s college game videos in Replay', 'Men\'s college Replay now has the same conference videos as the women\'s: ACC full game replays and highlights, Big 12 extended highlights and highlights, and Big East highlights, matched to each game. Game pages show Watch in Replay when there\'s one.'],
+  ] },
   { id: '2026-11-08h', date: 'Nov 8', items: [
     ['Women\'s college game videos in Replay', 'Replay now finds women\'s college game videos from the ACC, Big 12 and Big East YouTube channels: full game replays and condensed games (ACC), extended highlights (Big 12) and highlights. Each game gets a button for every video there is, and games ESPN has no clip for still show up when a conference does. A game\'s page shows Watch in Replay when there\'s a video.'],
     ['More NBA full game highlights', 'NBA full game highlights now come from the NBA\'s nightly full game highlights list, so far more games have them, plus an Extended button when the NBA posts a longer cut.'],

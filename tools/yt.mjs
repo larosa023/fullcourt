@@ -5,14 +5,15 @@
 //   games from the few days before it went up.
 // Reads the YouTube Data API when the YT_KEY secret works (and finds each season's new playlists by name); otherwise
 // YouTube's public playlist feeds (the latest 15 videos each), which YouTube sometimes breaks.
-// Output: highlights.json { updated, games: { "YYYYMMDD|away|home": NBA video }, ncaaw: { eventId: { full|cond|ext|hl: video } } }
+// Output: highlights.json { updated, games: { "YYYYMMDD|away|home": NBA video }, ncaaw / ncaam: { eventId: { full|cond|ext|hl: video } } }
 import { writeFileSync } from 'node:fs';
 const PREV = 'https://raw.githubusercontent.com/larosa023/fullcourt/yt-data/highlights.json';
 const KEY = process.env.YT_KEY || '';
 // the key only accepts calls from the site's address
 const REFERER = 'https://nbafullcourty.netlify.app/';
 const UA = { 'user-agent': 'Mozilla/5.0 (compatible; fullcourt-highlights/1.0; +https://github.com/larosa023/fullcourt)', 'accept-language': 'en-US,en;q=0.9' };
-const ESPN_W = 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball';
+const ESPN_C = lg => `https://site.api.espn.com/apis/site/v2/sports/basketball/${lg === 'ncaam' ? 'mens' : 'womens'}-college-basketball`;
+const MEN = /(?<!wo)men.s basketball/i, WOMEN = /women.s basketball/i; // "women's basketball" contains "men's basketball"
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const nick = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const dec = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
@@ -34,6 +35,15 @@ const SOURCES = [
   // no playlist yet this season; picked up by name once one appears (needs the API)
   { lg: 'ncaaw', src: 'Big Ten', ch: 'UC4LeRw7pIZ_kseS4Krn_DQA', pl: '', find: /women.s basketball.*highlights|highlights.*women.s basketball/i },
   { lg: 'ncaaw', src: 'SEC', ch: 'UC60q_WUDde_NK-ze3frvtiA', pl: '', find: /women.s basketball.*(game highlights|condensed|full game)/i },
+  // men's college: the same channels' men's playlists
+  { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: 'PLPGY7v2Rzaao', kind: 'full', find: /(?<!wo)men.s basketball full game replay/i },
+  { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: '', kind: 'cond', find: /(?<!wo)men.s basketball condensed games?/i },
+  { lg: 'ncaam', src: 'ACC', ch: 'UC0hy7TcR1gGD8nQBqrF2FaA', pl: 'PLHObPASiOemY', kind: 'hl', find: /(?<!wo)men.s basketball game highlights/i },
+  { lg: 'ncaam', src: 'Big 12', ch: 'UCLnfOCTbfqMy_3ah8OmTHEQ', pl: 'PLDM7iB7plWs0', kind: 'ext', find: /(?<!wo)men.s basketball extended highlights/i },
+  { lg: 'ncaam', src: 'Big 12', ch: 'UCLnfOCTbfqMy_3ah8OmTHEQ', pl: 'PLEEb-V9VcW4Q', kind: 'hl', find: /big 12 men.s basketball highlights/i },
+  { lg: 'ncaam', src: 'Big East', ch: 'UCAcXdiimhsuivSn2PxtsRFw', pl: 'PLP_mXYOqM4h8', kind: 'hl', find: /big east men.s basketball highlights/i },
+  { lg: 'ncaam', src: 'Big Ten', ch: 'UC4LeRw7pIZ_kseS4Krn_DQA', pl: '', find: /(?<!wo)men.s basketball.*highlights|highlights.*(?<!wo)men.s basketball/i },
+  { lg: 'ncaam', src: 'SEC', ch: 'UC60q_WUDde_NK-ze3frvtiA', pl: '', find: /(?<!wo)men.s basketball.*(game highlights|condensed|full game)/i },
 ];
 
 let apiOK = !!KEY;
@@ -81,9 +91,9 @@ async function videos(s) {
   out.push(...await feed(`playlist_id=${pl}`, `${s.src} playlist ${pl}`));
   if (out.length) return out;
   // the playlist feed doesn't work for every playlist, so fall back on the channel's latest uploads, picked out by title
-  // (the conferences put "Women's Basketball" in every women's video title)
+  // (the conferences put "Women's Basketball" or "Men's Basketball" in every video title)
   const up = await uploads(s.ch, s.src);
-  return up.filter(v => s.lg === 'nba' ? /full game highlights/i.test(v.title) : /women.s basketball/i.test(v.title) && !!KIND(v.title));
+  return up.filter(v => s.lg === 'nba' ? /full game highlights/i.test(v.title) : (s.lg === 'ncaam' ? MEN.test(v.title) && !WOMEN.test(v.title) : WOMEN.test(v.title)) && !!KIND(v.title));
 }
 async function feed(q, label) {
   const out = [];
@@ -146,18 +156,19 @@ function fit(name, team) {
 }
 const etYmd = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
 const sbCache = new Map();
-async function wGames(ymd) {
-  if (!sbCache.has(ymd)) sbCache.set(ymd, fetch(`${ESPN_W}/scoreboard?dates=${ymd}&groups=50&limit=500`).then(r => r.json()).then(j => (j.events || []).map(e => ({ id: e.id, ymd, state: e.status?.type?.state, teams: (e.competitions?.[0]?.competitors || []).map(c => c.team || {}) }))).catch(() => []));
-  return sbCache.get(ymd);
+async function wGames(ymd, lg = 'ncaaw') {
+  const ck = `${lg}${ymd}`;
+  if (!sbCache.has(ck)) sbCache.set(ck, fetch(`${ESPN_C(lg)}/scoreboard?dates=${ymd}&groups=50&limit=500`).then(r => r.json()).then(j => (j.events || []).map(e => ({ id: e.id, ymd, state: e.status?.type?.state, teams: (e.competitions?.[0]?.competitors || []).map(c => c.team || {}) }))).catch(() => []));
+  return sbCache.get(ck);
 }
-async function ncaawVideo(v, out, src, misses, plKind = '') {
+async function ncaawVideo(v, out, src, misses, plKind = '', lg = 'ncaaw') {
   const kind = KIND(v.title) || plKind; const nm = names(v.title);
   if (!kind || !nm || !v.at) { misses.push(`(no teams) ${v.title}`); return false; }
   const pub = new Date(v.at);
   let best = null, tie = false;
   for (let back = 0; back <= 4; back++) {
     const day = etYmd(pub.getTime() - back * 864e5);
-    for (const g of await wGames(day)) {
+    for (const g of await wGames(day, lg)) {
       if (g.state === 'pre' || g.teams.length !== 2) continue;
       const a = Math.min(fit(nm[0], g.teams[0]), fit(nm[1], g.teams[1])), b = Math.min(fit(nm[0], g.teams[1]), fit(nm[1], g.teams[0]));
       const s = Math.max(a, b); if (!s) continue;
@@ -176,9 +187,9 @@ async function ncaawVideo(v, out, src, misses, plKind = '') {
 export { names, fit, ncaawVideo, nbaVideo, KIND };
 if (!process.env.YT_TEST) await main();
 async function main() {
-  let prev = { games: {}, ncaaw: {} };
+  let prev = { games: {}, ncaaw: {}, ncaam: {} };
   try { const r = await fetch(`${PREV}?t=${Date.now()}`); if (r.ok) prev = await r.json(); } catch (e) {}
-  const games = { ...(prev.games || {}) }, ncaaw = { ...(prev.ncaaw || {}) };
+  const games = { ...(prev.games || {}) }, col = { ncaaw: { ...(prev.ncaaw || {}) }, ncaam: { ...(prev.ncaam || {}) } };
   const stats = {};
   const misses = [];
   const done = new Set();
@@ -189,16 +200,16 @@ async function main() {
       if (!v.id || done.has(v.id)) continue; // several sources can share a channel's uploads
       done.add(v.id);
       stats[k].seen++;
-      if (s.lg === 'nba' ? nbaVideo(v, games) : await ncaawVideo(v, ncaaw, s.src, misses, s.kind)) stats[k].added++;
+      if (s.lg === 'nba' ? nbaVideo(v, games) : await ncaawVideo(v, col[s.lg], s.src, misses, s.kind, s.lg)) stats[k].added++;
     }
   }
   // keep 60 days
   const cut = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
   for (const k of Object.keys(games)) if (k.slice(0, 8) < cut) delete games[k];
-  for (const k of Object.keys(ncaaw)) if ((ncaaw[k].d || '') < cut) delete ncaaw[k];
+  for (const L of Object.values(col)) for (const k of Object.keys(L)) if ((L[k].d || '') < cut) delete L[k];
   console.log(`source: ${apiOK ? 'YouTube API' : 'public feeds'} · season ${SEASON}`);
   for (const [k, v] of Object.entries(stats)) console.log(`${k}: ${v.seen} videos, ${v.added} new`);
   if (misses.length) console.log(`not matched (${misses.length}):\n  ` + [...new Set(misses)].slice(0, 40).join('\n  '));
-  console.log(`total: NBA ${Object.keys(games).length} games, women's college ${Object.keys(ncaaw).length} games`);
-  writeFileSync(process.argv[2] || 'highlights.json', JSON.stringify({ updated: new Date().toISOString(), api: apiOK, games, ncaaw }));
+  console.log(`total: NBA ${Object.keys(games).length} games, women's college ${Object.keys(col.ncaaw).length}, men's college ${Object.keys(col.ncaam).length}`);
+  writeFileSync(process.argv[2] || 'highlights.json', JSON.stringify({ updated: new Date().toISOString(), api: apiOK, games, ncaaw: col.ncaaw, ncaam: col.ncaam }));
 }
