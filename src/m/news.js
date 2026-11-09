@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09e', date: 'Nov 9', items: [
+    ['Rotation on game pages', 'A new Rotation tab on every game shows who was on the floor and when for both teams, quarter by quarter (halves in men\'s college), built from the play-by-play\'s substitutions. Starters are marked, minutes are on the right, and it works during live games too.'],
+    ['Assist map', 'A new Assists tab draws who assisted whom for each team: arrows from passer to scorer, thicker for more assists, plus the top passing combos and the points they made.'],
+    ['More women\'s college highlights', 'Replay now also pulls women\'s college videos from the Big Ten women\'s channel, FOX\'s women\'s channel, ESPN, the American and Sun Belt conferences, and official school channels (LSU, Florida, Mississippi State, Ole Miss, Oklahoma, Alabama, Kentucky, UConn), so far more Top 25 games have a video. Longer highlight cuts show as Extended.'],
+  ] },
   { id: '2026-11-09d', date: 'Nov 9', items: [
     ['Depth charts on team pages', 'Every team page now has a Depth chart above the roster, in all four leagues. NBA teams show ESPN\'s depth chart, point guard to center. ESPN has none for the WNBA or college, so Fullcourt builds one: the starting five from who started the last few games, then everyone else by recent minutes, as guards, forwards and centers. Starters are highlighted, minutes per game and injuries are shown, and players who are out drop to the end of their row. Tap anyone to open their page.'],
   ] },
