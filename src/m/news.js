@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-08g', date: 'Nov 8', items: [
+    ['Career highs on player pages', 'Every NBA, WNBA and college player page now has Career highs: their best game for points, rebounds, assists, 3-pointers, steals and blocks, with the opponent, score and date. Tap one to open that game. NBA and WNBA show regular season and playoffs separately, and you also get career counts of 30, 40 and 50-point games, double-doubles and triple-doubles.'],
+  ] },
   { id: '2026-11-08f', date: 'Nov 8', items: [
     ['Windows app 1.3.2', 'The mini scoreboard (and the main window) no longer flash plain, unstyled buttons for a moment while opening. The app now has the page\'s styling in hand before it draws anything.'],
   ] },

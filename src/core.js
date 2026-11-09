@@ -1803,6 +1803,10 @@ async function openPlayer(id) {
       <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Season game log</b><small>Every game this season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
+    <section class="card career" data-fill="highs">
+      <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career highs</b><small>Best single games</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="career-b"><div class="career-in"></div></div>
+    </section>
     <section class="card career" data-fill="career" data-career="${id}">
       <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
@@ -1820,7 +1824,7 @@ async function openPlayer(id) {
     const tg = $('[data-careertoggle]', car);
     const set = open => {
       car.classList.toggle('open', open); tg.setAttribute('aria-expanded', open);
-      if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; (car.dataset.fill === 'log' ? fillLog : fillCareer)(car, id); }
+      if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; ({ log: fillLog, highs: fillHighs }[car.dataset.fill] || fillCareer)(car, id); }
     };
     tg.addEventListener('click', () => set(!car.classList.contains('open')));
     set(true);
@@ -2351,7 +2355,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-08f'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-08g'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2400,6 +2404,7 @@ const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
 const fillCareer = stub('career', 'fillCareer');
+const fillHighs = stub('highs', 'fillHighs');
 const fillLog = stub('gamelog', 'fillLog');
 const renderAdvLeader = stub('advlead', 'renderAdvLeader');
 const fillTeamExtras = stub('teamx', 'fillTeamExtras');
