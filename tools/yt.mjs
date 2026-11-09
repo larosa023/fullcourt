@@ -122,7 +122,7 @@ function nbaVideo(v, games) {
   if (!/full game highlights/i.test(v.title)) return false;
   const ext = /^\s*extended\s*:/i.test(v.title);
   const t = v.title.replace(/^\s*extended\s*:\s*/i, '').match(/([A-Z0-9 .'&]+?)\s+(?:at|vs\.?|@)\s+([A-Z0-9 .'&]+?)\s*\|/i);
-  const d = v.title.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})/i);
+  const d = v.title.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})[,.]\s*(\d{4})/i);
   if (!t || !d) { console.log('  skip (no match):', v.title); return false; }
   const ymd = `${d[3]}${String(MONTHS.indexOf(d[1].toLowerCase()) + 1).padStart(2, '0')}${d[2].padStart(2, '0')}`;
   const key = `${ymd}|${nick(t[1])}|${nick(t[2])}`;
@@ -137,7 +137,7 @@ function nbaVideo(v, games) {
 async function wnbaVideo(v, out, misses) {
   if (!/full game highlights/i.test(v.title)) return false;
   const nm = names(v.title.split(/\s+\|\s+/)[0]);
-  const d = v.title.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})/i);
+  const d = v.title.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})[,.]\s*(\d{4})/i);
   if (!nm || !d) { misses.push(v.title); return false; }
   const ymd = `${d[3]}${String(MONTHS.indexOf(d[1].toLowerCase()) + 1).padStart(2, '0')}${d[2].padStart(2, '0')}`;
   for (const day of [ymd, etYmd(Date.parse(`${d[3]}-${ymd.slice(4, 6)}-${ymd.slice(6)}T12:00:00Z`) + 864e5)]) {
