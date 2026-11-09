@@ -1410,7 +1410,7 @@ async function openGame(id, opts = {}) {
       main += recapHTML(d, sides) + notableCard(d) + clipsCard(clips);
       if (live) side += oddsCard(gameOdds(d, id), sides, 'Line', `Updated ${esc(fmtTime(new Date().toISOString()))}. Shows in-game prices when the sportsbook posts them.`);
       main += `<div class="card"><div class="tabs hs" role="tablist" data-drag>
-        ${[['box', 'Box score'], ['court', 'Court'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['rot', 'Rotation'], ['ast', 'Assists'], ['lead', 'Leaders']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
+        ${[['box', 'Box score'], ['court', 'Court'], ['shots', 'Shot chart'], ['team', 'Team stats'], ['plays', 'Play-by-play'], ['lead', 'Leaders'], ['rot', 'Rotation'], ['ast', 'Assists']].map(([k, t]) => `<button role="tab" data-gtab="${k}" aria-selected="${tab === k}">${t}</button>`).join('')}
       </div><div class="pane" id="gpane"></div></div>`;
     }
     // head to head over the last few seasons (filled in once the team schedules load; kept so refreshes don't flicker)
