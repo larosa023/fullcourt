@@ -1735,6 +1735,7 @@ async function openTeam(id) {
       </div></div></div>` : ''}
     <div class="tx-wrap" id="tx-${id}"><div class="sk" style="height:260px"></div></div>
     ${evs.length ? `<div class="card cal" id="cal-${id}"></div>` : ''}
+    <div class="card dc-card" id="dc-${id}" hidden></div>
     <div>
       <div class="card-h"><h4 class="h-display" style="font-size:18px;margin:0">Roster</h4><span class="eyebrow">${athletes.length} players</span></div>
       <div class="roster">${athletes.map((a, i) => `
@@ -1745,7 +1746,9 @@ async function openTeam(id) {
         </button>`).join('')}</div>
     </div>`;
   wireDrag(sheet.body);
-  teamInjuries(id, tm.name, evs, athletes).then(({ list }) => {
+  const injP = teamInjuries(id, tm.name, evs, athletes);
+  { const dcBox = $(`#dc-${id}`, sheet.body); if (dcBox) lazy('depth').then(m => m.fillDepth(dcBox, id, evs, athletes, injP)).catch(() => {}); }
+  injP.then(({ list }) => {
     const box = sheet.alive && $(`#ir-${id}`, sheet.body);
     if (box) box.innerHTML = irCardHTML(list);
   }).catch(() => { const box = $(`#ir-${id}`, sheet.body); if (box) box.innerHTML = '<div class="card-h"><h4>Injury report</h4></div><p class="ir-clear">The injury report is unavailable right now.</p>'; });
@@ -2393,7 +2396,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-09c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-09d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

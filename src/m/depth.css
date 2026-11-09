@@ -1,0 +1,17 @@
+/* team page: depth chart */
+.dc-rows { display: grid; gap: 2px; }
+.dc-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.dc-row:first-child { border-top: 0; }
+.dc-pos { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 17px; color: var(--muted); text-align: center; }
+.dc-ps { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.dc-ps::-webkit-scrollbar { display: none; }
+.dc-p { flex: none; display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); text-align: left; transition: border-color .2s; }
+.dc-p:hover { border-color: var(--accent); }
+.dc-p .face, .dc-p img, .dc-p .avatar { width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; background: var(--surface); }
+.dc-p.st { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+.dc-p.out { opacity: .55; }
+.dc-n { display: grid; line-height: 1.2; white-space: nowrap; }
+.dc-n b { font-size: 13px; }
+.dc-n small { display: flex; gap: 5px; font-size: 11px; color: var(--muted); }
+.dc-n small em { font-style: normal; font-weight: 700; color: var(--accent); }
+.dc-n small i { font-style: normal; font-weight: 700; }

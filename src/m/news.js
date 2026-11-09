@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09d', date: 'Nov 9', items: [
+    ['Depth charts on team pages', 'Every team page now has a Depth chart above the roster, in all four leagues. NBA teams show ESPN\'s depth chart, point guard to center. ESPN has none for the WNBA or college, so Fullcourt builds one: the starting five from who started the last few games, then everyone else by recent minutes, as guards, forwards and centers. Starters are highlighted, minutes per game and injuries are shown, and players who are out drop to the end of their row. Tap anyone to open their page.'],
+  ] },
   { id: '2026-11-09c', date: 'Nov 9', items: [
     ['Team questions in Ask', 'Ask about any team split this season or any past one: "Knicks in back-to-backs", "Celtics at home vs the West", "Spurs after a loss", "Knicks in close games", "Thunder last season in the playoffs" or "Knicks vs Celtics history". You get the record, points for and against, and every game.'],
     ['With and without', '"Knicks without Brunson", "Sixers when LeBron sits" and "Maxey without Embiid" show the team\'s record or the player\'s numbers with and without a teammate, plus the games he missed. Game searches show the team\'s record too ("Knicks when Brunson scores 30+").'],
