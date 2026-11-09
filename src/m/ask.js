@@ -62,6 +62,7 @@ const STOP = new Set(('how many much what whats who whos whose which when where 
   'team teams player players compare compared vs. than better more less good doing been total totals number numbers lately recent recently right now currently ' +
   'east eastern west western conference conf rank ranked ranking where place first second seed seeds back over under o u favored favorite underdog win won lose lost beat result final ' +
   'night week month october november december january february march april monday tuesday wednesday thursday friday saturday sunday s 1st 2nd 3rd th ' +
+  'since home road away wins losses victories defeats playoff playoffs postseason regular facing during may june july august september only when ' +
   'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys rebounding assisting passing blocking stealing playmaking').split(' '));
 
 /* ---------------- parsing ---------------- */
@@ -522,10 +523,12 @@ async function answer(raw) {
     if (time?.kind !== 'date' && time?.kind !== 'lastN') {
       const q = gfParse(nn, dd, td);
       const ddAsk = (q.dd || q.td) && (time?.kind === 'career' || has(/ (games|career|ever|all time|list|show|times|playoffs?|postseason|this season|this year) /));
-      if (q.conds.length || q.best || ddAsk) {
-        const scope = has(/ (playoffs?|postseason) /) ? 'post' : has(/ (this season|this year|so far) /) ? 'season' : has(/ regular season /) ? 'reg' : undefined;
-        return aGameFinder(p, q, { scope, opp: teams[0] && has(/ (vs|versus|against|v) /) ? teams[0] : null, stat: st });
-      }
+      const opp = teams.find(t => t.id !== p.teamId) && has(/ (vs|versus|against|v|facing|playing|when playing) /) ? teams.find(t => t.id !== p.teamId) : null;
+      const f = gfFilters(nn, has, opp);
+      if (q.conds.length || q.best || ddAsk) return aGameFinder(p, q, { f, stat: st });
+      // a split: opponent, home/road, wins/losses, a past season, the playoffs, a month ("this season" alone is the normal season answer)
+      const { season, ...rest } = f;
+      if (gfAny(rest) || (season && season !== 'cur')) return aSplits(p, f);
     }
     if (teams.length && has(/ (vs|versus|against|v) /)) return aPlayerLastN(p, 82, st, teams[0]);
     if (time?.kind === 'date') return aPlayerOnDate(p, time.date, st);
@@ -599,7 +602,7 @@ async function gfLog(pid) {
           const v = k => e.stats?.[lab.indexOf(k)];
           const sp = k => String(v(k) || '0-0').split('-').map(Number);
           const g = { id: e.eventId, d: m.gameDate || '', season, type, o: m.opponent?.abbreviation || '', oid: m.opponent?.id, at: m.atVs || 'vs', r: m.gameResult || '', sc: m.score || '',
-            min: +v('MIN') || 0, pts: +v('PTS') || 0, reb: +v('REB') || 0, ast: +v('AST') || 0, stl: +v('STL') || 0, blk: +v('BLK') || 0, tov: +v('TO') || 0, fg: sp('FG'), tp: sp('3PT') };
+            min: +v('MIN') || 0, pts: +v('PTS') || 0, reb: +v('REB') || 0, ast: +v('AST') || 0, stl: +v('STL') || 0, blk: +v('BLK') || 0, tov: +v('TO') || 0, fg: sp('FG'), tp: sp('3PT'), ft: sp('FT') };
           g.tpm = g.tp[0];
           if (!(g.min > 0) && !(g.pts > 0)) continue;
           games.push(g);
@@ -614,12 +617,98 @@ async function gfLog(pid) {
   return pr;
 }
 const gfTen = g => ['pts', 'reb', 'ast', 'stl', 'blk'].filter(k => g[k] >= 10).length;
+const MONTHS_L = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+// ESPN's season value is the year a season ends (2027 = 2026-27); the WNBA's is its calendar year
+const seasonName = y => IS_W ? String(y) : `${+y - 1}-${String(+y % 100).padStart(2, '0')}`;
+// the split a question asks for: opponent, home/road, wins/losses, a season, the playoffs, a month, "since 2024"
+function gfFilters(nn, has, opp) {
+  const f = {};
+  if (opp) f.opp = opp;
+  if (has(/ (at home|home games?|in home games) /)) f.loc = 'home';
+  else if (has(/ (on the road|road games?|away games?|away from home|when away) /)) f.loc = 'away';
+  if (has(/ (in wins|wins only|when (they|the \w+) win|in victories) /)) f.res = 'W';
+  else if (has(/ (in losses|losses only|when (they|the \w+) lose|in defeats) /)) f.res = 'L';
+  if (has(/ (playoffs?|postseason) /)) f.scope = 'post';
+  else if (has(/ regular season /)) f.scope = 'reg';
+  if (has(/ last (season|year) /)) f.season = 'prev';
+  else if (has(/ (this season|this year|so far) /)) f.season = 'cur';
+  const sy = nn.match(/ (?:in |during |the )?(20\d\d|19\d\d) (\d\d) (?:season )?/);
+  if (sy) f.season = String(+sy[1] + 1);
+  else if (IS_W) { const w = nn.match(/ (?:in |the )?(20\d\d) season /); if (w) f.season = w[1]; }
+  const since = nn.match(/ since (20\d\d|19\d\d) /); if (since) f.since = since[1];
+  const mo = nn.match(new RegExp(` in (${MONTHS_L.join('|')}) `)); if (mo) f.month = MONTHS_L.indexOf(mo[1]);
+  return f;
+}
+const gfAny = f => Object.keys(f).length > 0;
+function gfApply(games, f, cur) {
+  const prev = String(+cur - 1);
+  return games.filter(g => (!f.opp || g.oid === f.opp.id || g.o === f.opp.abbr)
+    && (!f.loc || (f.loc === 'away') === (g.at === '@'))
+    && (!f.res || g.r === f.res)
+    && (!f.scope || g.type === f.scope)
+    && (!f.season || g.season === (f.season === 'cur' ? cur : f.season === 'prev' ? prev : f.season))
+    && (!f.since || g.d.slice(0, 4) >= f.since)
+    && (f.month == null || new Date(g.d).getMonth() === f.month));
+}
+function gfWhere(f) {
+  const bits = [];
+  if (f.opp) bits.push(`against the ${esc(f.opp.short || f.opp.name)}`);
+  if (f.loc) bits.push(f.loc === 'home' ? 'at home' : 'on the road');
+  if (f.res) bits.push(f.res === 'W' ? 'in wins' : 'in losses');
+  if (f.scope === 'post') bits.push('in the playoffs'); else if (f.scope === 'reg') bits.push('in the regular season');
+  if (f.season) bits.push(f.season === 'cur' ? 'this season' : f.season === 'prev' ? 'last season' : `in ${seasonName(f.season)}`);
+  if (f.month != null) bits.push(`in ${MONTHS_L[f.month][0].toUpperCase() + MONTHS_L[f.month].slice(1)}`);
+  if (f.since) bits.push(`since ${f.since}`);
+  return bits.length ? ' ' + bits.join(' ') : '';
+}
+// averages over a set of games
+function gfAvg(gs) {
+  const n = gs.length, sum = k => gs.reduce((a, g) => a + g[k], 0), mk = (k, i) => gs.reduce((a, g) => a + g[k][i], 0);
+  const pct = k => { const a = mk(k, 1); return a ? (mk(k, 0) / a * 100).toFixed(1) : '–'; };
+  const w = gs.filter(g => g.r === 'W').length, l = gs.filter(g => g.r === 'L').length;
+  return { n, rec: `${w}-${l}`, w, l, min: f1(sum('min') / n), pts: f1(sum('pts') / n), reb: f1(sum('reb') / n), ast: f1(sum('ast') / n), stl: f1(sum('stl') / n), blk: f1(sum('blk') / n), tov: f1(sum('tov') / n), tpm: f1(sum('tpm') / n), fgp: pct('fg'), tpp: pct('tp'), ftp: pct('ft') };
+}
+const gfAvgRow = (label, a) => `<tr><td>${esc(label)}</td><td>${a.n}</td><td>${a.rec}</td><td>${a.min}</td><td>${a.pts}</td><td>${a.reb}</td><td>${a.ast}</td><td>${a.stl}</td><td>${a.blk}</td><td>${a.tov}</td><td>${a.fgp}</td><td>${a.tpp}</td><td>${a.ftp}</td></tr>`;
+const GF_AVG_HEAD = ['', 'GP', 'W-L', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'FG%', '3P%', 'FT%'];
+const gfDay = g => g.d ? new Date(g.d).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }) : '';
+const gfLogRows = (gs, hl = () => '') => gs.map(g => `<tr data-game="${g.id}"><td>${esc(gfDay(g))}${g.type === 'post' ? ' <small>PO</small>' : ''}</td><td>${g.at === '@' ? '@' : 'vs'} ${esc(g.o)}</td><td class="${g.r === 'W' ? 'w' : 'l'}">${esc(g.r)} ${esc(g.sc)}</td><td>${g.min}</td><td class="${hl('pts')}">${g.pts}</td><td class="${hl('reb')}">${g.reb}</td><td class="${hl('ast')}">${g.ast}</td><td class="${hl('stl')}">${g.stl}</td><td class="${hl('blk')}">${g.blk}</td><td>${g.fg[0]}-${g.fg[1]}</td><td class="${hl('tpm')}">${g.tp[0]}-${g.tp[1]}</td></tr>`);
+const GF_LOG_HEAD = ['Date', 'Opp', 'Result', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FG', '3PT'];
+
+// a player's averages and game log for a split: "Brunson stats vs the Spurs", "Luka at home in November", "Tatum in losses last season"
+async function aSplits(p, f) {
+  const { games, cur, failed } = await gfLog(p.id);
+  const pool = gfApply(games, f, cur);
+  const where = gfWhere(f);
+  if (!pool.length) return { text: `${esc(p.name)} has no games${where}${f.season || f.scope ? '' : IS_C ? ' in college' : ` in ${HIS} career`}.`, ctx: { pid: p.id } };
+  const a = gfAvg(pool);
+  const team = teamNick(p.teamId);
+  const reg = pool.filter(g => g.type === 'reg'), post = pool.filter(g => g.type === 'post'), thisS = pool.filter(g => g.season === cur);
+  const span = f.season || f.scope || f.since ? '' : IS_C ? ' in college' : ` in ${HIS} career`;
+  let text = `${esc(p.name)}${where}: <b>${plural(a.n, 'game')}</b>${span}${!f.scope && reg.length && post.length ? ` (${reg.length} regular season, ${plural(post.length, 'playoff game')})` : ''}, averaging <b>${a.pts} points, ${a.reb} rebounds and ${a.ast} assists</b> on ${a.fgp}% shooting and ${a.tpp}% from three.`;
+  if (!f.res && (a.w + a.l)) text += ` ${f.opp ? `${HIS[0].toUpperCase() + HIS.slice(1)} teams went` : 'Record in those games:'} ${a.rec}${f.opp ? ' in those games' : ''}.`;
+  const last = pool[0];
+  text += ` Most recent: ${last.pts}-${last.reb}-${last.ast} ${last.at === '@' ? 'at' : 'vs'} ${esc(last.o)} on ${esc(gfDay(last))} (${esc(last.r)} ${esc(last.sc)}).`;
+  if (failed) text += ' (Some seasons didn\'t load, so this may be missing a few games.)';
+  // averages: the whole split, then its parts
+  const avgRows = [gfAvgRow(f.season || f.scope ? 'Average' : IS_C ? 'College' : 'All games', a)];
+  if (!f.scope && reg.length && post.length) { avgRows.push(gfAvgRow('Regular season', gfAvg(reg)), gfAvgRow('Playoffs', gfAvg(post))); }
+  if (!f.season && thisS.length && thisS.length < pool.length) avgRows.push(gfAvgRow('This season', gfAvg(thisS)));
+  const L5 = pool.slice(0, 5); if (pool.length > 8) avgRows.push(gfAvgRow('Last 5', gfAvg(L5)));
+  // by season, when the split runs over several
+  const bySeason = [...new Set(pool.map(g => g.season))];
+  const seasonT = !f.season && bySeason.length > 1 ? `<p class="ask-note">By season</p>` + table(GF_AVG_HEAD, bySeason.slice(0, 12).map(y => gfAvgRow(seasonName(y), gfAvg(pool.filter(g => g.season === y))))) : '';
+  const show = pool.slice(0, 40);
+  const html = card(pRow(p, null, `${team ? team + ' · ' : ''}${plural(a.n, 'game')}`)
+    + table(GF_AVG_HEAD, avgRows) + seasonT
+    + `<p class="ask-note">Game log${pool.length > show.length ? ` (latest ${show.length} of ${pool.length})` : ''}</p>` + table(GF_LOG_HEAD, gfLogRows(show)));
+  return { text, html, ctx: { pid: p.id, teamId: p.teamId } };
+}
 async function aGameFinder(p, q, opts = {}) {
   const { games, cur, failed } = await gfLog(p.id);
-  const scope = opts.scope; // 'season' | 'post' | 'reg' | undefined (career)
-  let pool = games.filter(g => (scope === 'season' ? g.season === cur : scope === 'post' ? g.type === 'post' : scope === 'reg' ? g.type === 'reg' : true)
-    && (!opts.opp || g.oid === opts.opp.id || g.o === opts.opp.abbr));
-  const where = `${scope === 'season' ? ' this season' : scope === 'post' ? ' in the playoffs' : scope === 'reg' ? ' in the regular season' : IS_C ? ' in college' : ' in ' + HIS + ' career'}${opts.opp ? ` against the ${esc(opts.opp.short || opts.opp.name)}` : ''}`;
+  const f = opts.f || {};
+  const scope = f.season === 'cur' ? 'season' : f.scope;
+  const pool = gfApply(games, f, cur);
+  const where = gfWhere(f) + (f.season || f.scope || f.since ? '' : IS_C ? ' in college' : ' in ' + HIS + ' career');
   if (!pool.length) return { text: `I couldn't find any games for ${esc(p.name)}${where}.`, ctx: { pid: p.id } };
   let hits, what, sortK = null;
   if (q.best) {
@@ -635,7 +724,7 @@ async function aGameFinder(p, q, opts = {}) {
   const regN = hits.filter(g => g.type === 'reg').length, postN = hits.length - regN;
   const split = !q.best && !scope && postN && regN ? ` (${regN} regular season, ${postN} playoff${postN === 1 ? '' : 's'})` : '';
   const curN = !q.best && scope !== 'season' ? hits.filter(g => g.season === cur && g.type === 'reg').length : 0;
-  const day = g => g.d ? new Date(g.d).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const day = gfDay;
   const line = g => `${q.conds.length ? q.conds.map(([k]) => `${g[k]} ${GF_LABEL[k]}`).join(', ') : sortK ? `${g[sortK]} ${GF_LABEL[sortK]}` : `${g.pts}-${g.reb}-${g.ast}`} ${g.at === '@' ? 'at' : 'vs'} ${esc(g.o)} on ${day(g)}`;
   let text;
   if (q.best) text = `${esc(p.name)}'s ${what}${where}: the top one is <b>${line(hits[0])}</b>.`;
@@ -678,6 +767,7 @@ const ASK_EXAMPLES = IS_C ? [
   'Liberty record',
   'When do the Fever play next?',
   'Caitlin Clark vs Paige Bueckers',
+  "A'ja Wilson vs the Liberty",
   "A'ja Wilson 30-point games",
   'Who had a double-double last night?',
   'Most threes per game',
@@ -694,7 +784,9 @@ const ASK_EXAMPLES = IS_C ? [
   'Lakers odds tonight',
   'Who had a double-double last night?',
   'Most threes per game',
-  'Brunson vs the Pistons',
+  'Brunson stats vs the Spurs',
+  'Luka at home this season',
+  'Tatum in the playoffs',
   'Luka 40-point games',
   'Jokic 30 and 10 this season',
   'East standings',
