@@ -128,8 +128,11 @@ function names(title) {
   return parts.map(p => p.replace(/^\s*(#\s*\d+|no\.?\s*\d+)\s+/i, '').trim());
 }
 // how well a name from a video title fits an ESPN team (0 = not at all)
+// names the conferences use that ESPN writes differently
+const ALIAS = { 'usc upstate': 'south carolina upstate' };
 function fit(name, team) {
-  const n = norm(name); if (!n) return 0;
+  const n0 = norm(name); if (!n0) return 0;
+  const n = ALIAS[n0] || n0;
   const alts = new Set([n, n.replace(/\bst\b/g, 'state'), n.replace(/^st\b/, 'saint'), n.replace(/\bsaint\b/g, 'st')]);
   const vs = [team.location, team.shortDisplayName, team.abbreviation, team.displayName, `${team.location} ${team.name}`].map(norm).filter(Boolean);
   // initials: "UT Rio Grande Valley" → utrgv, "Long Island University" → liu
