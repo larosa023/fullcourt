@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-10b', date: 'Nov 10', items: [
+    ['Ask knows every NBA season', 'Ask used to stop at this season. It now has every player\'s numbers for every season back to 1947, with award voting and team records. Try "1962 MVP race", "who won Defensive Player of the Year in 2004", "top scorers 1987", "best scoring seasons ever", "1996 Bulls", or just a name like "Wilt Chamberlain".'],
+    ['Side-by-side graphics you can share', 'Those answers come as a card: each player in a column with his season, photo and numbers, and a bottom row for things like MVP finish. Compare anyone across eras ("Wilt 1962 vs Jordan 1988", "LeBron, Luka and Wemby rookie seasons", "Magic vs Bird career"), up to five at a time. Every card has a Share as image button.'],
+    ['This season too', 'Player comparisons ("Luka vs Ant") now use the same card, and "MVP race" or "Rookie of the Year race" shows the top of Fullcourt\'s ladder that way. Add "graphic" to a question about one player to get his card.'],
+  ] },
   { id: '2026-11-10a', date: 'Nov 10', items: [
     ['Faster all around', 'A tune-up release. Scores now refresh by changing only the cards whose score, clock or line moved instead of redrawing the whole page (a busy college day used to rebuild 150 cards every 15 seconds). Opening games, players and teams takes about a third of the work it did, the score ticker no longer makes the page re-measure itself 60 times a second, and bars and tables animate without stutter. Pages start loading the moment your pointer or finger lands on their button.'],
     ['Lighter on data', 'The Bet Desk only downloads player game logs while you\'re looking at it. Head to head and Ask\'s team questions keep finished seasons on your device, so only the current season is fetched again. College standings refresh when a game ends instead of every five minutes. On a weak signal, Fullcourt opens from its saved copy after 2.5 seconds instead of waiting on the network.'],

@@ -276,7 +276,9 @@ async function aCompare(a, b, stat, rows) {
     const hi = A[stat] >= B[stat] ? A : B, lo = hi === A ? B : A;
     text = `${esc(hi.name)} has the edge in ${STAT[stat].label}: <b>${STAT[stat].pct ? fpct(hi[stat]) : f1(hi[stat])}</b> to ${STAT[stat].pct ? fpct(lo[stat]) : f1(lo[stat])} per game this season.`;
   } else text = `This season, ${esc(A.name)} wins ${wa} of 8 categories and ${esc(B.name)} wins ${wb}. ${esc(A.last || A.name)}: ${f1(A.pts)}/${f1(A.reb)}/${f1(A.ast)}. ${esc(B.last || B.name)}: ${f1(B.pts)}/${f1(B.reb)}/${f1(B.ast)}.`;
-  return { text, html: card(`<div class="ask-vs">${pRow(A, null, A.pos)}${pRow(B, null, B.pos)}</div><table class="ask-cmp"><tbody>${trs.join('')}</tbody></table><button class="btn ghost" data-cmpab="${A.id},${B.id}">Open full comparison</button>`), ctx: { pid: A.id } };
+  // the side-by-side card (with a share image); the plain table if the card can't be built
+  const ec = !A.gp || !B.gp ? null : await lazy('eras').then(m => m.eraNowCard([A.name, B.name], { rows })).catch(() => null);
+  return { text, html: card(`${ec || `<div class="ask-vs">${pRow(A, null, A.pos)}${pRow(B, null, B.pos)}</div><table class="ask-cmp"><tbody>${trs.join('')}</tbody></table>`}<button class="btn ghost" data-cmpab="${A.id},${B.id}">Open full comparison</button>`), ctx: { pid: A.id } };
 }
 async function aTeamRecord(t) {
   await loadStandings();
@@ -439,6 +441,26 @@ async function aTeamSummary(t, rows) {
   return { text: rec.text + (top ? ` ${esc(top.name)} leads the team with ${f1(top.pts)} points per game.` : '') + (next?.text ? ' ' + next.text : ''), html: (rec.html || '') + (next?.html || ''), ctx: { teamId: t.id } };
 }
 
+/* ---------------- any era (NBA) ----------------
+   Past seasons, award races, all-time lists and retired players are answered by the eras part ("1962 MVP race",
+   "top scorers 1987", "Wilt 1962 vs Jordan 1987", "1996 Bulls"). It loads only when a question looks like one of
+   those, and hands the question back (null) when it isn't. */
+const ERA_AW = '(mvps?|most valuable( player)?|rookie of the year|roy|roty|dpoy|defensive player( of the year)?|sixth man( of the year)?|6th man|6moy|smoy|most improved( player)?|mip|clutch player( of the year)?)';
+const ERA_HINT = new RegExp(' (19[4-9]\\d|20[0-2]\\d)s? | \\d0s | (ever|all time|in history|of all time|in a season|in a single season|careers?|rookie (season|year)s?|as rookies?|primes?|peak|graphic|image|card|picture) ' +
+  `| ${ERA_AW} .*(race|voting|votes?|voted|won|win|winner|finish\\w*|seasons?|years?|ladder|results?) | (who won|winner of|how many|won the) .*${ERA_AW} ` +
+  '| (michael jordan|jordan|wilt|chamberlain|kareem|abdul jabbar|magic johnson|larry bird|bird|kobe|bryant|shaq|shaquille|bill russell|hakeem|olajuwon|tim duncan|iverson|barkley|karl malone|stockton|ewing|pippen|isiah|dr j|erving|jerry west|oscar robertson|baylor|garnett|nowitzki|dirk|steve nash|wade|carmelo|mcgrady|t mac|vince carter|payton|jason kidd|david robinson|drexler|dominique|mchale|worthy|moses malone|gervin|maravich|havlicek|cousy|mikan|pettit|walton|rodman|reggie miller|ray allen|paul pierce|bosh|mj) ');
+const eraTry = async (raw, rows, loose) => { if (IS_C || IS_W) return null; try { return await (await lazy('eras')).eraAnswer(raw, { rows, loose }); } catch (e) { console.error(e); return null; } };
+// this season's award race, as the side-by-side card ("MVP race", "who's winning Rookie of the Year")
+const NOW_AW = [['mvp', / (mvp|most valuable( player)?) /, 'MVP'], ['roy', / (roy|roty|rookie of the year) /, 'Rookie of the Year'], ['dpoy', / (dpoy|defensive player( of the year)?) /, 'Defensive Player of the Year'], ['smoy', / (6moy|smoy|sixth man( of the year)?|6th man( of the year)?) /, 'Sixth Man of the Year']];
+async function aAwardNow(kind, title, n, rows, past) {
+  const race = await (await lazy('awards')).awardRace(kind);
+  if (!race?.list?.length) return { text: `It's too early to call the ${title} race. It fills in once players have a few games in.`, miss: true };
+  const top = race.list.slice(0, 5);
+  const html = await (await lazy('eras')).eraNowAward(title, kind, race, { rows, n }).catch(() => null);
+  const text = `${past ? 'Award history is NBA only for now, so here is this season. ' : ''}Fullcourt's ${title} ladder right now: ${top.slice(0, 3).map((x, i) => `${i ? '' : '<b>'}${i + 1}. ${esc(x.r.name)}${i ? '' : '</b>'}`).join(', ')}. It blends the media's rankings and betting odds with a stats model; the full race is on the Leaders page.`;
+  return { text, html: card((html || '') + top.map((x, i) => pRow(x.r, `#${i + 1}`, [x.r.abbr, x.rec, `${f1(x.r.pts)} / ${f1(x.r.reb)} / ${f1(x.r.ast)}`].filter(Boolean).join(' · '))).join('')), ctx: { pid: top[0].r.id } };
+}
+
 /* ---------------- router ---------------- */
 async function answer(raw) {
   await loadStandings().catch(() => {});
@@ -446,6 +468,7 @@ async function answer(raw) {
   const nn = n.replace(/ plusminus /g, ' plus minus ');
   const has = re => re.test(nn);
   const rows = await leagueTable();
+  if (ERA_HINT.test(nn) || /'\d\d\b/.test(raw)) { const r = await eraTry(raw, rows, false); if (r) return r; }
   const { teams: teamIds, rest } = findTeams(raw, nn);
   const teams = teamIds.map(id => S.teams[id]).filter(Boolean);
   const stat = parseStat(nn);
@@ -484,7 +507,7 @@ async function answer(raw) {
   const dd = has(/ double ?doubles? /), td = has(/ triple ?doubles? /);
   const st = stat || thrStat;
 
-  if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: 'Ask about this season: players, teams, games, leaders, standings, schedules and odds. Some examples:', examples: true };
+  if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: `Ask about this season: players, teams, games, leaders, standings, schedules and odds.${IS_C || IS_W ? '' : ' Or any NBA season back to 1947: award races, leaders, old teams, and players side by side.'} Some examples:`, examples: true };
 
   // prop ideas
   if (has(/ (props?|prop bets?|player props|best bets?|locks?|good bets?|bets? (for |to make )?(tonight|today|tomorrow)|what should i bet|who should i bet|what to bet|parlay ideas?|sgp ideas?|suggest\w*|recommend\w*|picks?|leans?|best overs?|best unders?) /) && !has(/ (draft|lottery|first|1st|no 1|number one|top \d+) picks? /) && !has(/ over under /))
@@ -565,9 +588,11 @@ async function answer(raw) {
     if (minVal != null) return aNightLeaders(lastNight(), st || 'pts', { min: minVal });
     return aLeaders(dd ? 'dd' : td ? 'td' : st, { conf, asc, n: topN, total }, rows);
   }
+  if (!IS_C) { const aw = NOW_AW.find(a => a[1].test(nn)); if (aw && !(IS_W && aw[0] === 'smoy')) return aAwardNow(aw[0], aw[2], Math.min(5, topN || 3), rows, IS_W && / (19[4-9]\d|20[0-2]\d) /.test(nn)); }
   if (has(/ (leaders?|leads|mvp|best player|top players?) /)) return aLeaders('pts', { conf, n: topN }, rows);
 
   if (teams.length) return aTeamSummary(teams[0], rows);
+  { const r = await eraTry(raw, rows, true); if (r) return r; } // a retired player, or a season Ask itself doesn't know
   return { text: `I couldn't match that to a player, team or stat. Try naming a player or team, a stat (points, rebounds, assists, threes…) and a time (last night, last 5 games, this season).`, examples: true, miss: true };
 }
 
@@ -969,6 +994,11 @@ const ASK_EXAMPLES = IS_C ? [
   'Celtics record',
   'When do the Knicks play next?',
   'Luka Doncic vs Anthony Edwards',
+  '1962 MVP race',
+  'Wilt 1962 vs Jordan 1988',
+  'Top scorers 1987',
+  'Best scoring seasons ever',
+  '1996 Bulls',
   'Lakers odds tonight',
   'Who had a double-double last night?',
   'Most threes per game',
@@ -991,12 +1021,12 @@ function examplesHTML() { return `<div class="ask-ex">${ASK_EXAMPLES.map(q => `<
 function askMsgHTML(m) {
   if (m.me) return m.img ? `<div class="msg me img"><img src="${m.img}" alt="Bet slip"></div>` : `<div class="msg me"><p>${esc(m.q).replace(/\n/g, '<br>')}</p></div>`;
   if (m.loading) return `<div class="msg bot loading"><p><span class="dots"><i></i><i></i><i></i></span> <span class="ld-t">${esc(m.loading === true ? 'Looking that up…' : m.loading)}</span></p></div>`;
-  return `<div class="msg bot${m.miss ? ' miss' : ''}"><p>${m.text}</p>${m.html || ''}${m.examples ? examplesHTML() : ''}${m.at ? `<div class="msg-meta">ESPN data · ${esc(m.at)}</div>` : ''}</div>`;
+  return `<div class="msg bot${m.miss ? ' miss' : ''}"><p>${m.text}</p>${m.html || ''}${m.examples ? examplesHTML() : ''}${m.at ? `<div class="msg-meta">${esc(m.src || 'ESPN')} data · ${esc(m.at)}</div>` : ''}</div>`;
 }
 function renderAsk(scroll = true) {
   if (!askSheet?.alive) return;
   const log = $('.ask-log', askSheet.el);
-  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data. Deep history (past seasons) isn't available.</p><p class="ask-bet-tip"><b>Track a bet:</b> type it out, one leg per line, or paste a screenshot of your slip. It shows up under My bets on Scores and updates live.</p>${examplesHTML()}</div>`;
+  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data.${IS_C || IS_W ? " Deep history (past seasons) isn't available." : ' It also knows every NBA season back to 1947: award races, leaders, old teams and any two players side by side, each with a picture you can share.'}</p><p class="ask-bet-tip"><b>Track a bet:</b> type it out, one leg per line, or paste a screenshot of your slip. It shows up under My bets on Scores and updates live.</p>${examplesHTML()}</div>`;
   if (scroll) requestAnimationFrame(() => { askSheet.body.scrollTop = askSheet.body.scrollHeight; });
 }
 async function ask(q) {
