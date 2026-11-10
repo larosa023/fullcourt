@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09f', date: 'Nov 9', items: [
+    ['Fullcourt prop projections', 'The Bet Desk now shows Fullcourt\'s own number for every prop (Proj), the chance the over or under hits (Chance), and how that compares with the sportsbook\'s price (Value: positive means the price is better than it should be). The projection is his per-minute rate, weighted toward recent games, times his expected minutes, adjusted for the defense against his position, pace, home court, rest and blowout risk. Tap a row to see the projection and its chance at any mark.'],
+    ['Ask by voice', 'Tap the mic beside the typing bar and ask out loud. Your words show as you talk and the question sends when you stop. In the Windows app, press Windows key + H to dictate into the box instead.'],
+  ] },
   { id: '2026-11-09e', date: 'Nov 9', items: [
     ['Rotation on game pages', 'A new Rotation tab on every game shows who was on the floor and when for both teams, quarter by quarter (halves in men\'s college), built from the play-by-play\'s substitutions. Starters are marked, minutes are on the right, and it works during live games too.'],
     ['Assist map', 'A new Assists tab draws who assisted whom for each team: arrows from passer to scorer, thicker for more assists, plus the top passing combos and the points they made.'],

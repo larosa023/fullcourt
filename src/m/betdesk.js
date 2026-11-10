@@ -160,6 +160,55 @@ function defRankOf(teamId) {
   return i < 0 ? null : i + 1;
 }
 const bdPct = (vals, line, side) => vals.length ? vals.filter(v => side === 'u' ? v < line : v > line).length / vals.length : null;
+/* ---------------- Fullcourt's projection ----------------
+   His rate in this stat per minute (this season, recent games weighted more, filled out by last season early on) times
+   his expected minutes (mostly the last 5 games), then nudged for the matchup (how his position does against this
+   defense), pace, home court, rest and blowout risk. The chance of the over/under comes from his own game-to-game
+   spread around that number. */
+const pjImplied = a => { const n = +a; return !Number.isFinite(n) || !n ? null : n > 0 ? 100 / (n + 100) : -n / (-n + 100); };
+function projOf(x) {
+  if (x.pj !== undefined && x.pj?.line === x.line && x.pj?.n === (x.log || []).length) return x.pj;
+  let out = null;
+  try {
+    if (!x.log || Q1.has(x.k) || x.line == null) return null;
+    const ok = g => g.min > 0 && bdVal({ ...g, _pid: x.pid }, x.k) != null, val = g => bdVal({ ...g, _pid: x.pid }, x.k);
+    const cur = x.log.filter(ok).slice(0, 30), prev = (x.prevLog || []).filter(ok).slice(0, 40);
+    if (cur.length + prev.length >= 4) {
+      // per-minute rate: recent games count more (half-life about 8 games); last season counts less as this season fills in
+      let wsum = 0, rsum = 0;
+      cur.forEach((g, i) => { const w = Math.pow(0.5, i / 8) * g.min; wsum += w; rsum += w * val(g) / g.min; });
+      const pk = Math.max(0, 10 - cur.length) / 10 * 0.5;
+      prev.forEach((g, i) => { const w = pk * Math.pow(0.5, i / 15) * g.min; wsum += w; rsum += w * val(g) / g.min; });
+      const rate = rsum / wsum;
+      // minutes: mostly the last 5
+      const mm = a => a.length ? a.reduce((t, g) => t + g.min, 0) / a.length : null;
+      const base = cur.length ? cur : prev;
+      const m5 = mm(base.slice(0, 5)), m10 = mm(base.slice(0, 10)), ms = mm(base);
+      const mins = 0.5 * m5 + 0.3 * m10 + 0.2 * ms;
+      let mean = rate * mins;
+      const dv = dvpOf(x); if (dv) mean += 0.5 * dv.v * Math.min(1, dv.n / 15);
+      const pc = paceOf(BD.pbpT, x.g.home.abbr, x.g.away.abbr); if (pc) mean *= 1 + Math.max(-0.04, Math.min(0.04, pc.diff / 100));
+      mean *= String(x.p.teamId) === String(x.g.home.id) ? 1.015 : 0.985;
+      const rs = BD.rest?.get(String(x.p.teamId)); if (rs?.b2b) mean *= 0.97; else if (rs?.three4) mean *= 0.985;
+      const sp = Math.abs(parseFloat(x.g.odds?.home?.spread)); if (sp >= 12 && mins >= 28) mean *= 0.97;
+      mean = Math.max(0, mean);
+      // spread: his own game-to-game swings, never tighter than a counting stat allows
+      const vals = [...cur, ...prev].slice(0, 25).map(val), avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const sd = Math.max(Math.sqrt(vals.reduce((a, v) => a + (v - avg) ** 2, 0) / Math.max(1, vals.length - 1)), Math.sqrt(Math.max(mean, 0.5)) * 0.9, 0.6);
+      const pOver = 1 - nCdf((x.line - mean) / sd);
+      out = { mean, sd, mins, pOver, line: x.line, n: (x.log || []).length };
+    }
+  } catch (e) { out = null; }
+  x.pj = out;
+  return out;
+}
+// the chance for the side being viewed, and how it compares with the price
+function pjSide(x) {
+  const pj = projOf(x); if (!pj) return null;
+  const ch = BD.side === 'u' ? 1 - pj.pOver : pj.pOver;
+  const imp = x.est ? null : pjImplied(BD.side === 'u' ? x.under : x.over);
+  return { ...pj, ch, imp, val: imp == null ? null : ch - imp };
+}
 function rowStats(r, side = BD.side) {
   const lg = (r.log || []).map(g => ({ ...g, _pid: r.pid })).filter(g => bdVal(g, r.k) != null);
   const vals = lg.map(g => bdVal(g, r.k));
@@ -459,7 +508,7 @@ function bdTable(main, keepScroll, final, soft) {
   }
   BD.shown = list;
   const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
-  const key = { best: x => { const b = bestOf(x); return b ? (b.price > 0 ? 1 + b.price / 100 : 1 + 100 / -b.price) - (BD.side === 'u' ? -b.l : b.l) * 0.001 : null; }, dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
+  const key = { best: x => { const b = bestOf(x); return b ? (b.price > 0 ? 1 + b.price / 100 : 1 + 100 / -b.price) - (BD.side === 'u' ? -b.l : b.l) * 0.001 : null; }, dvp: x => dvpOf(x)?.v * (BD.side === 'u' ? -1 : 1), mk: x => MARKETS.findIndex(q => q[0] === x.k), edge: x => x.st?.edge, proj: x => { const q = pjSide(x); return q ? (BD.side === 'u' ? x.line - q.mean : q.mean - x.line) : null; }, pct: x => pjSide(x)?.ch, val: x => pjSide(x)?.val, line: x => x.line, h5: x => x.st?.h5, h10: x => x.st?.h10, hs: x => x.st?.hs, hv: x => x.st?.hv, avg: x => x.st?.avg, diff: x => x.st?.diff, odds: x => +(BD.side === 'u' ? x.under : x.over), def: x => defRankOf(x.opp.id), name: x => x.p.name }[BD.sort];
   list.sort((a, b) => { const sa = starred(a), sb = starred(b); if (sa !== sb) return sa ? -1 : 1; const A = key(a), B = key(b); if (A == null && B == null) return b.line - a.line; if (A == null) return 1; if (B == null) return -1; return (A > B ? 1 : A < B ? -1 : 0) * BD.dir; });
   const games = [...new Map((BD.all || []).map(x => [x.gid, x.g])).values()];
   const loading = list.some(x => !x.log) || (mkQ1() && BD.q1busy);
@@ -482,6 +531,9 @@ function bdTable(main, keepScroll, final, soft) {
     diff: `How far his last-10 average sits ${BD.side === 'u' ? 'below' : 'above'} the line. Positive is good for the ${sd}.`,
     def: 'Opponent\'s rank in points allowed per game. 30th is the softest defense.',
     dvp: 'Defense vs position: how players at his position do against this team compared with their own averages. + means they run hot here.',
+    proj: `Fullcourt\'s projection for tonight: his per-minute rate (recent games count more) times his expected minutes, adjusted for the defense against his position, pace, home court, rest and blowout risk.`,
+    pct: `Fullcourt\'s chance he goes ${sd} this line, from the projection and how much his numbers usually swing.`,
+    val: `Fullcourt\'s chance minus the chance the ${sd} price implies. Positive means the price is better than it should be.`,
     edge: 'Fullcourt\'s score: mostly his last-10 hit rate, plus last 5 and season, nudged by the gap between his average and the line. Longer bar, stronger trend.',
   };
   const th = (k, l, cls = '') => `<th class="${cls}${BD.sort === k ? ' on' : ''}"${TIP[k] ? ` data-tip="${esc(TIP[k])}"` : ''}><button data-bdsort="${k}" aria-label="${esc(l)}: ${esc(TIP[k] || '')}">${l}${BD.sort === k ? (BD.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`;
@@ -498,7 +550,7 @@ function bdTable(main, keepScroll, final, soft) {
     </div>
     ${BD.oddsOpen ? oddsPanel() : ''}
     <div class="bd-body">${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
-      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${BD.books.size ? th('best', 'Best', 'dk') : ''}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
+      <thead><tr>${th('name', 'Player', 'pl')}${ALL ? th('mk', 'Market', 'dk') : ''}${th('line', 'Line')}${th('odds', BD.side === 'u' ? 'Under' : 'Over', 'dk')}${BD.books.size ? th('best', 'Best', 'dk') : ''}${th('proj', 'Proj')}${th('pct', 'Chance')}${th('val', 'Value', 'dk')}${th('h5', 'L5')}${th('h10', 'L10')}${th('hs', 'Season', 'dk')}${th('hv', 'H2H', 'dk')}${th('avg', 'Avg L10', 'dk')}${th('diff', '+/−', 'dk')}${th('def', 'Opp D', 'dk')}${th('dvp', 'DvP', 'dk')}${th('edge', 'Score', 'dk')}<th class="tr"></th></tr></thead>
       <tbody>${list.map(x => {
         const s = x.st, mv = Number.isFinite(x.open) && x.open !== x.line ? `<em class="${x.line > x.open ? 'up' : 'dn'}" title="Opened ${x.open}">${x.line > x.open ? '▲' : '▼'}</em>` : '';
         const dr = defRankOf(x.opp.id), dv = s ? dvpOf(x) : null, fl = x.log ? flagsOf(x) : [], st = starred(x), lv = liveOf(x);
@@ -511,6 +563,12 @@ function bdTable(main, keepScroll, final, soft) {
           <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est && Number.isFinite(x.mkt) ? '<em class="est mk" title="Market line: the consensus line from the pick\'em apps that set this market. No sportsbook on our feed prices it.">mkt</em>' : x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld st"></span>'}</td>
           <td class="od dk">${x.est ? (x.st?.fair != null ? `<span class="bd-fair" title="Fair price from his hit rate at this line over his last 20 games. No sportsbook prices this market, so it's an estimate, not odds you can bet.">${amer(x.st.fair)}<i>fair</i></span>` : '<span class="bd-pill na">–</span>') : amer(BD.side === 'u' ? x.under : x.over)}</td>
           ${BD.books.size ? (() => { const bs = bestOf(x); return `<td class="od dk bd-best" title="${bs ? `Best ${BD.side === 'u' ? 'under' : 'over'} across books: ${esc(bookName(bs.b))} ${bs.l} at ${amer(bs.price)}` : 'Only one book has this line'}">${bs ? `${bs.l !== x.line ? `<small>${bs.l}</small> ` : ''}${amer(bs.price)}<i>${esc(bookAb(bs.b))}</i>` : '<span class="bd-pill na">–</span>'}</td>`; })() : ''}
+          ${(() => { const q = x.log ? pjSide(x) : null; if (!x.log) return '<td><span class="bd-ld st"></span></td><td><span class="bd-ld st"></span></td><td class="dk"></td>';
+            if (!q) return '<td class="nm">–</td><td>–</td><td class="dk">–</td>';
+            const lean = BD.side === 'u' ? x.line - q.mean : q.mean - x.line;
+            return `<td class="nm bd-proj ${lean > 0.3 ? 'pos' : lean < -0.3 ? 'neg' : ''}" title="Fullcourt projects ${q.mean.toFixed(1)} in about ${Math.round(q.mins)} minutes">${q.mean.toFixed(1)}</td>
+              <td><span class="bd-pill ${q.ch >= 0.62 ? 'hot' : q.ch >= 0.54 ? 'warm' : q.ch <= 0.4 ? 'cold' : ''}" title="Fullcourt's chance of the ${BD.side === 'u' ? 'under' : 'over'}">${Math.round(q.ch * 100)}%</span></td>
+              <td class="nm dk ${q.val == null ? '' : q.val >= 0.03 ? 'pos' : q.val <= -0.03 ? 'neg' : ''}" title="${q.imp == null ? 'No sportsbook price for this line' : `Fullcourt ${Math.round(q.ch * 100)}% vs the price's ${Math.round(q.imp * 100)}%`}">${q.val == null ? '–' : (q.val > 0 ? '+' : '') + Math.round(q.val * 100) + '%'}</td>`; })()}
           <td>${s ? pill(s.h5, s.L5.length) : '<span class="bd-ld st"></span>'}</td>
           <td>${s ? pill(s.h10, s.L10.length) : '<span class="bd-ld st"></span>'}</td>
           <td class="dk">${s ? pill(s.hs, s.vals.length) : '<span class="bd-ld st"></span>'}</td>
@@ -816,7 +874,7 @@ function bdWire(body) {
   // what the prop detail needs for one row, plus forK so its market picker can jump to this player's other lines
   function pdExtra(x) {
     const pid = String(x.pid), k = x.k;
-    return { forK: k2 => { const y = (BD.all || []).find(z => String(z.pid) === pid && z.k === k2 && Number.isFinite(z.line)); return y ? { m: Math.floor(+y.line) + 1, tag: y.est ? (Number.isFinite(y.mkt) ? 'mkt' : 'est') : '', extra: pdExtra(y) } : null; }, r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) };
+    return { pj: projOf(x), pjk: x.k, forK: k2 => { const y = (BD.all || []).find(z => String(z.pid) === pid && z.k === k2 && Number.isFinite(z.line)); return y ? { m: Math.floor(+y.line) + 1, tag: y.est ? (Number.isFinite(y.mkt) ? 'mkt' : 'est') : '', extra: pdExtra(y) } : null; }, r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) };
   }
   body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; BD.limit = 0; bdTable($('#bdMain')); } });
   body.addEventListener('input', e => { if (e.target.matches('[data-bdq]')) { BD.q = e.target.value; clearTimeout(BD.qt); BD.qt = setTimeout(() => { const pos = e.target.selectionStart; bdTable($('#bdMain'), true); const q = $('[data-bdq]'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 200); } });

@@ -899,6 +899,39 @@ async function aPlayerWithout(a, b, f) {
   };
 }
 
+/* ---------------- voice: ask out loud ----------------
+   The browser's speech recognition (Chrome, Edge, Safari on iPhone): words show in the box as you talk and the
+   question sends when you stop. The Windows app's browser engine has none, so there the mic points to Windows'
+   own dictation (Windows key + H), which types into the box. */
+const ASK_SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const askMicBtn = () => ASK_SR || IS_APP ? `<button class="ask-img ask-mic" type="button" data-askmic title="Ask by voice" aria-label="Ask by voice" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>` : '';
+function wireMic(form, inp, fit) {
+  const btn = $('[data-askmic]', form); if (!btn) return;
+  let rec = null, sent = false, ph = inp.placeholder;
+  const dictate = () => { inp.focus(); toast('Press Windows key + H to talk. Windows types what you say into the box.'); };
+  const stop = () => { btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false'); inp.placeholder = ph; rec = null; };
+  btn.addEventListener('click', () => {
+    if (rec) { rec.stop(); return; }
+    if (!ASK_SR) { dictate(); return; }
+    try { rec = new ASK_SR(); } catch (e) { dictate(); return; }
+    rec.lang = navigator.language || 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    sent = false;
+    rec.onresult = e => {
+      const text = [...e.results].map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ').trim();
+      inp.value = text; fit();
+      if ([...e.results].every(r => r.isFinal) && text && !sent) { sent = true; setTimeout(() => form.requestSubmit(), 350); }
+    };
+    rec.onerror = e => {
+      const er = e.error;
+      if (er === 'not-allowed' || er === 'service-not-allowed') toast(IS_APP ? 'Voice isn\'t available here. Press Windows key + H to dictate instead.' : 'Microphone access is blocked. Allow it for this site to ask by voice.');
+      else if (er === 'no-speech') toast('Didn\'t catch that. Tap the mic and try again.');
+      else if (er === 'network' || er === 'language-not-supported' || er === 'audio-capture') { if (IS_APP) dictate(); else toast(er === 'audio-capture' ? 'No microphone found.' : 'Voice isn\'t available right now. Try typing instead.'); }
+    };
+    rec.onend = stop;
+    try { rec.start(); btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true'); inp.value = ''; fit(); inp.placeholder = 'Listening…'; } catch (e) { stop(); dictate(); }
+  });
+}
+
 /* ---------------- chat UI ---------------- */
 const ASK_EXAMPLES = IS_C ? [
   'Who scored the most points last night?',
@@ -1011,9 +1044,10 @@ function openAsk(q) {
     askSheet.body.innerHTML = '<div class="ask-log" aria-live="polite"></div>';
     const form = document.createElement('form');
     form.className = 'ask-bar';
-    form.innerHTML = `<button class="ask-img" type="button" data-askimg title="Add a bet slip screenshot (or just paste one)" aria-label="Add a bet slip screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-4.8-4.8a1.5 1.5 0 0 0-2.1 0L5 19.5"/></svg></button><input type="file" accept="image/*" hidden id="askFile"><textarea id="askInput" rows="1" autocomplete="off" spellcheck="false" placeholder="Ask anything, or add a bet…" aria-label="Ask a question or add a bet" enterkeyhint="send"></textarea><button class="ask-send" type="submit" aria-label="Ask">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}</button>`;
+    form.innerHTML = `<button class="ask-img" type="button" data-askimg title="Add a bet slip screenshot (or just paste one)" aria-label="Add a bet slip screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-4.8-4.8a1.5 1.5 0 0 0-2.1 0L5 19.5"/></svg></button><input type="file" accept="image/*" hidden id="askFile"><textarea id="askInput" rows="1" autocomplete="off" spellcheck="false" placeholder="Ask anything, or add a bet…" aria-label="Ask a question or add a bet" enterkeyhint="send"></textarea>${askMicBtn()}<button class="ask-send" type="submit" aria-label="Ask">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'}</button>`;
     askSheet.el.append(form);
     const inp = $('#askInput', form);
+    if (matchMedia('(max-width: 420px)').matches) inp.placeholder = 'Ask anything…'; // the full hint doesn't fit beside four buttons
     const fit = () => { inp.style.height = ''; if (inp.value) inp.style.height = Math.min(160, inp.scrollHeight + 2) + 'px'; };
     form.addEventListener('submit', e => { e.preventDefault(); const v = inp.value; inp.value = ''; fit(); ask(v); });
     inp.addEventListener('input', fit);
@@ -1022,6 +1056,7 @@ function openAsk(q) {
     const takeImage = f => { if (f && /^image\//.test(f.type)) askImage(f); };
     inp.addEventListener('paste', e => { const f = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && /^image\//.test(i.type))?.getAsFile(); if (f) { e.preventDefault(); takeImage(f); } });
     $('[data-askimg]', form).addEventListener('click', () => $('#askFile', form).click());
+    wireMic(form, inp, fit);
     $('#askFile', form).addEventListener('change', e => { takeImage(e.target.files?.[0]); e.target.value = ''; });
     askSheet.el.addEventListener('dragover', e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === 'file')) { e.preventDefault(); askSheet.el.classList.add('drop'); } });
     askSheet.el.addEventListener('dragleave', e => { if (!askSheet.el.contains(e.relatedTarget)) askSheet.el.classList.remove('drop'); });
@@ -1907,7 +1942,11 @@ async function openPropDetail(pid, k, m0, extra, reuse) {
         <div class="pd-ttl"><span class="eyebrow">${g ? `${at} ${esc(opp.abbr)} · ${esc(g.state === 'pre' ? `${fmtLocal(g.date, { weekday: 'short' })} ${fmtTime(g.date)}` : statusText(g))}` : 'No game scheduled'}</span>
           <h3>${esc(r.name)}</h3>
           <div class="pd-mark"><button class="pd-step" data-pdstep="-1" aria-label="Lower the mark" ${m <= 1 ? 'disabled' : ''}>−</button><b>${m}+ <em>${short}</em></b><button class="pd-step" data-pdstep="1" aria-label="Raise the mark">+</button></div>
-          <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}${(() => { const p = projMin(); return p ? ` · <span class="pd-proj">Proj ${p.stat.toFixed(1)} in ${Math.round(p.min)} min</span>` : ''; })()}</small>
+          <small>${side === 'u' ? 'Under' : 'Over'} ${m - 0.5} ${word}${(() => {
+            // from the Bet Desk: Fullcourt's projection and its chance at this mark; otherwise the minutes-based projection
+            const pj = ctx.pj && ctx.pj.mean != null && ctx.pjk === k ? ctx.pj : null;
+            if (pj && g?.state !== 'post') { const po = 1 - nCdf((m - 0.5 - pj.mean) / pj.sd), ch = side === 'u' ? 1 - po : po; return ` · <span class="pd-proj" title="Fullcourt's projection: his per-minute rate times expected minutes, adjusted for the matchup, pace, home court and rest">Proj ${pj.mean.toFixed(1)} · ${Math.round(ch * 100)}% ${side === 'u' ? 'under' : 'over'}</span>`; }
+            const p = projMin(); return p ? ` · <span class="pd-proj">Proj ${p.stat.toFixed(1)} in ${Math.round(p.min)} min</span>` : ''; })()}</small>
           ${g && !IS_W && ['pts', 'reb', 'ast', 'tpm', 'pra', 'pr', 'pa', 'ra', 'fga', 'tpa', 'fg2', 'fg2a', 'stl', 'blk', 'sb'].includes(k) ? (() => { const o = slipOdds(), od = v => v != null ? `<em>${v > 0 ? '+' + v : v}</em>` : ''; return `<div class="pd-hslip"><div class="pd-side" role="group" aria-label="Over or under"><button data-pdside="o" aria-pressed="${side === 'o'}">Over ${od(o.o)}</button><button data-pdside="u" aria-pressed="${side === 'u'}">Under ${od(o.u)}</button></div><button class="pd-add" data-pdslip="${side}" title="Add ${side === 'u' ? 'under' : 'over'} ${m - 0.5} to your parlay">+ Add<span class="lgx"> to slip</span></button></div>`; })() : ''}
         </div>
       </div>

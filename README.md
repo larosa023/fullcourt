@@ -36,7 +36,7 @@ Live NBA scores, odds, standings, rosters and stats. It's a website, so there's 
 - **Capsheet** (Cap tab): every NBA team's cap sheet, contract details, options and guarantees, payroll vs the cap, tax and aprons. Contracts refresh weekly from Basketball-Reference and ESPN (`tools/cap.mjs`, published to the `cap-data` branch)
 - **Deadline** (Cap → Trade machine): build 2–4 team trades and check them against 2026-27 salary matching, aprons and roster rules; save or share them
 - **Chalk** (game sheet → Court): a live or replayed 2D court with shots, a running shot chart and a synced play log
-- **Ask Fullcourt**: stats questions in plain English, including career game searches ("Luka 40-point games"), player and team splits (opponent, home/road, wins/losses, back-to-backs, a season, a month, the playoffs) and with/without a teammate; and **Compare** for head-to-head players
+- **Ask Fullcourt**: stats questions in plain English (typed, or by voice where the browser supports speech recognition), including career game searches ("Luka 40-point games"), player and team splits (opponent, home/road, wins/losses, back-to-backs, a season, a month, the playoffs) and with/without a teammate; and **Compare** for head-to-head players
 - Favorite team with game alerts, Settings to hide parts you don't use, What's new, light/dark mode, keyboard shortcuts, and a home-screen app that keeps your last scores when you lose signal
 - All dates and times in Eastern (ET). "Today" switches to the next day at 4 AM ET, so late West Coast games stay on the night they were played.
 

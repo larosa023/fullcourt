@@ -73,9 +73,14 @@
 
 /* bet slips */
 .ask-bar textarea { resize: none; line-height: 1.35; max-height: 160px; overflow-y: auto; display: block; }
+.ask-bar textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ask-img { width: 46px; flex: none; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); display: grid; place-items: center; transition: color .2s, border-color .2s; }
 .ask-img:hover { color: var(--ink); border-color: var(--hl); }
 .ask-img svg { width: 20px; height: 20px; }
+/* voice: listening state */
+.ask-mic.on { color: #fff; background: #e5484d; border-color: #e5484d; animation: askMic 1.4s ease-in-out infinite; }
+@keyframes askMic { 0%, 100% { box-shadow: 0 0 0 0 rgb(229 72 77 / .45); } 50% { box-shadow: 0 0 0 7px rgb(229 72 77 / 0); } }
+@media (prefers-reduced-motion: reduce) { .ask-mic.on { animation: none; } }
 .ask-bar { align-items: flex-end; }
 .ask-bar .ask-img, .ask-bar .ask-send { height: 46px; }
 .ask-sheet.drop .ask-log { outline: 2px dashed var(--accent); outline-offset: -8px; border-radius: 16px; }
