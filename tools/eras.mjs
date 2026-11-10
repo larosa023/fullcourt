@@ -54,7 +54,8 @@ function playersOf(table) {
 }
 
 async function season(y) {
-  const html = await brGet(`/leagues/NBA_${y}_per_game.html`);
+  const LG = y <= 1949 ? 'BAA' : 'NBA'; // the league's first three seasons were played as the BAA
+  const html = await brGet(`/leagues/${LG}_${y}_per_game.html`);
   if (!html) return null;
   const reg = playersOf(tableOf(html, 'per_game_stats'));
   if (reg.length < 40) throw new Error(`season ${y}: only ${reg.length} players parsed`);
@@ -62,7 +63,7 @@ async function season(y) {
   // team names and records, from the season's summary page
   const teams = {};
   try {
-    const sum = await brGet(`/leagues/NBA_${y}.html`);
+    const sum = await brGet(`/leagues/${LG}_${y}.html`);
     for (const m of (sum || '').matchAll(/<table[^>]*id="((?:divs|confs)_standings[^"]*)"/g)) {
       for (const r of rowsOf(tableOf(sum, m[1]))) {
         const c = cells(r), ab = (c.team_name || '').match(/\/teams\/([A-Z]{3})\//)?.[1]; if (!ab || teams[ab]) continue;
@@ -92,7 +93,7 @@ for (let y = 1947; y <= CUR; y++) {
   } catch (e) { console.log('season failed', y, e.message); if (old) all[y] = old; }
 }
 const years = Object.keys(all).map(Number).sort((a, b) => a - b);
-if (years.length < 70) throw new Error(`only ${years.length} seasons; keeping the published files`);
+if (years.length < 75) throw new Error(`only ${years.length} seasons; keeping the published files`);
 console.log('seasons', years.length, 'read this run', fetched);
 
 // ---- the player index
@@ -105,7 +106,9 @@ for (const y of years) {
   for (const k of ['pts', 'trb', 'ast']) [...qual].sort((a, b) => (I(b, k) || 0) - (I(a, k) || 0)).slice(0, 25).forEach(r => notable.add(I(r, 'id')));
   for (const r of S.reg) {
     const id = I(r, 'id'), e = idx.get(id) || { name: I(r, 'name'), y0: y, y1: y, score: 0 };
-    e.name = I(r, 'name'); e.y1 = y; e.score += (I(r, 'pts') || 0) * (I(r, 'g') || 0);
+    // points scored, plus weight for All-Star games, All-NBA teams and MVPs (Magic Johnson outranks Eddie Johnson)
+    const aw = String(I(r, 'aw') || '');
+    e.name = I(r, 'name'); e.y1 = y; e.score += (I(r, 'pts') || 0) * (I(r, 'g') || 0) + (/(^|,)AS(,|$)/.test(aw) ? 2000 : 0) + (/(^|,)NBA\d/.test(aw) ? 1500 : 0) + (/(^|,)MVP-1(,|$)/.test(aw) ? 5000 : 0);
     if (I(r, 'aw')) notable.add(id);
     idx.set(id, e);
   }
