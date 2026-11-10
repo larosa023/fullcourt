@@ -104,8 +104,38 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Redraw a list of cards by swapping in only the ones that changed. A scores refresh used to rebuild every card
+// (150 on a college Saturday) every 15 seconds; now a card is touched only when its own score, clock or line moves.
+// items: [key, html] in order, one element each. Falls back to a full redraw when the order changed or something
+// else has drawn into the box since (a skeleton, an empty state).
+function patchList(box, items, enter) {
+  const prev = box._pl;
+  if (!enter && prev && prev.first === box.firstElementChild && prev.items.length === items.length && box.childElementCount === items.length && items.every((it, i) => it[0] === prev.items[i][0])) {
+    let kids = null;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i][1] === prev.items[i][1]) continue;
+      kids = kids || [...box.children];
+      const t = document.createElement('template'); t.innerHTML = items[i][1];
+      const el = t.content.firstElementChild; if (!el) { box._pl = null; return patchList(box, items, enter); }
+      kids[i].replaceWith(el);
+    }
+  } else {
+    box.innerHTML = items.map(it => it[1]).join('');
+    if (enter) for (const el of box.children) el.classList.add('enter');
+  }
+  box._pl = { items, first: box.firstElementChild };
+}
 
-async function getJSON(url, { timeout = 12000, retries = 1 } = {}) {
+// Two parts of a page asking for the same thing at the same moment (a team page's depth chart and its stat leaders,
+// say) share one download instead of making two.
+const inFlight = new Map();
+function getJSON(url, opts) {
+  const hit = inFlight.get(url); if (hit) return hit;
+  const p = fetchJSON(url, opts).finally(() => { if (inFlight.get(url) === p) inFlight.delete(url); });
+  inFlight.set(url, p);
+  return p;
+}
+async function fetchJSON(url, { timeout = 12000, retries = 1 } = {}) {
   for (let a = 0; a <= retries; a++) {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
@@ -174,7 +204,14 @@ function regTeam(t, extra = {}) {
 const ymd = d => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
 const fromYmd = s => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), 12));
 const addDays = (s, n) => { const d = fromYmd(s); d.setUTCDate(d.getUTCDate() + n); return ymd(d); };
-const fmtDay = (s, opts) => fromYmd(s).toLocaleDateString('en-US', { timeZone: 'UTC', ...opts }); // s is already an ET calendar date
+// Building a date formatter is slow, and dates are formatted for every card and table row (a college scoreboard
+// refresh spent most of its time here). Each distinct formatter is built once and reused.
+const DTF = new Map();
+const dtf = (loc, opts) => { const k = loc + JSON.stringify(opts); let f = DTF.get(k); if (!f) DTF.set(k, f = new Intl.DateTimeFormat(loc, opts)); return f; };
+// format a date (or ISO string) with a reused formatter; an unreadable date gives '' instead of throwing
+const dfmt = (loc, opts, d) => { const x = d instanceof Date ? d : new Date(d); return isNaN(x) ? '' : dtf(loc, opts).format(x); };
+const hasDT = o => !!o && ['weekday', 'year', 'month', 'day', 'hour', 'minute', 'second', 'dateStyle', 'timeStyle'].some(k => k in o);
+const fmtDay = (s, opts) => dfmt('en-US', { timeZone: 'UTC', ...opts }, fromYmd(s)); // s is already an ET calendar date
 /* Everything runs on New York time: the NBA's own calendar, and Anthony's (New Jersey). */
 const TZ = 'America/New_York';
 const ROLLOVER_HOUR = 4; // before 4 AM ET, "today" is still last night's slate so late West Coast games stay put
@@ -189,7 +226,7 @@ const TZ_AB = (() => {
 })();
 // for viewers far from ET (Europe, Asia...), a night game can land on the next calendar day where they are,
 // so add their local date when it differs from the ET date. Anyone whose date matches ET sees no change.
-const ymdIn = (d, tz) => d.toLocaleDateString('en-CA', { timeZone: tz });
+const ymdIn = (d, tz) => dfmt('en-CA', { timeZone: tz }, d);
 // DSHIFT: how many calendar days a typical 7 PM ET tip moves for this viewer. 0 for the Americas;
 // 1 for Europe/Asia/Australia, where night games land on the next day. The date strip and day titles
 // are shown on that local date, so the games sit on the day they actually happen for this viewer.
@@ -197,17 +234,17 @@ const DSHIFT = (() => { try { const d = new Date(Date.UTC(2026, 0, 15, 0, 0)); /
 const localToday = () => ymdIn(new Date(), UTZ).replace(/-/g, '');
 const fmtTime = (iso, bare) => {
   const d = new Date(iso);
-  let s = d.toLocaleTimeString('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }) + (bare ? '' : ' ' + TZ_AB);
+  let s = dfmt('en-US', { timeZone: UTZ, hour: 'numeric', minute: '2-digit' }, d) + (bare ? '' : ' ' + TZ_AB);
   const gDay = ymdIn(d, TZ).replace(/-/g, '');
   if (UTZ !== TZ && Math.abs(d - Date.now()) > 90000 && ymdIn(d, UTZ).replace(/-/g, '') !== addDays(gDay, DSHIFT))
-    s += bare ? ' ' + d.toLocaleDateString('en-US', { timeZone: UTZ, month: 'numeric', day: 'numeric' }) : ' · ' + d.toLocaleDateString('en-US', { timeZone: UTZ, weekday: 'short', month: 'numeric', day: 'numeric' }).replace(',', '');
+    s += bare ? ' ' + dfmt('en-US', { timeZone: UTZ, month: 'numeric', day: 'numeric' }, d) : ' · ' + dfmt('en-US', { timeZone: UTZ, weekday: 'short', month: 'numeric', day: 'numeric' }, d).replace(',', '');
   return s;
 };
-const fmtLocal = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: UTZ, ...opts });
-const fmtShortDate = iso => new Date(iso).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric' });
-const fmtET = (iso, opts) => new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
+const fmtLocal = (iso, opts) => hasDT(opts) ? dfmt('en-US', { timeZone: UTZ, ...opts }, new Date(iso)) : new Date(iso).toLocaleString('en-US', { timeZone: UTZ, ...opts });
+const fmtShortDate = iso => dfmt('en-US', { timeZone: UTZ, month: 'short', day: 'numeric' }, new Date(iso));
+const fmtET = (iso, opts) => hasDT(opts) ? dfmt('en-US', { timeZone: TZ, ...opts }, new Date(iso)) : new Date(iso).toLocaleString('en-US', { timeZone: TZ, ...opts });
 function etNow() {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+  const p = Object.fromEntries(dtf('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
     .formatToParts(new Date()).map(x => [x.type, x.value]));
   return { ymd: `${p.year}${p.month}${p.day}`, hour: +p.hour };
 }
@@ -234,22 +271,33 @@ function toast(msg) {
 }
 
 /* ================= drag-to-scroll with momentum ================= */
+// Edge fades for every sideways scroller are measured together and then set together, once per frame. One at a
+// time, each one's write made the browser lay the page out again before the next could be measured.
+const fadeQ = new Set(); let fadeRaf = 0;
+function fadeFlush() {
+  cancelAnimationFrame(fadeRaf); fadeRaf = 0;
+  const els = [...fadeQ].filter(el => el.isConnected); fadeQ.clear();
+  const xs = els.map(el => el._fadeRead());
+  els.forEach((el, i) => el._fadeWrite(xs[i]));
+}
+const fadeSoon = el => { fadeQ.add(el); if (!fadeRaf) fadeRaf = requestAnimationFrame(fadeFlush); };
+const fadeRO = new ResizeObserver(es => { for (const e of es) fadeQ.add(e.target); fadeFlush(); });
 function dragScroll(el) {
   if (el._drag) return; el._drag = true;
   let down = false, sx = 0, sl = 0, moved = false, lastX = 0, lastT = 0, v = 0, raf = 0;
   const wrap = el.closest('.hs-wrap');
   // only touch the edge fades when they actually flip; writing them on every scroll event restyles the page
   let fl = -1, fr = -1, max = 0;
-  const fades = sized => {
-    if (!wrap) return;
-    if (sized !== false) max = el.scrollWidth - el.clientWidth;
-    const l = el.scrollLeft > 4 ? 1 : 0, r = el.scrollLeft < max - 4 ? 1 : 0;
+  el._fadeRead = () => { max = el.scrollWidth - el.clientWidth; return el.scrollLeft; };
+  el._fadeWrite = x => {
+    const l = x > 4 ? 1 : 0, r = x < max - 4 ? 1 : 0;
     if (l !== fl) wrap.style.setProperty('--fl', fl = l);
     if (r !== fr) wrap.style.setProperty('--fr', fr = r);
   };
-  el.addEventListener('scroll', () => fades(false), { passive: true });
+  const fades = sized => { if (!wrap) return; if (sized === false) el._fadeWrite(el.scrollLeft); else fadeSoon(el); };
+  if (wrap) el.addEventListener('scroll', () => fades(false), { passive: true });
   el.addEventListener('click', ev => { if (Date.now() - (el._sup || 0) < 250) { ev.stopPropagation(); ev.preventDefault(); } }, true);
-  new ResizeObserver(() => fades()).observe(el);
+  if (wrap) fadeRO.observe(el);
   el._fades = fades;
   el.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'mouse' || e.button !== 0) return;
@@ -289,7 +337,7 @@ function dragScroll(el) {
       if (!atStart && !atEnd && e.shiftKey) { el.scrollLeft += e.deltaY; e.preventDefault(); }
     }
   }, { passive: false });
-  requestAnimationFrame(fades);
+  fades();
 }
 const wireDrag = (root = document) => $$('[data-drag]', root).forEach(dragScroll);
 
@@ -348,12 +396,11 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
 });
 
 /* ================= segmented control knob ================= */
-function placeKnob(seg) {
-  const k = $('.knob', seg), b = $('[aria-pressed="true"]', seg);
-  if (!k || !b) return;
-  k.style.width = b.offsetWidth + 'px';
-  k.style.transform = `translateX(${b.offsetLeft - 3}px)`;
-  k.style.left = '3px';
+function placeKnob(seg) { placeKnobs([seg]); }
+// several at once: measure them all, then move them all (measuring and moving in turn re-lays-out the page each time)
+function placeKnobs(segs) {
+  const m = [...segs].map(seg => { const k = $('.knob', seg), b = $('[aria-pressed="true"]', seg); return k && b ? [k, b.offsetWidth, b.offsetLeft] : null; });
+  for (const x of m) { if (!x) continue; const [k, w, l] = x; k.style.width = w + 'px'; k.style.transform = `translateX(${l - 3}px)`; k.style.left = '3px'; }
 }
 
 /* ================= routing ================= */
@@ -452,8 +499,8 @@ function movePill() {
   p.style.transform = `translateX(${b.offsetLeft}px)`;
 }
 window.addEventListener('hashchange', () => go(location.hash.slice(1), false));
-window.addEventListener('resize', () => { movePill(); $$('.seg').forEach(placeKnob); });
-document.fonts?.ready.then(() => { movePill(); $$('.seg').forEach(placeKnob); });
+window.addEventListener('resize', () => { movePill(); placeKnobs($$('.seg')); });
+document.fonts?.ready.then(() => { movePill(); placeKnobs($$('.seg')); });
 
 /* ================= scoreboard ================= */
 function parseGame(e) {
@@ -626,7 +673,7 @@ async function loadScores({ silent = false } = {}) {
     S.offline = S.cachedUrl === url;
     const wasIn = new Set((S.games || []).filter(g => g.state === 'in').map(g => g.id));
     S.games = (d.events || []).map(parseGame);
-    if (S.games.some(g => g.state === 'post' && wasIn.has(g.id))) S.leadFinalAt = Date.now(); // a game just ended: leaders' season stats move
+    if (S.games.some(g => g.state === 'post' && wasIn.has(g.id))) S.leadFinalAt = S.stdDue = Date.now(); // a game just ended: leaders' season stats and the standings move
     if (S.date === S.today) S.liveNow = S.games.some(g => g.state === 'in');
     const cal = d.leagues?.[0]?.calendar;
     if (Array.isArray(cal) && cal.length && typeof cal[0] === 'string') S.calendar = cal.map(x => x.slice(0, 10).replace(/-/g, ''));
@@ -703,8 +750,10 @@ function updatePulse(err) {
 function tickPulse() {
   if (!S.lastUpdate) return;
   const s = Math.round((Date.now() - S.lastUpdate) / 1000);
-  const pt = $('#pulseTxt'); pt.textContent = S.offline ? '· no signal, saved scores' : s < 5 ? '· updated just now' : s < 60 ? `· updated ${s}s ago` : `· updated ${Math.floor(s / 60)}m ago`;
-  $('#pulse').title = ($('#liveCount').textContent + ' ' + pt.textContent).replace('·', '').replace(/\s+/g, ' ').trim();
+  const pt = $('#pulseTxt'), txt = S.offline ? '· no signal, saved scores' : s < 5 ? '· updated just now' : s < 60 ? `· updated ${s}s ago` : `· updated ${Math.floor(s / 60)}m ago`;
+  if (pt.textContent !== txt) pt.textContent = txt; // (runs every second: only touch the page when the wording changes)
+  const tip = ($('#liveCount').textContent + ' ' + txt).replace('·', '').replace(/\s+/g, ' ').trim(), pulse = $('#pulse');
+  if (pulse.title !== tip) pulse.title = tip;
 }
 setInterval(tickPulse, 1000);
 
@@ -802,7 +851,7 @@ function preWPLine(g) {
   const fav = h >= 0.5 ? g.home : g.away, pc = Math.round(Math.max(h, 1 - h) * 100);
   return `<div class="g-wp pre" title="Fullcourt's projection (team ratings, home court, injuries)"><span class="g-wp-bar" style="--a:${teamColor(g.away.id)};--h:${teamColor(g.home.id)}"><i style="width:${((1 - h) * 100).toFixed(1)}%"></i></span><span class="g-wp-t">${esc(fav.abbr)} ${pc}% · Fullcourt</span></div>`;
 }
-function gameCard(g, i, animate) {
+function gameCard(g, i) {
   const live = g.state === 'in', post = g.state === 'post', pre = g.state === 'pre';
   const row = (s, side) => {
     const cls = post ? (s.winner ? 'win' : 'lose') : '';
@@ -824,7 +873,7 @@ function gameCard(g, i, animate) {
     if (post && g.hasHl) foot = foot.replace('</div>', `<span class="g-hl" title="Highlights available: open the game">${PLAY_ICON}<em class="g-lbl">Highlights</em></span></div>`);
     if (!IS_C || live) foot = foot.replace(/<\/div>$/, `<span class="g-court" data-court="${g.id}" role="button" tabindex="0" title="Watch on the 2D court" aria-label="Court view">${COURT_ICON}<em class="g-lbl">Court</em></span></div>`);
   }
-  return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}${animate ? ' enter' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
+  return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
       <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}</span>
       ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : upsetOf(g) ? `<span class="g-tag up">Upset</span>` : IS_C && isClash(g) ? `<span class="g-tag">Top 25 clash</span>` : cupTag(g) ? `<span class="g-tag cup">${esc(cupTag(g))}</span>` : `<span class="tv">${esc(g.note || g.tv)}</span>`}
@@ -857,7 +906,9 @@ function renderGames(animate) {
   const live = base.filter(g => g.state === 'in'), pre = base.filter(g => g.state === 'pre'), post = base.filter(g => g.state === 'post');
   const cnt = [['all', `${base.length} games`], ['in', `${live.length} live`], ['post', `${post.length} final`], ['pre', `${pre.length} upcoming`]]
     .filter(([k], i) => i === 0 || (k === 'in' ? live.length : k === 'post' ? post.length : pre.length));
-  $('#counts').innerHTML = scopeHTML + (base.length ? cnt : []).map(([k, t]) => `<button class="count${gamesFilter === k ? ' filter-on' : ''}" data-filter="${k}">${k === 'in' ? '<span class="dot on"></span>' : ''}${t}</button>`).join('');
+  // looking at another day: one tap back to today
+  const todayHTML = S.date !== S.today ? `<button class="count today-jump" data-date="${S.today}" title="Back to today (T)"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${S.date > S.today ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'}"/></svg>Today</button>` : '';
+  $('#counts').innerHTML = todayHTML + scopeHTML + (base.length ? cnt : []).map(([k, t]) => `<button class="count${gamesFilter === k ? ' filter-on' : ''}" data-filter="${k}">${k === 'in' ? '<span class="dot on"></span>' : ''}${t}</button>`).join('');
 
   let list = [...live, ...pre, ...post];
   if (favId) list.sort((a, b) => isFavGame(b) - isFavGame(a));
@@ -871,7 +922,7 @@ function renderGames(animate) {
     $('#games').innerHTML = `<div class="empty" style="grid-column:1/-1"><b>No ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games on this date</b>${next ? 'Pick another day, or jump to the nearest games.' : prev ? `No more ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games are scheduled this season.` : 'Pick another day on the rail above.'}
       ${prev || next ? `<div class="btn-row" style="justify-content:center;margin-top:12px">${prev ? btn(prev, '← ' + fmtDay(prev, { month: 'short', day: 'numeric' })) : ''}${next ? btn(next, fmtDay(next, { weekday: 'short', month: 'short', day: 'numeric' }) + ' →') : ''}</div>` : ''}</div>`;
   } else {
-    $('#games').innerHTML = list.map((g, i) => gameCard(g, i, animate)).join('');
+    patchList($('#games'), list.map((g, i) => [g.id, gameCard(g, i)]), animate);
   }
   S.games.forEach(g => { S.prev[`${g.id}-${g.home.id}`] = g.home.score; S.prev[`${g.id}-${g.away.id}`] = g.away.score; });
   renderPerformers(animate);
@@ -894,17 +945,18 @@ function renderPerformers(animate) {
     }
   }
   items.sort((a, b) => b.v - a.v);
+  if (items.length > 30) items.length = 30; // a full college day has 300 team leaders: the strip shows the top of the list
   const blk = $('#perfBlock');
   if (!items.length) { blk.hidden = true; return; }
   blk.hidden = false;
   $('#perfTitle').textContent = anyPlayed ? 'Top scorers' : 'Players to watch';
-  $('#perf').innerHTML = items.map((p, i) => {
+  patchList($('#perf'), items.map((p, i) => {
     rememberPlayer(p.a, p.side.id);
-    return `<button class="pcard${animate ? ' enter' : ''}" style="--i:${i};--tc:${teamColor(p.side.id)}" data-player="${p.a.id}">
+    return [`${p.a.id}|${p.g.id}`, `<button class="pcard" style="--i:${i};--tc:${teamColor(p.side.id)}" data-player="${p.a.id}">
       <div class="ph">${face(p.a.id, p.a.displayName, 'face', 350)}${logo(p.side.abbr, 44)}<span class="pv">${esc(p.dv)}<small>${anyPlayed ? 'PTS' : 'PPG'}</small></span></div>
       <div class="pi"><b>${esc(p.a.displayName)}</b><span>${esc(p.side.abbr)} ${p.side === p.g.home ? 'vs' : '@'} ${esc(p.opp.abbr)}</span><span class="ex">${esc(p.extra || (p.side.rec ? `${p.side.rec} record` : ''))}&nbsp;</span></div>
-    </button>`;
-  }).join('');
+    </button>`];
+  }), animate);
   dragScroll($('#perf'));
 }
 
@@ -937,6 +989,7 @@ function loadStandings(force) {
     }));
     confs.sort((a, b) => (a.short === 'East' ? -1 : 1));
     S.standings = { confs, season: d.seasons?.find(s => s.year === d.season?.year)?.displayName || d.season?.displayName || '' };
+    S.stdAt = Date.now();
     renderMini();
     renderFavLink();
     if (S.view === 'standings') renderStandings();
@@ -945,7 +998,14 @@ function loadStandings(force) {
   }).catch(e => { stdPromise = null; throw e; });
   return stdPromise;
 }
-setInterval(() => { if (!document.hidden) loadStandings(true).catch(() => {}); }, 5 * 60e3);
+// Keep the standings current without re-downloading them for nothing. NBA and WNBA: every 5 minutes (a small file).
+// College is every team in the country (6 MB to unpack), so it refreshes when a game has ended since the last load,
+// or every half hour otherwise.
+setInterval(() => {
+  if (document.hidden) return;
+  if (IS_C && !(S.stdDue > (S.stdAt || 0)) && Date.now() - (S.stdAt || 0) < 30 * 60e3) return;
+  loadStandings(true).catch(() => {});
+}, 5 * 60e3);
 // college: 32 conferences instead of East/West. Power conferences first, then A to Z.
 const POWER = ['SEC', 'ACC', 'Big Ten', 'Big 12', 'Big East'];
 function collegeStandings(d) {
@@ -969,6 +1029,7 @@ function collegeStandings(d) {
   const pi = c => { const i = POWER.indexOf(c.short); return i < 0 ? 99 : i; };
   confs.sort((a, b) => pi(a) - pi(b) || a.short.localeCompare(b.short));
   S.standings = { confs, season: d.season?.displayName || '' };
+  S.stdAt = Date.now();
   lazy('college').then(m => { m.renderMini(); if (S.view === 'standings') m.renderStandings(); if (S.view === 'teams') renderTeams(); }).catch(() => {});
   renderFavLink();
   return S.standings;
@@ -984,6 +1045,13 @@ function renderMini() {
     <button class="mini-row${r.id === favId ? ' fav-row' : ''}" data-team="${r.id}"><span class="sd">${r.seed}</span>${logo(r.abbr, 48)}<span class="nm">${esc(r.short)}</span><span class="rc">${r.w}-${r.l}</span><span class="gb">${esc(r.gb)}</span></button>`).join('');
 }
 
+const STD_COLS = [['w', 'W'], ['l', 'L'], ['pct', 'PCT'], ['gb', 'GB'], ['home', 'Home'], ['road', 'Away'], ['l10', 'L10'], ['strk', 'Strk'], ['ppg', 'PPG'], ['opp', 'OPP'], ['diff', 'Diff']];
+const STD_LOW = new Set(['l', 'gb', 'opp']); // fewer is better
+function stdVal(r, k) {
+  if (k === 'home' || k === 'road' || k === 'l10') { const [w, l] = String(r[k]).split('-').map(Number); return w + l ? w / (w + l) + w / 1000 : -1; }
+  if (k === 'strk') return (/^W/.test(r.strk) ? 1 : -1) * (parseInt(String(r.strk).slice(1), 10) || 0);
+  return parseFloat(r[k]) || 0;
+}
 function renderStandings() {
   if (IS_C) { lazy('college').then(m => m.renderStandings()).catch(() => {}); return; }
   const wrap = $('#stdWrap');
@@ -1006,12 +1074,16 @@ function renderStandings() {
     rows = S.standings.confs.flatMap(c => c.rows).sort((a, b) => (parseFloat(b.pct) || 0) - (parseFloat(a.pct) || 0) || b.w - a.w);
   } else rows = S.standings.confs[S.stdConf]?.rows || [];
   const maxDiff = Math.max(1, ...rows.map(r => Math.abs(r.diff)));
+  // tap a column heading to sort by it (best first; again to flip; a third time to go back to the standings order)
+  const so = S.stdSort, sorted = !!so && STD_COLS.some(c => c[0] === so.k);
+  if (sorted) rows = [...rows].sort((a, b) => (stdVal(b, so.k) - stdVal(a, so.k)) * so.dir * (STD_LOW.has(so.k) ? -1 : 1) || a.seed - b.seed);
+  if (!wrap._sortWired) { wrap._sortWired = true; wrap.addEventListener('click', e => { const h = e.target.closest('[data-stdsort]'); if (!h) return; const k = h.dataset.stdsort, c = S.stdSort; S.stdSort = c?.k !== k ? { k, dir: 1 } : c.dir === 1 ? { k, dir: -1 } : null; const x = wrap.scrollLeft; renderStandings(); wrap.scrollLeft = x; }); }
   wrap.innerHTML = `<table class="std">
-    <thead><tr><th>${league ? '#' : 'Seed'} · Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>Home</th><th>Away</th><th>L10</th><th>Strk</th><th>PPG</th><th>OPP</th><th>Diff</th></tr></thead>
+    <thead><tr><th>${league || sorted ? '#' : 'Seed'} · Team</th>${STD_COLS.map(([k, l]) => `<th class="std-sort${sorted && so.k === k ? ' on' : ''}" data-stdsort="${k}" title="Sort by ${l}">${l}${sorted && so.k === k ? (so.dir === 1 ? ' ↓' : ' ↑') : ''}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r, i) => {
-      const seed = league ? i + 1 : r.seed;
-      const zone = IS_W ? (r.seed <= 8 ? 'po' : '') : league ? '' : seed <= 6 ? 'po' : seed <= 10 ? 'pi' : '';
-      const cut = IS_W || league ? '' : seed === 6 ? 'cut' : seed === 10 ? 'cut-pi' : '';
+      const seed = league || sorted ? i + 1 : r.seed;
+      const zone = IS_W ? (r.seed <= 8 ? 'po' : '') : league ? '' : r.seed <= 6 ? 'po' : r.seed <= 10 ? 'pi' : '';
+      const cut = IS_W || league || sorted ? '' : seed === 6 ? 'cut' : seed === 10 ? 'cut-pi' : '';
       const sw = /^W/.test(r.strk) ? 'strk-w' : /^L/.test(r.strk) ? 'strk-l' : '';
       const w = Math.round(Math.abs(r.diff) / maxDiff * 54);
       return `<tr class="${cut}${r.id === favId ? ' fav-row' : ''}" data-team="${r.id}" style="--i:${i}">
@@ -1343,9 +1415,10 @@ function swipeToClose(el, sheet) {
 /* ================= game flyout ================= */
 async function openGame(id, opts = {}) {
   const sheet = openSheet('Game');
+  warm('h2h');
   // opened from a bet leg: start on that player's team in the box score, scroll to his row and keep it highlighted
   const focusPid = opts.focus ? String(opts.focus) : null; let focusDone = false;
-  let tab = opts.tab || 'box', boxSide = 1, lastPlayId = null, first = true, clipCard = null, cur = null;
+  let tab = opts.tab || 'box', boxSide = 1, boxSort = null, lastPlayId = null, first = true, clipCard = null, cur = null;
   const shotF = { team: 'all', pid: '' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
   addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : null);
@@ -1415,30 +1488,56 @@ async function openGame(id, opts = {}) {
     }
     // head to head over the last few seasons (filled in once the team schedules load; kept so refreshes don't flicker)
     { const k = `${sides[0].id}|${sides[1].id}|${id}`, h = S.h2hHTML?.[k]; if (h !== '') side += `<section class="card h2h-card" data-h2h="${k}"${h ? '' : ' hidden'}>${h || ''}</section>`; }
-    sheet.body.innerHTML = `<div class="g-layout"><div class="g-side">${side}</div><div class="g-main">${main}</div></div>`;
-    { const h2 = $('[data-h2h]', sheet.body); if (h2 && !S.h2hHTML?.[h2.dataset.h2h]) lazy('h2h').then(m => m.fillH2H(h2)).catch(() => {}); }
+    // a live game reloads every 15 seconds: when nothing on the page changed (a timeout, halftime), leave it alone,
+    // and when it did, keep where each sideways-scrolling piece (the box score table, the tabs) was scrolled to
+    const html = `<div class="g-layout"><div class="g-side">${side}</div><div class="g-main">${main}</div></div>`;
+    // (compared without the entrance animation and the win probability chart's serial number, which change on their own)
+    const htmlKey = html.replace('class="gh enter"', 'class="gh"').replace(/(data-wp="|"[wf][ab]|#[wf][ab])\d+/g, '$1').replace(/(<div class="odds-note">)[^<]*/, '$1');
+    const fresh = first || htmlKey !== sheet._html; sheet._html = htmlKey;
+    if (!fresh) { // the chart on the page keeps pointing at live data, and the line's "Updated" time keeps moving
+      const n = /data-wp="(\d+)"/.exec(html)?.[1], wpEl = n && $('.wp[data-wp]', sheet.body); if (wpEl) wpEl.dataset.wp = n;
+      const note = /<div class="odds-note">([^<]*)/.exec(html)?.[1], noteEl = note && $('.odds-note', sheet.body); if (noteEl) noteEl.innerHTML = note;
+    }
+    const SX = '.tabs, .box-wrap, .ls-wrap, .pl-row.hs, .tbl-wrap';
+    const keepX = fresh && !first ? $$(SX, sheet.body).map(el => el.scrollLeft) : [];
+    if (fresh) sheet.body.innerHTML = html;
+    { const h2 = fresh && $('[data-h2h]', sheet.body); if (h2 && !S.h2hHTML?.[h2.dataset.h2h]) lazy('h2h').then(m => m.fillH2H(h2)).catch(() => {}); }
     // college and WNBA: ESPN often has no video, but a YouTube one may be in Replay
-    const hls = $('[data-hlslot]', sheet.body);
+    const hls = fresh && $('[data-hlslot]', sheet.body);
     if (hls) lazy('replay').then(m => m.rpHasVideo(id)).then(ok => { if (ok && hls.isConnected) hls.outerHTML = `<button class="gh-hl" data-replay="${hls.dataset.hlslot}">${PLAY_ICON}Watch in Replay</button>`; }).catch(() => {});
-    clipCard = wireClips(sheet.body, clips, clipCard);
-    sheet.body.scrollTop = prevScroll;
-    wireDrag(sheet.body);
-    requestAnimationFrame(() => requestAnimationFrame(() => $$('.g-side [data-w], .g-main > .card [data-w]', sheet.body).forEach(i => { if (!i.closest('#gpane')) i.style.width = i.dataset.w + '%'; })));
+    if (fresh) {
+      clipCard = wireClips(sheet.body, clips, clipCard);
+      sheet.body.scrollTop = prevScroll;
+      wireDrag(sheet.body);
+      requestAnimationFrame(() => requestAnimationFrame(() => $$('.g-side [data-w], .g-main > .card [data-w]', sheet.body).forEach(i => { if (!i.closest('#gpane')) i.style.width = i.dataset.w + '%'; })));
+    }
+    const restoreX = () => { const now = keepX.some(Boolean) ? $$(SX, sheet.body) : []; if (now.length === keepX.length) now.forEach((el, i) => { if (keepX[i] && el.scrollLeft !== keepX[i]) el.scrollLeft = keepX[i]; }); };
 
     const renderPane = () => {
       const pane = $('#gpane', sheet.body); if (!pane) return;
       if (tab === 'box' && focusPid && !focusDone) { const T = (d.boxscore?.players || []).find(t => (t.statistics?.[0]?.athletes || []).some(a => String(a.athlete?.id) === focusPid)); const i = T ? sides.findIndex(s => String(s.id) === String(T.team?.id)) : -1; if (i >= 0) boxSide = i; }
-      if (tab === 'box') pane.innerHTML = boxScore(d, sides, boxSide);
+      // the same table as last time is left as it is (no flicker, and nothing you were scrolling moves)
+      let drew = true;
+      const put = h => {
+        if (pane._h === h) { drew = false; return; }
+        const xs = pane._tabWas === tab ? $$(SX, pane).map(el => el.scrollLeft) : [];
+        pane.innerHTML = h; pane._h = h;
+        if (xs.some(Boolean)) { const now = $$(SX, pane); if (now.length === xs.length) now.forEach((el, i) => { if (xs[i]) el.scrollLeft = xs[i]; }); }
+      };
+      if (tab === 'court' || tab === 'rot' || tab === 'ast') pane._h = null;
+      if (tab === 'box') put(boxScore(d, sides, boxSide, boxSort));
       if (tab === 'box' && focusPid) { const row = $(`tr[data-player="${focusPid}"]`, pane); if (row) { row.classList.add('focus'); if (!focusDone) { focusDone = true; requestAnimationFrame(() => row.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' })); } } }
-      if (tab === 'shots') pane.innerHTML = shotChart(d, sides, shotF);
+      if (tab === 'shots') put(shotChart(d, sides, shotF));
       if (tab === 'court') { if (!pane.firstChild) pane.innerHTML = '<div class="sk" style="height:420px;border-radius:12px"></div>'; lazy('chalk').then(m => { if (pane.isConnected && tab === 'court') m.drawChalk(pane, d, sides, id, live); }).catch(() => { pane.innerHTML = '<div class="empty" style="border:0"><b>The court didn\'t load</b></div>'; }); }
-      if (tab === 'team') pane.innerHTML = teamCompare(d, sides);
-      if (tab === 'plays') pane.innerHTML = playsList(d, sides, lastPlayId, plF);
-      if (tab === 'lead') pane.innerHTML = gameLeaders(d);
+      if (tab === 'team') put(teamCompare(d, sides));
+      if (tab === 'plays') put(playsList(d, sides, lastPlayId, plF));
+      if (tab === 'lead') put(gameLeaders(d));
       if (tab === 'rot' || tab === 'ast') { if (!pane.firstChild) pane.innerHTML = '<div class="sk" style="height:320px;border-radius:12px"></div>'; lazy('rotation').then(m => { if (!pane.isConnected) return; if (tab === 'rot') m.drawRotation(pane, d, sides); else if (tab === 'ast') m.drawAssists(pane, d, sides); }).catch(() => { pane.innerHTML = '<div class="empty" style="border:0"><b>This didn\'t load</b></div>'; }); }
+      pane._tabWas = tab;
+      if (!drew) return;
       wireDrag(pane);
       requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', pane).forEach(i => i.style.width = i.dataset.w + '%')));
-      $$('.seg', pane).forEach(placeKnob);
+      placeKnobs($$('.seg', pane));
     };
     sheet.body.onclick = e => {
       const cp = e.target.closest('[data-clipplay]');
@@ -1460,13 +1559,15 @@ async function openGame(id, opts = {}) {
       if (t) { tab = t.dataset.gtab; $$('[data-gtab]', sheet.body).forEach(b => b.setAttribute('aria-selected', b === t)); const pn = $('#gpane', sheet.body); pn.classList.remove('anim'); void pn.offsetWidth; pn.classList.add('anim'); renderPane(); return; }
       const b = e.target.closest('[data-bside]');
       if (b) { boxSide = +b.dataset.bside; renderPane(); }
+      const bs = e.target.closest('[data-bsort]');
+      if (bs) { boxSort = boxSort === bs.dataset.bsort ? null : bs.dataset.bsort; renderPane(); return; }
       const sh = e.target.closest('[data-shteam]');
       if (sh) { shotF.team = sh.dataset.shteam; shotF.pid = ''; renderPane(); }
       if (e.target.closest('[data-close-retry]')) closeTop();
     };
     sheet.body.onchange = e => { const sel = e.target.closest('[data-shplayer]'); if (sel) { shotF.pid = sel.value; renderPane(); } };
     renderPane();
-    sheet.body.scrollTop = prevScroll;
+    if (fresh) { sheet.body.scrollTop = prevScroll; restoreX(); }
     if (!sheet._adv) { sheet._adv = true; const onAdv = () => { if (!sheet.alive) { document.removeEventListener('fcadv', onAdv); return; } if (tab === 'box' || tab === 'team') sheet._render?.(); }; document.addEventListener('fcadv', onAdv); }
     sheet._render = renderPane;
     const plays = d.plays || [];
@@ -1478,7 +1579,7 @@ async function openGame(id, opts = {}) {
   load();
 }
 
-function boxScore(d, sides, bi) {
+function boxScore(d, sides, bi, sortBy = null) {
   const teams = d.boxscore?.players || [];
   if (!teams.length) return `<div class="empty" style="border:0"><b>No box score yet</b>Stats appear once the game tips off.</div>`;
   const side = sides[bi];
@@ -1536,6 +1637,13 @@ function boxScore(d, sides, bi) {
   } else {
     groups = [['Starters', ath.filter(a => a.starter), ''], ['Bench', ath.filter(a => !a.starter), '']];
   }
+  // tap a column heading to sort by it: everyone who played in one list, best first (tap it again to go back)
+  const sortI = sortBy == null ? -1 : labels.indexOf(sortBy);
+  if (sortI >= 0) {
+    const num = a => { const v = String(a.stats?.[sortI] ?? '').trim(); const m = /^(\d+)-(\d+)$/.exec(v); return m ? +m[1] + +m[2] / 1000 : parseFloat(v.replace('+', '')) || 0; };
+    const low = /^(TO|PF)$/.test(sortBy);
+    groups = [[`Sorted by ${esc(sortBy)}`, ath.filter(played).sort((x, y) => (low ? num(x) - num(y) : num(y) - num(x)) || minsOf(y) - minsOf(x)), ''], ['Did not play', ath.filter(a => !played(a)), '']];
+  }
   // injured players who didn't play get their own section instead of sitting in the bench list
   const isInj = a => (a.didNotPlay || !a.stats?.length) && injById.has(a.athlete.id);
   const boxInj = ath.filter(isInj);
@@ -1547,7 +1655,7 @@ function boxScore(d, sides, bi) {
       <td colspan="${labels.length}"></td></tr>`).join('') : '';
   return `<div class="card-h"><div class="seg"><span class="knob"></span>${sides.map((s, i) => `<button data-bside="${i}" aria-pressed="${i === bi}">${esc(s.abbr)}</button>`).join('')}</div>${advBtn()}</div>${advOn ? `<p class="adv-note">${ADV_HELP}</p>` : ''}
   <div class="box-wrap drag-x" data-drag><table class="box${advOn ? ' adv' : ''}">
-    <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="${shotIdx.has(i) ? 'sc' : ''}">${esc(l)}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Player</th>${cols(labels).map(([l, i]) => `<th class="bx-sort${shotIdx.has(i) ? ' sc' : ''}${i === sortI ? ' on' : ''}" data-bsort="${esc(l)}" title="Sort by ${esc(l)}"${i === sortI ? ' aria-sort="descending"' : ''}>${esc(l)}</th>`).join('')}</tr></thead>
     <tbody>
       ${groups.map(([title, list, cls]) => `<tr class="sub ${cls}"><td colspan="${labels.length + 1}">${title}</td></tr>${list.map(a => cls ? row(a).replace('<tr class="', '<tr class="on-court ') : row(a)).join('')}`).join('')}
       ${st.totals?.length ? `<tr class="tot"><td>Team</td>${cols(st.totals).map(([v, i]) => `<td class="${shotIdx.has(i) ? 'sc' : ''}">${cellOf(v, i)}</td>`).join('')}</tr>` : ''}
@@ -1676,6 +1784,8 @@ function irCardHTML(list) {
 async function openTeam(id) {
   const meta = S.teams[id] || {};
   const sheet = openSheet(meta.name || 'Team');
+  warm('teamx', 'depth', ...(IS_C ? [] : ['sim']));
+  noteRecent({ t: 't', id: String(id) });
   let roster, sched;
   try {
     [roster, sched] = await Promise.all([
@@ -1781,6 +1891,7 @@ async function openTeam(id) {
 async function openPlayer(id) {
   const p = S.players[id] || { id };
   const sheet = openSheet(p.name || 'Player');
+  warm('career', 'highs', 'gamelog');
   const [ov, bioRes] = await Promise.all([
     getJSON(`${WEB}/athletes/${id}/overview`).catch(() => null),
     getJSON(`${WEB}/athletes/${id}`).catch(() => null),
@@ -1793,6 +1904,7 @@ async function openPlayer(id) {
   const tm = S.teams[teamId] || {};
   const tc = teamColor(teamId || tm.abbr);
   setTitle(sheet, name);
+  if (bioRes?.athlete) noteRecent({ t: 'p', id: String(id), name, sub: [bio.position?.abbreviation, tm.name].filter(Boolean).join(' · '), teamId });
 
   const st = ov?.statistics;
   const labels = st?.labels || [];
@@ -2032,24 +2144,32 @@ function renderTicker() {
   tr.addEventListener('pointerleave', () => hover = false);
   tr.addEventListener('focusin', () => hover = true);
   tr.addEventListener('focusout', () => hover = false);
-  // the loop width is measured once per content change (not every frame: a per-frame measure forces a full
-  // page layout, which made big pages like the Bet desk stutter), and the loop sleeps when the ticker is off screen
-  let onScreen = true, wide = innerWidth > 760, last = 0;
-  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; }).observe(tr);
-  addEventListener('resize', () => { wide = innerWidth > 760; tr._half = 0; }, { passive: true });
+  // The ticker never measures the page while it runs: its position is kept here and only read back from the page
+  // when it starts moving again (after a hover, a drag, a touch). Reading it every frame forced the browser to lay
+  // the page out at the top of every frame, on every page. On phones (no ticker) and while the ticker is off screen,
+  // the loop stops completely; a resize or scrolling back up starts it again.
+  let onScreen = true, wide = innerWidth > 760, last = 0, raf = 0, paused = true, touchT = 0, held = false;
+  // a finger flick keeps gliding after it lifts: hold off a moment before taking over again
+  tr.addEventListener('touchstart', () => { clearTimeout(touchT); held = true; }, { passive: true });
+  tr.addEventListener('touchend', () => { clearTimeout(touchT); touchT = setTimeout(() => { held = false; }, 1800); }, { passive: true });
+  const awake = () => wide && onScreen && !reduced;
   const step = t => {
-    if (onScreen && wide && !hover && !reduced && !document.hidden && tr.dataset.loop && !tr.classList.contains('dragging')) {
+    raf = 0;
+    if (!awake()) return;
+    if (!hover && !held && !document.hidden && tr.dataset.loop && !tr.classList.contains('dragging')) {
+      if (paused) { pos = tr.scrollLeft; paused = false; last = 0; }
       if (!tr._half) { const a = $('#tkA'); tr._half = a ? a.offsetWidth + (parseFloat(getComputedStyle(tr).columnGap) || 0) : 0; }
-      const cur = tr.scrollLeft;
-      if (Math.abs(cur - pos) > 2) pos = cur;
       pos += 0.45 * Math.min(3, last ? (t - last) / 16.7 : 1);
       if (tr._half && pos >= tr._half) pos -= tr._half;
       tr.scrollLeft = pos;
-    } else pos = tr.scrollLeft;
+    } else paused = true;
     last = t;
-    requestAnimationFrame(step);
+    raf = requestAnimationFrame(step);
   };
-  requestAnimationFrame(step);
+  const kick = () => { if (!raf && awake()) { paused = true; raf = requestAnimationFrame(step); } };
+  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; kick(); }).observe(tr);
+  addEventListener('resize', () => { wide = innerWidth > 760; tr._half = 0; kick(); }, { passive: true });
+  kick();
 })();
 
 /* ---------------- shot chart ---------------- */
@@ -2234,6 +2354,14 @@ function closeSearch() {
   spPop.classList.remove('on');
   setTimeout(() => { spPop.hidden = true; unlockIfIdle(); }, 180);
 }
+// the last few players and teams you opened: search lists them before you type anything
+const RECENT_KEY = lsKey('fc-recent');
+let recents = (() => { try { const r = JSON.parse(lsGet(RECENT_KEY) || '[]'); return Array.isArray(r) ? r : []; } catch (e) { return []; } })();
+function noteRecent(it) {
+  if (!it?.id) return;
+  recents = [it, ...recents.filter(r => !(r.t === it.t && String(r.id) === String(it.id)))].slice(0, 6);
+  lsSet(RECENT_KEY, JSON.stringify(recents));
+}
 function matchTeams(q) {
   const t = q.toLowerCase();
   const all = Object.values(S.teams).filter(x => x.abbr && x.name);
@@ -2251,7 +2379,13 @@ function renderSearch() {
     players = (pts?.athletes || []).slice(0, 6).map(a => ({ id: a.athlete.id, name: a.athlete.displayName, sub: [a.athlete.position?.abbreviation, a.athlete.teams?.[0]?.displayName || a.athlete.teamName].filter(Boolean).join(' · '), teamId: a.athlete.teamId }));
   }
   const askable = q.split(/\s+/).length >= 3 || /\?$/.test(q);
-  spItems = [...(askable ? [{ type: 'ask', q }] : []), ...teams.map(t => ({ type: 'team', t })), ...players.map(p => ({ type: 'player', p }))];
+  const rec = q ? [] : recents.map(r => r.t === 't' ? (S.teams[r.id]?.abbr ? { type: 'team', t: S.teams[r.id] } : null) : { type: 'player', p: { id: r.id, name: r.name, sub: r.sub, teamId: r.teamId } }).filter(Boolean);
+  if (rec.length) {
+    const seen = new Set(rec.map(it => it.type + (it.t?.id || it.p.id)));
+    for (let k = teams.length - 1; k >= 0; k--) if (seen.has('team' + teams[k].id)) teams.splice(k, 1);
+    players = players.filter(p => !seen.has('player' + p.id)).slice(0, 4);
+  }
+  spItems = [...(askable ? [{ type: 'ask', q }] : []), ...rec, ...teams.map(t => ({ type: 'team', t })), ...players.map(p => ({ type: 'player', p }))];
   spIdx = Math.min(spIdx, Math.max(0, spItems.length - 1));
   let i = -1;
   const row = it => {
@@ -2262,13 +2396,14 @@ function renderSearch() {
     return `<button class="sp-row${i === spIdx ? ' on' : ''}" data-player="${it.p.id}" data-i="${i}">${face(it.p.id, it.p.name, 'sp-face', 120)}<span><b>${esc(it.p.name)}</b><small>${esc(it.p.sub || 'Player')}</small></span></button>`;
   };
   const aH = askable ? row(spItems[0]) : '';
+  const rH = rec.length ? `<div class="sp-h">Recently viewed<button class="sp-clear" data-recclear>Clear</button></div>${rec.map(row).join('')}` : '';
   const tH = teams.length ? `<div class="sp-h">${q ? 'Teams' : 'Your team'}</div>${teams.map(t => row({ type: 'team', t })).join('')}` : '';
   const pH = players.length ? `<div class="sp-h">${q ? 'Players' : 'Top scorers right now'}</div>${players.map(p => row({ type: 'player', p })).join('')}` : '';
   const status = q.length >= 2 && spState === 'loading' && !players.length ? '<div class="sp-msg">Searching players…</div>'
     : q.length >= 2 && spState === 'error' ? '<div class="sp-msg">Player search is unavailable right now. Teams still work.</div>'
     : q && !teams.length && !players.length && spState === 'done' ? `<div class="sp-msg">No players or teams match “${esc(q)}”.</div>`
     : !q && !teams.length && !players.length ? '<div class="sp-msg">Type a player or team name.</div>' : '';
-  spRes.innerHTML = aH + tH + pH + status;
+  spRes.innerHTML = aH + rH + tH + pH + status;
 }
 spIn.addEventListener('input', () => {
   spIdx = 0;
@@ -2305,6 +2440,7 @@ spIn.addEventListener('keydown', e => {
 });
 spRes.addEventListener('pointermove', e => { const r = e.target.closest('.sp-row'); if (r && +r.dataset.i !== spIdx) { spIdx = +r.dataset.i; $$('.sp-row', spRes).forEach(b => b.classList.toggle('on', b === r)); } });
 spRes.addEventListener('click', e => {
+  if (e.target.closest('[data-recclear]')) { e.stopPropagation(); recents = []; lsSet(RECENT_KEY, null); renderSearch(); spIn.focus(); return; }
   const r = e.target.closest('.sp-row'); if (!r) return;
   const it = spItems[+r.dataset.i];
   if (it?.type === 'player') rememberPlayer({ id: it.p.id, displayName: it.p.name }, it.p.teamId);
@@ -2398,7 +2534,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-09g'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-10a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2430,6 +2566,18 @@ async function staleCheck() {
     }
   } catch (e) {} finally { staleBusy = false; }
 }
+// Start fetching a part's code early (when a finger or the pointer lands on its button, or while a page's data is
+// still on its way) so it's already there by the time it's needed.
+const warm = (...names) => { if (navigator.onLine !== false) for (const n of names) if (MODS[n] && !modP[n]) lazy(n).catch(() => {}); };
+const WARM_VIEW = { compare: 'compare', bets: 'betdesk', replay: 'replay', cap: 'cap', draft: 'draft', history: 'history' };
+const warmFor = e => {
+  const el = e.target instanceof Element ? e.target.closest('[data-view], [data-ask], [data-settings], [data-news], [data-week], [data-slate]') : null; if (!el) return;
+  const d = el.dataset;
+  if (d.view) warm(WARM_VIEW[d.view]);
+  else warm('ask' in d ? 'ask' : 'settings' in d ? 'settings' : 'news' in d ? 'news' : 'week' in d ? 'week' : 'share');
+};
+document.addEventListener('pointerover', warmFor, { passive: true });
+document.addEventListener('touchstart', warmFor, { passive: true });
 const stub = (name, fn) => (...a) => lazy(name).then(m => m[fn](...a)).catch(err => { console.error(err); toast("Couldn't load that part of Fullcourt. Check your connection and try again."); });
 const openAsk = stub('ask', 'openAsk');
 const renderBets = stub('bets', 'renderBets');
@@ -3192,7 +3340,7 @@ function drawTrend(box, k) {
 }
 
 /* ---------------- team schedule calendar ---------------- */
-const etYmd = iso => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso)).map(x => [x.type, x.value])); return `${p.year}${p.month}${p.day}`; };
+const etYmd = iso => { const p = Object.fromEntries(dtf('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso)).map(x => [x.type, x.value])); return `${p.year}${p.month}${p.day}`; };
 function calInfo(evs) {
   const list = evs.map(e => ({ ...e, ymd: etYmd(e.date) })).sort((a, b) => a.ymd.localeCompare(b.ymd));
   list.forEach((e, i) => {
@@ -3611,7 +3759,7 @@ renderFavLink();
 applyHome();
 go(location.hash.slice(1) || 'scores', false);
 wireDrag();
-$$('.seg').forEach(placeKnob);
+placeKnobs($$('.seg'));
 // lift the switch veil once the first scores are on screen (or after a short cap, whichever comes first)
 const liftVeil = () => document.documentElement.classList.remove('arriving');
 if (document.documentElement.classList.contains('arriving')) setTimeout(liftVeil, 1800);

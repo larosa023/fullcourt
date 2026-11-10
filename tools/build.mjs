@@ -48,7 +48,8 @@ function usedNames(ast) {
   });
   return { used, writes };
 }
-const minJS = async code => (await esbuild.transform(code, { loader: 'js', format: 'esm', minify: true, target: 'es2020', legalComments: 'none' })).code;
+// NOMIN=1 keeps the code readable (for profiling in a browser); never publish that build
+const minJS = async code => (await esbuild.transform(code, { loader: 'js', format: 'esm', minify: !process.env.NOMIN, target: 'es2020', legalComments: 'none' })).code;
 const minCSS = async code => (await esbuild.transform(code, { loader: 'css', minify: true, target: ['chrome100', 'safari15', 'firefox100'] })).code;
 
 fs.rmSync(OUT, { recursive: true, force: true });

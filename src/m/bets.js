@@ -274,7 +274,7 @@ function recordLine(list) {
 }
 
 // which day(s) a bet's games are on (ET), so it only shows on those days' Scores pages
-const etDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+const etDay = d => dfmt('en-CA', { timeZone: 'America/New_York' }, new Date(d)).replace(/-/g, '');
 async function betDays(list) {
   let changed = false;
   await Promise.all(list.filter(b => !b.days).map(async b => {

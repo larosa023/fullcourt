@@ -126,8 +126,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* keep the chip one width as its text ticks ("just now" → "12s ago"), so the buttons beside it never wobble */
 .pulse-chip { min-width: 74px; justify-content: center; font-variant-numeric: tabular-nums; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
-.dot.on { background: var(--live); box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 60%, transparent); animation: ping 1.6s infinite; }
-@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 55%, transparent); } 80%, 100% { box-shadow: 0 0 0 7px transparent; } }
+/* The live pulse and the loading shimmer animate with transform and opacity only, which the browser runs off the
+   main thread. They used to animate a box-shadow and a background position, which repaints the page on every frame:
+   with any game live (or one loading placeholder off screen) that kept a third of a phone's processor busy nonstop. */
+.dot.on { background: var(--live); position: relative; }
+.dot.on::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--live); pointer-events: none; animation: ping 1.6s infinite; }
+@keyframes ping { 0% { transform: scale(1); opacity: .55; } 80%, 100% { transform: scale(3); opacity: 0; } }
+@keyframes pulse { 50% { opacity: .35; } }
 .icon-btn {
   width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center;
   background: var(--surface); border: 1px solid var(--line); transition: transform .2s var(--ease), background .2s;
@@ -223,6 +228,8 @@ html.no-sel, html.no-sel * { -webkit-user-select: none !important; user-select: 
   border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2);
 }
 .filter-on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.today-jump { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, var(--line)); gap: 3px; padding-left: 7px; }
+.today-jump:hover { background: color-mix(in oklab, var(--accent) 12%, var(--surface)); }
 
 .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
 .game {
@@ -325,10 +332,14 @@ table.odds-t { width: 100%; border-collapse: collapse; font-size: 13.5px; table-
 
 /* empty / error / skeleton */
 .empty { padding: 40px 20px; text-align: center; border: 1px dashed var(--line); border-radius: var(--r); color: var(--muted); }
+/* a message with a button under it: the button gets its own line (it used to sit beside the last word) */
+.empty > span { display: block; max-width: 46ch; margin: 0 auto; }
+.empty > span ~ .btn { margin: 14px 4px 0; }
 .empty b { display: block; color: var(--ink); font-family: var(--display); font-stretch: 75%; font-size: 22px; text-transform: uppercase; margin-bottom: 4px; }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 13.5px; margin-top: 12px; }
-.sk { background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border-radius: var(--r); }
-@keyframes shimmer { to { background-position: -200% 0; } }
+.sk { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--r); }
+.sk::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--surface-3), transparent); transform: translateX(-100%); animation: shimmer 1.3s linear infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
 
 /* ---------- standings ---------- */
 .std-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -338,6 +349,9 @@ table.odds-t { width: 100%; border-collapse: collapse; font-size: 13.5px; table-
 table.std { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 860px; font-size: 14px; }
 .std th { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: right; padding: 12px 12px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; white-space: nowrap; }
 .std th:first-child, .std td:first-child { text-align: left; position: sticky; left: 0; z-index: 2; background: var(--surface); }
+.std th.std-sort { cursor: pointer; user-select: none; -webkit-user-select: none; white-space: nowrap; }
+.std th.std-sort:hover { color: var(--ink); }
+.std th.std-sort.on { color: var(--accent); }
 .std td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .std tbody tr { cursor: pointer; transition: background .15s; }
 .std tbody tr:hover td { background: var(--surface-2); }
@@ -354,7 +368,10 @@ table.std { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .strk-w { color: var(--win); font-weight: 600; }
 .strk-l { color: var(--loss); font-weight: 600; }
 .diffbar { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
-.diffbar i { display: block; height: 6px; border-radius: 3px; width: 0; transition: width .9s var(--ease); }
+/* Bars grow with a transform, not by animating their width: a width animation makes the browser lay the page out
+   again on every frame (60 times a second for the whole table), a transform costs nothing. */
+@keyframes barGrow { from { transform: scaleX(0); } }
+.diffbar i { display: block; height: 6px; border-radius: 3px; width: 0; transform-origin: right; animation: barGrow .9s var(--ease) both; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 12px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend .zone { height: 12px; }
@@ -408,8 +425,8 @@ table.std { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .lrow .nm b { display: block; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lrow .nm span { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .lrow .nm .lg { width: 16px; height: 16px; }
-.lrow .bar { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; }
-.lrow .bar i { display: block; height: 100%; width: 0; background: var(--ink-2); border-radius: 4px; transition: width .9s var(--ease); }
+.lrow .bar { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; contain: strict; }
+.lrow .bar i { display: block; height: 100%; width: 0; background: var(--ink-2); border-radius: 4px; transform-origin: left; animation: barGrow .9s var(--ease) both; }
 .lrow:first-child .bar i { background: var(--accent); }
 .lrow .v { text-align: right; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; }
 
@@ -486,6 +503,10 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .box .pl b { font-weight: 600; }
 .box .pl span { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .box .pts { font-weight: 700; }
+.box th.bx-sort { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.box th.bx-sort:hover { color: var(--ink); }
+.box th.bx-sort.on { color: var(--accent); }
+.box th.bx-sort.on::after { content: '↓'; margin-left: 2px; }
 .box th.sc, .box td.sc { padding-left: 12px; }
 .box th.sc:not(.sc + .sc), .box td.sc:not(.sc + .sc) { padding-left: 18px; }
 .box .shot { display: inline-grid; justify-items: end; line-height: 1.15; }
@@ -499,9 +520,10 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 .cmp-row .mid { display: grid; gap: 5px; }
 .cmp-row .mid span { text-align: center; font-size: 11.5px; color: var(--muted); font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase; }
 .cmp-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
-.cmp-bars div { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; display: flex; }
+.cmp-bars div { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; display: flex; contain: strict; }
 .cmp-bars div:first-child { justify-content: flex-end; }
-.cmp-bars i { display: block; height: 100%; width: 0; border-radius: 3px; transition: width .9s var(--ease); }
+.cmp-bars i { display: block; height: 100%; width: 0; border-radius: 3px; transform-origin: left; animation: barGrow .9s var(--ease) both; }
+.cmp-bars div:first-child i { transform-origin: right; }
 .plays { display: grid; }
 .play { display: grid; grid-template-columns: 50px 1fr auto; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: 13.5px; align-items: start; }
 .play:last-child { border-bottom: 0; }
@@ -796,6 +818,9 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .sp-in input::-webkit-search-cancel-button { display: none; }
 .sp-res { overflow-y: auto; padding: 6px; }
 .sp-h { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 10px 4px; }
+.sp-h:has(.sp-clear) { display: flex; align-items: center; justify-content: space-between; }
+.sp-clear { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--muted); padding: 2px 6px; margin: -2px -6px; border-radius: 6px; }
+.sp-clear:hover { color: var(--ink); background: var(--surface-2); }
 .sp-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 12px; }
 .sp-row .lg { width: 30px; height: 30px; }
 .sp-row span { display: grid; min-width: 0; }
@@ -1525,6 +1550,7 @@ tr:hover .pl-sh, .pl-sh:focus-visible { opacity: 1; }
 .lead-upd { margin: -6px 0 12px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 7px; min-height: 16px; }
 .lead-upd .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: .6; }
 .lead-upd .dot.on { background: var(--live, #ff4170); opacity: 1; animation: pulse 2s infinite; }
+.lead-upd .dot.on::after { content: none; }
 /* wide screens: a wider page, and Compare gets its own header tab (the More menu only held Compare) */
 .nav .nav-wide { display: none; }
 @media (min-width: 1640px) {

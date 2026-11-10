@@ -1,6 +1,14 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-10a', date: 'Nov 10', items: [
+    ['Faster all around', 'A tune-up release. Scores now refresh by changing only the cards whose score, clock or line moved instead of redrawing the whole page (a busy college day used to rebuild 150 cards every 15 seconds). Opening games, players and teams takes about a third of the work it did, the score ticker no longer makes the page re-measure itself 60 times a second, and bars and tables animate without stutter. Pages start loading the moment your pointer or finger lands on their button.'],
+    ['Lighter on data', 'The Bet Desk only downloads player game logs while you\'re looking at it. Head to head and Ask\'s team questions keep finished seasons on your device, so only the current season is fetched again. College standings refresh when a game ends instead of every five minutes. On a weak signal, Fullcourt opens from its saved copy after 2.5 seconds instead of waiting on the network.'],
+    ['Steadier live games', 'A live game page leaves itself alone when nothing has changed (timeouts, halftime), and when it does update, the box score stays scrolled where you had it.'],
+    ['Sort the box score and standings', 'Tap any column heading in a box score (PTS, REB, +/- and the rest) to sort the players by it, and tap it again to go back. Standings sort the same way: tap PPG, OPP, L10, Strk or any column. A second tap flips the order and a third returns to the standings.'],
+    ['Small things', 'A Today button appears next to the day\'s title whenever you\'re looking at another date. Search lists the players and teams you opened most recently before you type. In Ask, the up arrow brings back your earlier questions.'],
+    ['Fixes', 'Bet Desk props on phones: player names were squeezed to a letter after the projection columns arrived. Phones now show Chance and L10, with the projection under the line. Also fixed: the mock draft\'s Big Board running past its card, buttons sitting beside the text on "NBA only" pages, and browsers\' automatic dark mode washing out player photos.'],
+  ] },
   { id: '2026-11-09g', date: 'Nov 9', items: [
     ['Share the day\'s slate', 'A new share button on Scores (next to the date) makes an image of the day\'s games: each matchup with its tip-off time (or the score and status once it starts), the spread and total, and Fullcourt\'s pick with its win chance, marked ✓ or ✗ once games end. College shows the ranked games first. It works for any day you\'re looking at.'],
   ] },

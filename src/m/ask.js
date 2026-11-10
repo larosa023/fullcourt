@@ -687,7 +687,7 @@ function gfAvg(gs) {
 }
 const gfAvgRow = (label, a) => `<tr><td>${esc(label)}</td><td>${a.n}</td><td>${a.rec}</td><td>${a.min}</td><td>${a.pts}</td><td>${a.reb}</td><td>${a.ast}</td><td>${a.stl}</td><td>${a.blk}</td><td>${a.tov}</td><td>${a.fgp}</td><td>${a.tpp}</td><td>${a.ftp}</td></tr>`;
 const GF_AVG_HEAD = ['', 'GP', 'W-L', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'FG%', '3P%', 'FT%'];
-const gfDay = g => g.d ? new Date(g.d).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }) : '';
+const gfDay = g => g.d ? dfmt('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }, new Date(g.d)) : '';
 const gfLogRows = (gs, hl = () => '') => gs.map(g => `<tr data-game="${g.id}"><td>${esc(gfDay(g))}${g.type === 'post' ? ' <small>PO</small>' : ''}</td><td>${g.at === '@' ? '@' : 'vs'} ${esc(g.o)}</td><td class="${g.r === 'W' ? 'w' : 'l'}">${esc(g.r)} ${esc(g.sc)}</td><td>${g.min}</td><td class="${hl('pts')}">${g.pts}</td><td class="${hl('reb')}">${g.reb}</td><td class="${hl('ast')}">${g.ast}</td><td class="${hl('stl')}">${g.stl}</td><td class="${hl('blk')}">${g.blk}</td><td>${g.fg[0]}-${g.fg[1]}</td><td class="${hl('tpm')}">${g.tp[0]}-${g.tp[1]}</td></tr>`);
 const GF_LOG_HEAD = ['Date', 'Opp', 'Result', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'FG', '3PT'];
 
@@ -862,10 +862,14 @@ async function aTeamWithout(t, p, f) {
   const aw = withG.length ? tAvg(withG) : null, ao = without.length ? tAvg(without) : null;
   if (!aw && String(p.teamId) !== String(t.id)) return { text: `${esc(p.name)} hasn't played for ${tName(t)}${where}${S.teams[p.teamId] ? ` (${HES} with the ${esc(teamNick(p.teamId))} now)` : ''}.`, ctx: { teamId: t.id, pid: p.id } };
   const past = (f.season && f.season !== 'cur') || f.since;
-  let text = `${cap(tName(t))} ${past ? 'went' : 'are'} <b>${aw ? aw.rec : '0-0'} with ${esc(p.name)}</b> and <b>${ao ? ao.rec : '0-0'} without ${HIM}</b>${where}.`;
-  if (aw) text += ` With ${HIM}: ${aw.pf} scored, ${aw.pa} allowed (${aw.diff}).`;
-  if (ao) text += ` Without: ${ao.pf} scored, ${ao.pa} allowed (${ao.diff}).`;
-  if (!ao) text += ` ${HE} hasn't missed a game${where}.`;
+  let text;
+  if (!ao) { // he's played every game: say so first instead of "0-0 without him"
+    text = `${esc(p.name)} hasn't missed a game${where}. ${cap(tName(t))} ${past ? 'went' : 'are'} <b>${aw.rec} with ${HIM}</b>: ${aw.pf} scored, ${aw.pa} allowed (${aw.diff}).`;
+  } else {
+    text = `${cap(tName(t))} ${past ? 'went' : 'are'} <b>${aw ? aw.rec : '0-0'} with ${esc(p.name)}</b> and <b>${ao.rec} without ${HIM}</b>${where}.`;
+    if (aw) text += ` With ${HIM}: ${aw.pf} scored, ${aw.pa} allowed (${aw.diff}).`;
+    text += ` Without: ${ao.pf} scored, ${ao.pa} allowed (${ao.diff}).`;
+  }
   const rows = [aw && tAvgRow(`With ${last}`, aw), ao && tAvgRow(`Without ${last}`, ao)].filter(Boolean);
   return {
     text,
@@ -1052,6 +1056,20 @@ function openAsk(q) {
     form.addEventListener('submit', e => { e.preventDefault(); const v = inp.value; inp.value = ''; fit(); ask(v); });
     inp.addEventListener('input', fit);
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } });
+    // ↑ in an empty box brings back your earlier questions, newest first (↓ steps forward again)
+    let recall = -1;
+    inp.addEventListener('input', () => { recall = -1; });
+    form.addEventListener('submit', () => { recall = -1; });
+    inp.addEventListener('keydown', e => {
+      if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+      const qs = [...new Set(ASK.log.filter(m => m.me && m.q).map(m => m.q).reverse())];
+      if (!qs.length || (inp.value && inp.value !== qs[recall])) return;
+      const n = recall + (e.key === 'ArrowUp' ? 1 : -1);
+      if (n >= qs.length || n < -1) return;
+      e.preventDefault();
+      recall = n; inp.value = n < 0 ? '' : qs[n]; fit();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+    });
     // bet slip screenshots: paste, drop, or pick a file
     const takeImage = f => { if (f && /^image\//.test(f.type)) askImage(f); };
     inp.addEventListener('paste', e => { const f = [...(e.clipboardData?.items || [])].find(i => i.kind === 'file' && /^image\//.test(i.type))?.getAsFile(); if (f) { e.preventDefault(); takeImage(f); } });
@@ -1660,7 +1678,7 @@ function propChart(log, k, m) {
 /* PBPStats (free, public): offensive/defensive rebound split, rebounds available while he's on the floor,
    and assist detail, matched to ESPN's games by date. NBA only. */
 const PBP = 'https://api.pbpstats.com';
-const etYmd = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+const etYmd = d => dfmt('en-CA', { timeZone: 'America/New_York' }, new Date(d));
 let pbpIdx = null;
 async function pbpPlayerId(name) {
   if (!pbpIdx) pbpIdx = (async () => {

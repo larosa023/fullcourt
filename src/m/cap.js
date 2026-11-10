@@ -74,7 +74,7 @@ async function renderCap(opts = {}) {
   if (!root._wired) { root._wired = true; wireCap(root); }
   root.innerHTML = `<div class="seg cp-seg" id="capSeg"><span class="knob"></span>${[['teams', 'Teams'], ['players', 'Players'], ['trade', 'Trade machine']].map(([k, t]) => `<button data-captab="${k}" aria-pressed="${CS.tab === k}">${t}</button>`).join('')}</div><div id="capPane"><div class="sk" style="height:420px;border-radius:16px"></div></div>`;
   requestAnimationFrame(() => placeKnob($('#capSeg')));
-  if (IS_W || IS_C) { $('#capPane').innerHTML = `<div class="empty"><b>Capsheet is NBA only for now</b><span>WNBA contracts work under different rules. Switch to the NBA to see cap sheets and the trade machine.</span><button class="btn" data-lg="nba">Switch to NBA</button></div>`; return; }
+  if (IS_W || IS_C) { $('#capPane').innerHTML = `<div class="empty"><b>Capsheet is NBA only for now</b><span>${IS_C ? 'College players don\'t have contracts.' : 'WNBA contracts work under different rules.'} Switch to the NBA to see cap sheets and the trade machine.</span><button class="btn" data-lg="nba">Switch to NBA</button></div>`; return; }
   let d; try { d = await loadCap(); } catch (e) { $('#capPane').innerHTML = `<div class="empty"><b>Contracts didn't load</b><button class="btn" data-capretry>Try again</button></div>`; return; }
   const pane = $('#capPane'); if (!pane) return;
   if (CS.tab === 'trade') { pane.innerHTML = '<div class="sk" style="height:420px;border-radius:16px"></div>'; lazy('trade').then(m => m.renderTrade(pane, d, { money, capStatus, capBar, shortSeason })).catch(() => { pane.innerHTML = `<div class="empty"><b>The trade machine didn't load</b><button class="btn" data-capretry>Try again</button></div>`; }); return; }

@@ -21,10 +21,16 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (req.mode === 'navigate' && url.origin === self.location.origin) {
-    e.respondWith(fetch(req).then(r => {
-      if (r.ok && url.pathname === new URL(self.registration.scope).pathname) { const copy = r.clone(); caches.open(SHELL).then(c => c.put('./', copy)); }
+    const isShell = url.pathname === new URL(self.registration.scope).pathname;
+    const saved = () => caches.match('./', { cacheName: SHELL });
+    const net = fetch(req).then(r => {
+      if (r.ok && isShell) { const copy = r.clone(); caches.open(SHELL).then(c => c.put('./', copy)); }
       return r;
-    }).catch(() => caches.match('./', { cacheName: SHELL }).then(r => r || Response.error())));
+    });
+    // On a weak signal the page can take many seconds to arrive. After 2.5 seconds, open the saved copy instead
+    // (the download carries on and is saved for next time). No saved copy, or a different page: wait for the network.
+    const slow = isShell ? new Promise(res => setTimeout(res, 2500)).then(saved) : null;
+    e.respondWith((slow ? Promise.race([net.catch(() => null), slow]).then(r => r || net) : net).catch(() => saved().then(r => r || Response.error())));
     return;
   }
   // site code and styles: names change with every update, so a saved copy is always right

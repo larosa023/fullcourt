@@ -3,7 +3,7 @@
    page's Head to head card and by Ask's team questions ("Knicks in back-to-backs", "Knicks without Brunson"). */
 const TL = new Map(); // `${teamId}|${season}` → promise of games (newest first), kept 20 minutes
 const TL_FRESH = 20 * 60e3;
-const tlEt = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+const tlEt = iso => dfmt('en-CA', { timeZone: 'America/New_York' }, new Date(iso)).replace(/-/g, '');
 function tlParse(d, teamId, fallbackSeason) {
   const out = [];
   for (const e of d?.events || []) {
@@ -35,16 +35,42 @@ async function tlSeasonNow(teamId) {
 function tlType(teamId, season, type) {
   const k = `${teamId}|${season}|${type}`, m = TL.get(k);
   if (m && Date.now() - m.t < TL_FRESH) return m.p;
-  const p = getJSON(`${API}/teams/${teamId}/schedule?season=${season}&seasontype=${type}`).then(d => tlParse(d, teamId, season)).catch(() => []);
+  const p = getJSON(`${API}/teams/${teamId}/schedule?season=${season}&seasontype=${type}`).then(d => tlParse(d, teamId, season)).catch(() => { TL.delete(k); return null; }); // null: didn't load (so it isn't remembered as an empty season)
   TL.set(k, { t: Date.now(), p });
   return p;
 }
+// Finished seasons never change, so each one is kept on this device once it's been downloaded (a compact copy,
+// the 40 most recently used team-seasons). Only the current season is fetched again.
+const TL_VER = 1, TL_KEEP = 40;
+const tlKey = (t, y) => lsKey(`fc-tl${TL_VER}:${t}:${y}`);
+function tlTrim() {
+  try {
+    const ks = Object.keys(localStorage).filter(k => k.includes(`fc-tl${TL_VER}:`));
+    if (ks.length <= TL_KEEP) return;
+    ks.map(k => { let t = 0; try { t = JSON.parse(localStorage.getItem(k)).t || 0; } catch (e) {} return [k, t]; })
+      .sort((a, b) => a[1] - b[1]).slice(0, ks.length - TL_KEEP).forEach(([k]) => localStorage.removeItem(k));
+  } catch (e) {}
+}
+function tlKept(teamId, y) {
+  try {
+    const c = JSON.parse(lsGet(tlKey(teamId, y)) || 'null'); if (!Array.isArray(c?.g)) return null;
+    if (Date.now() - c.t > 864e5) lsSet(tlKey(teamId, y), JSON.stringify({ t: Date.now(), g: c.g })); // still in use: keep it off the trim list
+    return c.g.map(([id, d, post, home, neutral, oid, o, pf, pa, conf, note]) => ({ id, d, ymd: tlEt(d), season: String(y), type: post ? 'post' : 'reg', home: !!home, neutral: !!neutral, oid, o, pf, pa, r: pf > pa ? 'W' : 'L', confGame: !!conf, note: note || '' }));
+  } catch (e) { return null; }
+}
+function tlKeep(teamId, y, games) {
+  try { localStorage.setItem(tlKey(teamId, y), JSON.stringify({ t: Date.now(), g: games.map(g => [g.id, g.d, +(g.type === 'post'), +g.home, +g.neutral, g.oid, g.o, g.pf, g.pa, +g.confGame, g.note || 0]) })); tlTrim(); } catch (e) {}
+}
 // one season, regular season and postseason together, newest first
 async function tLog(teamId, season) {
-  const y = season || await tlSeasonNow(teamId);
+  const cur = await tlSeasonNow(teamId), y = season || cur;
+  const past = +y < +cur;
+  if (past) { const kept = tlKept(teamId, y); if (kept) return kept; }
   const [reg, post] = await Promise.all([tlType(teamId, y, 2), tlType(teamId, y, 3)]);
   const seen = new Set();
-  return [...post, ...reg].filter(g => !seen.has(g.id) && seen.add(g.id)).sort((a, b) => b.d.localeCompare(a.d));
+  const games = [...(post || []), ...(reg || [])].filter(g => !seen.has(g.id) && seen.add(g.id)).sort((a, b) => b.d.localeCompare(a.d));
+  if (past && reg && post && games.length) tlKeep(teamId, y, games);
+  return games;
 }
 // several seasons back from the current one
 async function tLogs(teamId, n = 3) {
@@ -76,7 +102,7 @@ async function fillH2H(el) {
     const lead = wins === losses ? `Even at ${wins}-${losses}` : `${esc((wins > losses ? H : A).abbr || '')} lead ${Math.max(wins, losses)}-${Math.min(wins, losses)}`;
     const span = IS_C ? 'last 5 seasons' : 'last 4 seasons';
     const avg = k => (meet.reduce((s, g) => s + g[k], 0) / meet.length).toFixed(1);
-    const day = g => new Date(g.d).toLocaleDateString('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' });
+    const day = g => dfmt('en-US', { timeZone: UTZ, month: 'short', day: 'numeric', year: 'numeric' }, new Date(g.d));
     const row = g => {
       const hWon = g.r === 'W';
       const away = g.home ? A : H, home = g.home ? H : A, as = g.home ? g.pa : g.pf, hs = g.home ? g.pf : g.pa;
