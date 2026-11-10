@@ -1,0 +1,34 @@
+# Eras: every player's per-game line for every NBA season, with award finishes and team records (Basketball-Reference),
+# for Ask's history answers and graphics. Publishes to the era-data branch (not part of the website, so no deploy).
+# Finished seasons are kept from the last run, so a weekly run reads only the newest two seasons.
+name: eras
+on:
+  push:
+    branches: [main]
+    paths: ['tools/eras.mjs', '.github/workflows/eras.yml']
+  schedule:
+    - cron: '23 10 * * 3' # Wednesdays, 5:23 AM ET
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: eras, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Last run's files
+        run: |
+          git clone -q --depth 1 -b era-data "https://github.com/${{ github.repository }}" pub || mkdir pub
+          rm -rf pub/.git
+      - name: Build
+        run: node tools/eras.mjs pub
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan era-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -qm "eras $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" era-data
