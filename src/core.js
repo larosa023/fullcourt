@@ -2398,7 +2398,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-09f'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-09g'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2443,6 +2443,7 @@ const renderAward = stub('awards', 'renderAward');
 const shareGame = stub('share', 'shareGame');
 const sharePlayer = stub('share', 'sharePlayer');
 const sharePlayerGame = stub('share', 'sharePlayerGame');
+const shareSlate = stub('share', 'shareSlate');
 const renderRankings = stub('ranks', 'renderRankings');
 const drawRankings = stub('ranks', 'drawRankings');
 const openNews = stub('news', 'openNews');
@@ -3566,6 +3567,7 @@ document.addEventListener('click', e => {
   const cs = el.closest('[data-cmpsplit]');
   if (cs) { S.cmpSplit = cs.dataset.cmpsplit; $$('#cmpSeg button').forEach(b => b.setAttribute('aria-pressed', b === cs)); placeKnob($('#cmpSeg')); renderCompare(); return; }
   const ex = el.closest('[data-expand]'); if (ex) { toggleFull(ex.closest('.sheet')); return; }
+  const sl = el.closest('[data-slate]'); if (sl) { e.stopPropagation(); runShare(() => shareSlate(S.games, $('#dayTitle')?.textContent || 'Tonight', fmtDay(S.date, { weekday: 'short', month: 'short', day: 'numeric' })), sl); return; }
   const psh = el.closest('[data-pgshare]'); if (psh) { e.stopPropagation(); const [gid, pid] = psh.dataset.pgshare.split(':'); runShare(() => sharePlayerGame(gid, pid), psh); return; }
   const g = el.closest('[data-game]'); if (g) { openGame(g.dataset.game, g.dataset.legpid ? { focus: g.dataset.legpid } : {}); return; }
   const tm = el.closest('[data-team]'); if (tm) { openTeam(tm.dataset.team); return; }

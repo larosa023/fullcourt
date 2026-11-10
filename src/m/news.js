@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-09g', date: 'Nov 9', items: [
+    ['Share the day\'s slate', 'A new share button on Scores (next to the date) makes an image of the day\'s games: each matchup with its tip-off time (or the score and status once it starts), the spread and total, and Fullcourt\'s pick with its win chance, marked ✓ or ✗ once games end. College shows the ranked games first. It works for any day you\'re looking at.'],
+  ] },
   { id: '2026-11-09f', date: 'Nov 9', items: [
     ['Fullcourt prop projections', 'The Bet Desk now shows Fullcourt\'s own number for every prop (Proj), the chance the over or under hits (Chance), and how that compares with the sportsbook\'s price (Value: positive means the price is better than it should be). The projection is his per-minute rate, weighted toward recent games, times his expected minutes, adjusted for the defense against his position, pace, home court, rest and blowout risk. Tap a row to see the projection and its chance at any mark.'],
     ['Ask by voice', 'Tap the mic beside the typing bar and ask out loud. Your words show as you talk and the question sends when you stop. In the Windows app, press Windows key + H to dictate into the box instead.'],

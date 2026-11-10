@@ -1,11 +1,11 @@
 const loadImg = src => new Promise(res => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
-async function canvasKit() {
+async function canvasKit(H = 1080) {
   try { await Promise.all(['800 condensed 120px Archivo', '800 120px Archivo', '600 30px "Instrument Sans"', '500 26px "IBM Plex Mono"'].map(f => document.fonts.load(f))); } catch (e) {}
-  const c = document.createElement('canvas'); c.width = 1080; c.height = 1080;
+  const c = document.createElement('canvas'); c.width = 1080; c.height = H;
   const x = c.getContext('2d');
   try { x.fontStretch = 'condensed'; } catch (e) {}
   const C = { bg: cssVar('--bg') || '#0C0E11', surface: cssVar('--surface') || '#14171C', ink: cssVar('--ink') || '#EDEFF2', muted: cssVar('--muted') || '#8B93A0', line: cssVar('--line') || '#252A32', accent: cssVar('--accent') || '#FF7A3D' };
-  x.fillStyle = C.bg; x.fillRect(0, 0, 1080, 1080);
+  x.fillStyle = C.bg; x.fillRect(0, 0, 1080, H);
   // the display face is Archivo at its condensed width, like the site's headings (the width has to be in the font string: setting ctx.font resets it)
   const font = (w, s, fam) => fam === 'mono' ? `${w} ${s}px "IBM Plex Mono", monospace` : fam === 'body' ? `${w} ${s}px "Instrument Sans", sans-serif` : `${w} condensed ${s}px Archivo, "Arial Narrow", sans-serif`;
   const text = (t, px, py, f, color, align = 'left') => { x.font = f; x.fillStyle = color; x.textAlign = align; x.textBaseline = 'alphabetic'; x.fillText(t, px, py); };
@@ -13,9 +13,9 @@ async function canvasKit() {
   // biggest size (down to a floor) at which the text fits the width
   const size = (t, w, fam, maxPx, minPx, width) => { let px = maxPx; while (px > minPx) { x.font = font(w, px, fam); if (x.measureText(String(t)).width <= width) break; px -= 2; } return px; };
   const foot = () => {
-    x.fillStyle = C.line; x.fillRect(72, 968, 936, 2);
-    text('FULL', 72, 1024, font(800, 34), C.ink); const w = (x.measureText('FULL').width); text('COURT', 72 + w, 1024, `italic ${font(800, 34)}`, C.accent);
-    text(SHARE_TAG, 1008, 1022, font(500, 22, 'mono'), C.muted, 'right');
+    x.fillStyle = C.line; x.fillRect(72, H - 112, 936, 2);
+    text('FULL', 72, H - 56, font(800, 34), C.ink); const w = (x.measureText('FULL').width); text('COURT', 72 + w, H - 56, `italic ${font(800, 34)}`, C.accent);
+    text(SHARE_TAG, 1008, H - 58, font(500, 22, 'mono'), C.muted, 'right');
   };
   return { c, x, C, font, text, fit, size, foot };
 }
@@ -199,3 +199,63 @@ async function shareTrade(T) {
   return { canvas: K.c, name: `trade-${T.teams.join('-').toLowerCase()}.png`, title: `Trade: ${T.teams.join(', ')}` };
 }
 function money(v) { return Math.abs(v) >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${Math.round(v / 1e3)}K`; }
+
+/* ---------------- the day's slate ----------------
+   Every game on the day being viewed (college: the ranked games first, up to 16): the matchup, tip-off time or the
+   score, the spread and total, and Fullcourt's pick with its win chance (and whether it came in, once games end). */
+async function shareSlate(games, dayLabel, dayDate) {
+  let list = [...(games || [])];
+  const college = IS_C;
+  const ranked = g => !!(g.home.rank || g.away.rank);
+  const top25 = college && list.filter(ranked).length >= 4;
+  if (top25) list = list.filter(ranked);
+  // by tip-off; on a college day with few ranked games, those come first
+  list.sort((a, b) => (college && !top25 ? ranked(b) - ranked(a) : 0) || new Date(a.date) - new Date(b.date));
+  const more = Math.max(0, list.length - 16); list = list.slice(0, 16);
+  if (!list.length) return null;
+  const ROW = 116, TOP = 236, H = TOP + list.length * ROW + 150;
+  const K = await canvasKit(H); const { x, C, font, text, fit } = K;
+  const LG = { nba: 'NBA', wnba: 'WNBA', ncaam: "Men's college", ncaaw: "Women's college" }[LGK] || '';
+  text(`${LG}${top25 ? ' · Top 25' : ''} · ${list.length + more} game${list.length + more === 1 ? '' : 's'}`.toUpperCase(), 72, 112, font(600, 28, 'mono'), C.accent);
+  text(dayDate, 1008, 112, font(500, 24, 'mono'), C.muted, 'right');
+  text(fit(dayLabel === 'Tonight' ? "Tonight's slate" : `${dayLabel}'s slate`, font(800, 84), 936), 72, 196, font(800, 84), C.ink);
+  const logos = new Map(await Promise.all([...new Set(list.flatMap(g => [g.away.abbr, g.home.abbr]))].map(async a => [a, await loadImg(logoSrc(a, 120))])));
+  list.forEach((g, i) => {
+    const y = TOP + i * ROW;
+    x.fillStyle = C.surface; roundRect(x, 60, y, 960, ROW - 14, 22); x.fill();
+    const mid = y + (ROW - 14) / 2;
+    const side = (t, lx) => {
+      const im = logos.get(t.abbr); if (im) x.drawImage(im, lx, mid - 26, 52, 52);
+      const lab = t.abbr;
+      text(lab, lx + 62, mid + 12, font(800, 38), C.ink);
+      if (t.rank) { x.font = font(800, 38); const w = x.measureText(lab).width; text(String(t.rank), lx + 66 + w, mid - 4, font(600, 20, 'mono'), C.muted); }
+    };
+    side(g.away, 88); text('@', 278, mid + 10, font(600, 26, 'mono'), C.muted); side(g.home, 312);
+    // when / score
+    const post = g.state === 'post', live = g.state === 'in';
+    if (g.state === 'pre') text(fit(fmtTime(g.date), font(600, 28, 'body'), 172), 540, mid + 10, font(600, 28, 'body'), C.ink);
+    else {
+      const as = +g.away.score || 0, hs = +g.home.score || 0;
+      text(`${as}-${hs}`, 540, mid + 4, font(800, 40), C.ink);
+      text((post ? 'FINAL' : statusText(g)).toUpperCase(), 540, mid + 36, font(600, 18, 'mono'), live ? (cssVar('--live') || C.accent) : C.muted);
+    }
+    // spread and total
+    const o = g.odds;
+    if (o && (o.details || o.ou)) {
+      if (o.details) text(fit(o.details, font(600, 22, 'mono'), 150), 726, mid - 2, font(600, 22, 'mono'), C.muted);
+      if (o.ou) text(`O/U ${o.ou}`, 726, mid + 26, font(500, 20, 'mono'), C.muted);
+    }
+    // Fullcourt's pick
+    const ph = S.wpPre?.[g.id];
+    if (Number.isFinite(ph)) {
+      const homeFav = ph >= 0.5, t = homeFav ? g.home : g.away, pc = Math.round(Math.max(ph, 1 - ph) * 100);
+      text(`${t.abbr} ${pc}%`, 996, mid + 4, font(800, 34), C.accent, 'right');
+      let sub = 'FULLCOURT';
+      if (post) { const won = (+g.home.score > +g.away.score) === homeFav; sub = won ? 'PICK ✓' : 'PICK ✗'; }
+      text(sub, 996, mid + 32, font(600, 18, 'mono'), C.muted, 'right');
+    }
+  });
+  if (more) text(`+ ${more} more game${more === 1 ? '' : 's'} on Fullcourt`, 72, TOP + list.length * ROW + 18, font(600, 24, 'body'), C.muted);
+  K.foot();
+  return { canvas: K.c, name: `slate-${LGK}-${dayDate.replace(/[^\w]+/g, '-').toLowerCase()}.png`, title: `${LG} slate · ${dayDate}` };
+}

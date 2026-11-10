@@ -725,7 +725,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .mv-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; transition: border-color .2s, transform .2s var(--ease); }
 .mv-btn svg { width: 15px; height: 15px; }
 .mv-btn:hover { border-color: var(--hl); transform: translateY(-1px); }
-@media (max-width: 760px) { .mv-btn, .search-btn, .fav-link { display: none !important; } }
+@media (max-width: 760px) { .mv-btn:not([data-slate]), .search-btn, .fav-link { display: none !important; } .mv-btn[data-slate] { padding: 6px 9px; } }
 
 /* favorite highlights */
 .game.fav { border-color: color-mix(in oklab, var(--accent) 55%, var(--line)); box-shadow: inset 0 3px 0 var(--accent); }
