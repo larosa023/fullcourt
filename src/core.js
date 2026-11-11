@@ -1971,7 +1971,7 @@ async function openPlayer(id) {
   loadNicks().then(N => { const x = N.by[id], el = $('.pl-nick', sheet.body); if (x && el) { el.innerHTML = nickLine(x.nick, 3); el.hidden = false; } });
   wireDrag(sheet.body);
   S.watchInfo = S.watchInfo || {};
-  S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
+  S.watchInfo[id] = { id, name, short: p.short || bio.shortName || shortNm(name), teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
   if (watchNote(id, S.watchInfo[id])) renderWatch(true); // a saved player's card on Scores takes today's numbers
   const tb = $(`#plTrend-${id}`, sheet.body);
   if (tb) playerTrends(id, tb, sAvg);
@@ -3483,10 +3483,14 @@ const ovLine = ov => {
   const v = k => { const i = lab.indexOf(k); return i >= 0 ? reg.stats[i] ?? '' : ''; };
   return { pts: v('PTS'), reb: v('REB'), ast: v('AST') };
 };
+// "JuJu Watkins" → "J. Watkins", the form the tiles use
+const shortNm = n => { const p = String(n || '').trim().split(/\s+/); return p.length < 2 ? p[0] || '' : `${p[0][0]}. ${p.slice(1).join(' ')}`; };
+const watchName = w => w.short && w.short !== w.name ? w.short : shortNm(w.name);
 function watchNote(id, info) {
   const w = watch.find(x => String(x.id) === String(id)); if (!w || !info) return false;
   const was = JSON.stringify([w.pts, w.reb, w.ast, w.teamId, w.abbr, w.name, w.short]);
-  for (const k of ['pts', 'reb', 'ast', 'teamId', 'abbr', 'name', 'short']) if (info[k] != null && info[k] !== '' && info[k] !== '–') w[k] = info[k];
+  for (const k of ['pts', 'reb', 'ast', 'teamId', 'abbr', 'name']) if (info[k] != null && info[k] !== '' && info[k] !== '–') w[k] = info[k];
+  w.short = watchName(w); // the tile keeps the short name it had; a full name saved by mistake is shortened again
   w.at = Date.now();
   lsSet(lsKey('fc-watch'), JSON.stringify(watch));
   return was !== JSON.stringify([w.pts, w.reb, w.ast, w.teamId, w.abbr, w.name, w.short]);
@@ -3533,7 +3537,7 @@ async function renderWatch(force) {
     }
     return `<button class="wl-card${g?.state === 'in' ? ' live' : ''}" data-player="${esc(w.id)}" style="--tc:${teamColor(w.teamId || w.abbr)}">
       ${face(w.id, w.name, 'face', 160)}
-      <span class="wl-txt"><b>${esc(w.short || w.name)}</b><span class="wl-st">${logo(w.abbr, 32)}${st}</span>${body}</span>
+      <span class="wl-txt"><b>${esc(watchName(w))}</b><span class="wl-st">${logo(w.abbr, 32)}${st}</span>${body}</span>
     </button>`;
   };
   const draw = () => {
