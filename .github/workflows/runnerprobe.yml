@@ -1,0 +1,18 @@
+# One-off: which GitHub machine types are picking up jobs right now
+name: runnerprobe
+on:
+  push:
+    branches: [era-probe]
+jobs:
+  latest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps: [{ run: 'echo ok; lsb_release -ds' }]
+  u24:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps: [{ run: 'echo ok; lsb_release -ds' }]
+  u22:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps: [{ run: 'echo ok; lsb_release -ds' }]
