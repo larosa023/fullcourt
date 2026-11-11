@@ -104,9 +104,17 @@ async function videos(s) {
       for (const it of j.items || []) out.push({ id: it.contentDetails?.videoId || it.snippet?.resourceId?.videoId, title: it.snippet?.title || '', at: it.contentDetails?.videoPublishedAt || it.snippet?.publishedAt });
       page = j.nextPageToken; if (!page) break;
     }
-    if (out.length) return out;
   }
-  out.push(...await feed(`playlist_id=${pl}`, `${s.src} playlist ${pl}`));
+  if (!out.length) out.push(...await feed(`playlist_id=${pl}`, `${s.src} playlist ${pl}`));
+  // The leagues file each game's highlights into a playlist by hand, and some nights that lags or is skipped. Their
+  // titles are unmistakable ("... | FULL GAME HIGHLIGHTS | date"), so also take them straight from the channel's
+  // newest uploads: 200 for the NBA, which posts well over 50 clips a night.
+  if (s.lg === 'nba' || s.lg === 'wnba') {
+    const have = new Set(out.map(v => v.id)), newest = out.reduce((a, v) => (v.at > a ? v.at : a), '');
+    const up = (await uploads(s.ch, s.src, s.lg === 'nba' ? 4 : 2)).filter(v => /full game highlights/i.test(v.title) && !have.has(v.id));
+    console.log(`  ${s.src} playlist: ${out.length} videos, newest ${newest || 'none'}; ${up.length} more from the channel's uploads${up.length ? ` (newest ${up.reduce((a, v) => (v.at > a ? v.at : a), '')})` : ''}`);
+    out.push(...up);
+  }
   if (out.length) return out;
   // the playlist feed doesn't work for every playlist, so fall back on the channel's latest uploads, picked out by title
   // (the conferences put "Women's Basketball" or "Men's Basketball" in every video title)
@@ -124,11 +132,16 @@ async function feed(q, label) {
   return out;
 }
 const upCache = new Map();
-function uploads(ch, src) {
+function uploads(ch, src, pages = 1) {
   if (!upCache.has(ch)) upCache.set(ch, (async () => {
     if (apiOK) {
-      const j = await api(`playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=UU${ch.slice(2)}`);
-      if (j?.items) return j.items.map(it => ({ id: it.contentDetails?.videoId, title: it.snippet?.title || '', at: it.contentDetails?.videoPublishedAt || it.snippet?.publishedAt }));
+      const got = []; let page = '';
+      for (let n = 0; n < pages; n++) {
+        const j = await api(`playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=UU${ch.slice(2)}${page ? `&pageToken=${page}` : ''}`); if (!j?.items) break;
+        got.push(...j.items.map(it => ({ id: it.contentDetails?.videoId, title: it.snippet?.title || '', at: it.contentDetails?.videoPublishedAt || it.snippet?.publishedAt })));
+        page = j.nextPageToken; if (!page) break;
+      }
+      if (got.length) return got;
     }
     const v = await feed(`playlist_id=UU${ch.slice(2)}`, `${src} uploads`);
     return v.length ? v : feed(`channel_id=${ch}`, `${src} channel`);
