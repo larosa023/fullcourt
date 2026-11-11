@@ -1972,6 +1972,7 @@ async function openPlayer(id) {
   wireDrag(sheet.body);
   S.watchInfo = S.watchInfo || {};
   S.watchInfo[id] = { id, name, short: p.short || (bio.shortName) || name, teamId, abbr: tm.abbr || '', pts: reg ? pick('PTS') : '', reb: reg ? pick('REB') : '', ast: reg ? pick('AST') : '' };
+  if (watchNote(id, S.watchInfo[id])) renderWatch(true); // a saved player's card on Scores takes today's numbers
   const tb = $(`#plTrend-${id}`, sheet.body);
   if (tb) playerTrends(id, tb, sAvg);
   // game log + career start open (and load right away); tap the header to minimize
@@ -3456,7 +3457,7 @@ function watchBtnHTML(id, hero) {
 }
 function toggleWatch(id, info) {
   if (isWatched(id)) watch = watch.filter(w => String(w.id) !== String(id));
-  else if (info) watch.push(info);
+  else if (info) watch.push({ ...info, at: Date.now() });
   lsSet(lsKey('fc-watch'), watch.length ? JSON.stringify(watch) : null);
   $$(`[data-watch="${id}"]`).forEach(b => { b.outerHTML = watchBtnHTML(id, 'whero' in b.dataset); });
   toast(isWatched(id) ? `${info?.name || 'Player'} added to your players on the Scores page` : 'Removed from your players');
@@ -3472,6 +3473,45 @@ function lineFromBox(d, pid) {
     return { min: v('MIN'), pts: v('PTS'), reb: v('REB'), ast: v('AST'), fg: v('FG'), tp: v('3PT'), stl: v('STL'), blk: v('BLK'), on: !!a.active };
   }
   return null;
+}
+// A saved player's averages and team are a copy taken when he was starred. They are read again whenever his page is
+// opened, and in the background once they are three hours old or his game today has ended since they were read.
+const WATCH_OLD = 3 * 3600e3, WATCH_GAP = 10 * 60e3;
+const ovLine = ov => {
+  const st = ov?.statistics, lab = st?.labels || [], reg = st?.splits?.find(x => /regular/i.test(x.displayName)) || st?.splits?.[0];
+  if (!reg) return null;
+  const v = k => { const i = lab.indexOf(k); return i >= 0 ? reg.stats[i] ?? '' : ''; };
+  return { pts: v('PTS'), reb: v('REB'), ast: v('AST') };
+};
+function watchNote(id, info) {
+  const w = watch.find(x => String(x.id) === String(id)); if (!w || !info) return false;
+  const was = JSON.stringify([w.pts, w.reb, w.ast, w.teamId, w.abbr, w.name, w.short]);
+  for (const k of ['pts', 'reb', 'ast', 'teamId', 'abbr', 'name', 'short']) if (info[k] != null && info[k] !== '' && info[k] !== '–') w[k] = info[k];
+  w.at = Date.now();
+  lsSet(lsKey('fc-watch'), JSON.stringify(watch));
+  return was !== JSON.stringify([w.pts, w.reb, w.ast, w.teamId, w.abbr, w.name, w.short]);
+}
+let watchSync = false, watchTried = 0;
+async function refreshWatch(gameOf) {
+  if (watchSync || Date.now() - watchTried < WATCH_GAP) return;
+  const now = Date.now();
+  const due = watch.filter(w => {
+    const age = now - (w.at || 0), g = gameOf(w);
+    if (age < WATCH_GAP) return false;
+    return age > WATCH_OLD || (g?.state === 'post' && (w.at || 0) < Date.parse(g.date) + WATCH_OLD);
+  });
+  if (!due.length) return;
+  watchSync = true; watchTried = now;
+  let changed = false;
+  await Promise.all(due.map(async w => {
+    const [ov, b] = await Promise.all([`${WEB}/athletes/${w.id}/overview`, `${WEB}/athletes/${w.id}`].map(u => getJSON(u, { retries: 0 }).catch(() => null)));
+    const line = ovLine(ov), t = b?.athlete?.team;
+    if (!line && !t) return; // nothing came back: leave the card as it is and try again later
+    if (t) regTeam(t);
+    if (watchNote(w.id, { ...(line || {}), ...(t ? { teamId: t.id, abbr: S.teams[t.id]?.abbr || t.abbreviation } : {}) })) changed = true;
+  }));
+  watchSync = false;
+  if (changed) renderWatch(true);
 }
 let watchBusy = false;
 async function renderWatch(force) {
@@ -3501,6 +3541,7 @@ async function renderWatch(force) {
     dragScroll($('#watchStrip'));
   };
   draw();
+  refreshWatch(gameOf);
   if (watchBusy && !force) return;
   watchBusy = true;
   S.watchLines = S.watchLines || {};
