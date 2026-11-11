@@ -275,7 +275,7 @@ const leadersOf = {}; // year → stat → [id, value, team]
     const S = all[y];
     if (S.po?.length) series[y] = S.po;
     const champ = champOf(S), out1 = {}; // the round each beaten team went out in
-    for (const s of S.po || []) out1[s[2]] = s[0];
+    for (const s of S.po || []) if (!/Tiebreaker/i.test(s[0]) || !out1[s[2]]) out1[s[2]] = out1[s[2]] && !/Tiebreaker/i.test(out1[s[2]]) ? out1[s[2]] : s[0]; // a lost tiebreaker isn't how a playoff team went out
     for (const ab of Object.keys(S.teams || {})) {
       const t = teamOf(S, ab);
       const best = S.reg.filter(r => String(I(S, r, 'tm')).split('/').includes(ab)).sort((a, b) => (I(S, b, 'pts') || 0) * (I(S, b, 'g') || 0) - (I(S, a, 'pts') || 0) * (I(S, a, 'g') || 0))[0];

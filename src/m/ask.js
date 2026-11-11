@@ -2,7 +2,8 @@
    ASK FULLCOURT — rule-based question answering over ESPN's live feeds
    ===================================================================== */
 const ASK = { ctx: {}, log: [], busy: false };
-const lastNight = () => etNow().hour < ROLLOVER_HOUR ? S.today : addDays(S.today, -1);
+// before the 4 AM rollover the scoreboard may still be on last night's slate (S.today is a day behind the calendar)
+const lastNight = () => S.today < etNow().ymd ? S.today : addDays(S.today, -1);
 const dayLabel = d => d === S.today ? 'tonight' : d === lastNight() || d === addDays(S.today, -1) ? 'last night' : 'on ' + fmtDay(d, { weekday: 'long', month: 'short', day: 'numeric' });
 // "the Knicks" in the NBA; in college the mascot reads the same way ("the Gamecocks"), where the school name ("the South Carolina") wouldn't
 const teamNick = id => { const t = S.teams[id]; if (IS_C && t?.name && t?.loc && t.name.startsWith(t.loc) && t.name.length > t.loc.length) return t.name.slice(t.loc.length).trim(); return t?.short || t?.abbr || 'Team'; };
@@ -51,6 +52,11 @@ const PNICKS = {
   jokic: 'nikola jokic', joker: 'nikola jokic', embiid: 'joel embiid', wemby: 'victor wembanyama', wembanyama: 'victor wembanyama', luka: 'luka doncic', steph: 'stephen curry',
   ant: 'anthony edwards', 'ant man': 'anthony edwards', ja: 'ja morant', book: 'devin booker', dame: 'damian lillard', cp3: 'chris paul', kat: 'karl anthony towns',
   zion: 'zion williamson', trae: 'trae young', hali: 'tyrese haliburton', spida: 'donovan mitchell', jjj: 'jaren jackson jr', 'the greek freak': 'giannis antetokounmpo',
+  'greek freak': 'giannis antetokounmpo', 'the brow': 'anthony davis', brow: 'anthony davis', ad: 'anthony davis', 'the beard': 'james harden', beard: 'james harden', 'the joker': 'nikola jokic',
+  'the process': 'joel embiid', 'the klaw': 'kawhi leonard', klaw: 'kawhi leonard', kawhi: 'kawhi leonard', 'slim reaper': 'kevin durant', 'king james': 'lebron james', 'chef curry': 'stephen curry',
+  'dame time': 'damian lillard', 'point god': 'chris paul', 'jimmy buckets': 'jimmy butler', 'pg13': 'paul george', russ: 'russell westbrook', brodie: 'russell westbrook', dray: 'draymond green',
+  kyrie: 'kyrie irving', 'uncle drew': 'kyrie irving', melo: 'lamelo ball', bam: 'bam adebayo', chet: 'chet holmgren', paolo: 'paolo banchero', cade: 'cade cunningham', 'ant edwards': 'anthony edwards',
+  'the alien': 'victor wembanyama', 'the stifle tower': 'rudy gobert', 'spida mitchell': 'donovan mitchell', 'the unicorn': 'kristaps porzingis', tatum: 'jayson tatum', brunson: 'jalen brunson',
 };
 const ABBR_OK = new Set(['CON', 'LV', 'LVA', 'LA', 'LAS', 'SEA', 'GSV', 'PHO', 'NYL', 'CHI', 'IND', 'DAL', 'ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NO', 'NOP', 'NY', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'SAS', 'TOR', 'UTA', 'UTAH', 'WSH', 'WAS']);
 const ABBR_ALIAS = { GSW: 'GS', NOP: 'NO', NYK: 'NY', SAS: 'SA', UTA: 'UTAH', WAS: 'WSH' };
@@ -64,7 +70,33 @@ const STOP = new Set(('how many much what whats who whos whose which when where 
   'night week month october november december january february march april monday tuesday wednesday thursday friday saturday sunday s 1st 2nd 3rd th ' +
   'since home road away wins losses victories defeats playoff playoffs postseason regular facing during may june july august september only when ' +
   'without sits sat sitting missing misses injured inactive history meetings series close clutch possession conference after rest backs b2b b2bs teams ' +
-  'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys rebounding assisting passing blocking stealing playmaking').split(' '));
+  'about any all every some can could you please i my mine our up out off one two scorer scorers rebounder rebounders shooter shooters passer passers guy guys rebounding assisting passing blocking stealing playmaking ' +
+  // question words that are not names (so "who has the first pick" doesn't find Jalen Pickett, or "pick and roll" Ryan Rollins)
+  'will would should ever draft drafted drafts pick picks picked roll screen roster rosters coach coaches coached coaching contract contracts salary salaries payroll paid tall taller tallest shortest ' +
+  'old older oldest younger youngest age born birthday birthplace hometown college school university jersey wear wears wearing weigh weighs weight height injury injuries hurt status healthy available ' +
+  'lineup starters starting starter channel tv watch time tip tipoff streak streaks blowout blowouts closest biggest offense defense offensive defensive rating ratings title titles championship ' +
+  'championships champion champions champs rings mvp mvps award awards fame famer retire retired rookie rookies prospect prospects lottery deadline chance chances projected projection favorites ' +
+  'contender contenders alltime year years define definition mean means meaning explain many long far duke stand stands called name named know think say said tell there here that those these ' +
+  'start starts started begin begins end ends ended high low been being be am if then also still yet again times fast faster fastest slow slowest hot cold hottest coldest between each other same different highest scored averaged had ever club list').split(' '));
+// everyday words that are also names: too weak to pick a player on a first name or a partial match alone
+const ASK_COMMON = new Set('will pick roll duke ever hall star ring cap pace best long young big hot cold max ace day grant chance love king rose price house strong wall ball hill wise free rich sharp bird magic august june may christian moses major royal noble justice precious mark bill bob drew chase miles cash cole dean guy herb jack jay joe john josh kyle lee luke mike nick pat paul ray rob ron sam scott sean tim tom tony trey ty'.split(' '));
+// edits needed to turn one word into another (insert, delete, swap a letter, or switch two neighbors), up to a limit
+function askLev(a, b, max = 2) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2 = null, prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let low = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v; if (v < low) low = v;
+    }
+    if (low > max) return max + 1;
+    prev2 = prev; prev = cur;
+  }
+  return prev[b.length];
+}
+const askNear = (w, x) => w.length >= 5 && x.length >= 5 && w[0] === x[0] && askLev(w, x, w.length >= 8 ? 2 : 1) <= (w.length >= 8 ? 2 : 1);
 
 /* ---------------- parsing ---------------- */
 function teamAliases() {
@@ -93,6 +125,12 @@ function findTeams(raw, n) {
     const t = Object.values(S.teams).find(x => x.abbr === ab);
     if (t && !found.includes(t.id)) { found.push(t.id); rest = rest.replace(new RegExp(`(^| )${m[1].toLowerCase()}( |$)`), ' # '); }
   }
+  // a near miss on a nickname: "celtcs", "nicks", "laker"
+  if (!found.length) for (const w of rest.split(' ')) {
+    if (w.length < 5 || STOP.has(w) || ASK_COMMON.has(w)) continue;
+    const hit = teamAliases().find(([k]) => !k.includes(' ') && k.length >= 5 && k !== w && (k === w + 's' || (w.length >= 5 && askLev(w, k, 1) <= 1 && (w[0] === k[0] || w === k.slice(1)))));
+    if (hit && !found.includes(hit[1])) { found.push(hit[1]); rest = rest.replace(new RegExp(`(^| )${w}( |$)`), ' # '); break; }
+  }
   return { teams: found, rest };
 }
 function matchPlayer(text, rows) {
@@ -109,20 +147,38 @@ function matchPlayer(text, rows) {
     else if (t.includes(nk)) s = 92;
     else if (toks.length >= 2 && toks.every(w => parts.some(p => p.startsWith(w)))) s = 75;
     else if (last && (t === last || toks.includes(last) || toks.some(w => last.split(' ').includes(w) && w.length >= 3))) s = 60;
-    else if (first && toks.length === 1 && t === first && t.length >= 4) s = 40;
-    else if (toks.some(w => w.length >= 4 && parts.some(p => p.startsWith(w)))) s = 25;
+    else if (first && toks.length === 1 && t === first && t.length >= 4 && !ASK_COMMON.has(t)) s = 40;
+    else if (first && first.length >= 4 && !ASK_COMMON.has(first) && (r.pts || 0) >= 10 && toks.includes(first)) s = 33;
+    else if (toks.some(w => w.length >= 5 && !ASK_COMMON.has(w) && parts.some(p => p.startsWith(w)))) s = 25;
     if (!s) continue;
     s += Math.min(9, (r.pts || 0) / 4) + Math.min(3, (r.gp || 0) / 3);
     if (s > bestScore) { bestScore = s; best = r; }
   }
-  return bestScore >= 30 ? best : null;
+  if (bestScore >= 60) return best;
+  // a nickname somewhere in the question ("stats for the brow", "luka season high")
+  { const ws = toks; for (let i = 0; i < ws.length; i++) for (const n of [3, 2, 1]) { const k = ws.slice(i, i + n).join(' '); if (k && k !== t && PNICKS[k] && (n > 1 || k.length >= 3)) { const r = rows.find(x => x.key === PNICKS[k]); if (r) return r; } } }
+  if (bestScore >= 30) return best;
+  // a misspelling: "gianis", "wembenyama", "jokic asists" is fine but "dochic" should still find Doncic
+  for (const w of toks) { const nk = Object.keys(PNICKS).find(k => !k.includes(' ') && askNear(w, k)); if (nk) return matchPlayer(PNICKS[nk], rows); }
+  best = null; bestScore = 0;
+  for (const r of rows) {
+    const last = nameKey(r.last).split(' '), first = nameKey(r.first);
+    const hitL = toks.some(w => !STOP.has(w) && !ASK_COMMON.has(w) && last.some(x => askNear(w, x)));
+    const hitF = !hitL && (r.pts || 0) >= 12 && toks.some(w => !STOP.has(w) && !ASK_COMMON.has(w) && askNear(w, first));
+    if (!hitL && !hitF) continue;
+    const s = (hitL ? 50 : 40) + Math.min(9, (r.pts || 0) / 4) + Math.min(3, (r.gp || 0) / 3);
+    if (s > bestScore) { bestScore = s; best = r; }
+  }
+  return best;
 }
 async function searchPlayerFallback(text) {
   const q = nameKey(text).split(' ').filter(w => !STOP.has(w) && w !== '#').join(' ');
   if (q.length < 3) return null;
   try {
     const r = await getJSON(`${SEARCH_API}?query=${encodeURIComponent(q)}&limit=5&type=player&sport=basketball&league=${LG}`, { retries: 0, timeout: 7000 });
-    const it = (r.items || []).find(i => i.league === LG && i.isActive !== false);
+    // ESPN's search is loose: keep a hit only if a word of the question really is (or nearly is) part of the name
+    const words = q.split(' ').filter(w => w.length >= 3 && !ASK_COMMON.has(w));
+    const it = (r.items || []).find(i => i.league === LG && i.isActive !== false && nameKey(i.displayName).split(' ').some(x => words.some(w => w === x || askNear(w, x))));
     if (!it) return null;
     const tn = it.teamRelationships?.[0]?.displayName, t = teamByName(tn);
     return { id: it.id, name: it.displayName, first: it.displayName.split(' ')[0], last: it.displayName.split(' ').slice(1).join(' '), teamId: t?.id, abbr: t?.abbr || '', pos: it.position?.abbreviation || '', gp: 0 };
@@ -132,7 +188,8 @@ function parseTime(n) {
   let m;
   if (/\b(last night|yesterday|last nights)\b/.test(n)) return { kind: 'date', date: lastNight() };
   if (/\b(tonight|today|this evening|so far today)\b/.test(n)) return { kind: 'date', date: S.today };
-  if ((m = n.match(/\blast (\d{1,2}) games?\b/)) || (m = n.match(/\bpast (\d{1,2}) games?\b/))) return { kind: 'lastN', n: Math.max(1, Math.min(82, +m[1])) };
+  const numWord = { three: 3, five: 5, ten: 10, fifteen: 15, twenty: 20 };
+  if ((m = n.match(/\b(?:last|past|previous) (\d{1,2}|three|five|ten|fifteen|twenty)(?: games?)?(?! (?:seasons?|years?|minutes?|weeks?|months?|days?|meetings?|quarters?|playoffs?|finals?))\b/))) return { kind: 'lastN', n: Math.max(1, Math.min(82, numWord[m[1]] || +m[1])) };
   if (/\b(last|previous|most recent|latest) game\b/.test(n)) return { kind: 'lastN', n: 1 };
   if (/\b(lately|recently|recent games|last week)\b/.test(n)) return { kind: 'lastN', n: 5 };
   if (/\bcareer\b/.test(n)) return { kind: 'career' };
@@ -360,8 +417,9 @@ async function aDayGames(date) {
   if (!games.length) return { text: `There are no ${IS_C ? LGN.toLowerCase() + ' basketball' : LGN} games ${when}.` };
   const live = games.filter(g => g.state === 'in').length, post = games.filter(g => g.state === 'post').length;
   const first = games.filter(g => g.state === 'pre').sort((a, b) => new Date(a.date) - new Date(b.date))[0];
-  let text = `There ${games.length === 1 ? 'is' : 'are'} <b>${plural(games.length, 'game')}</b> ${when}.`;
-  if (live) text += ` ${live} ${live === 1 ? 'is' : 'are'} live right now.`;
+  const past = date < S.today || (post && post + live === games.length);
+  let text = `There ${past ? (games.length === 1 ? 'was' : 'were') : games.length === 1 ? 'is' : 'are'} <b>${plural(games.length, 'game')}</b> ${when}${past && post && live ? `: ${post} final` : ''}.`;
+  if (live) text += ` ${live} ${live === 1 ? 'is' : 'are'} ${past ? 'still going' : 'live right now'}.`;
   if (post && post === games.length) text = `${plural(games.length, 'game')} ${when === 'last night' ? 'were played last night' : 'were played ' + when}. Final scores below.`;
   else if (first && !live) text += ` First tip is ${fmtTime(first.date)}.`;
   return { text, html: card(games.map(gRow).join('')) };
@@ -449,6 +507,9 @@ const ERA_AW = '(mvps?|most valuable( player)?|rookie of the year|roy|roty|dpoy|
 const ERA_HINT = new RegExp(' (19[4-9]\\d|20[0-2]\\d)s? | \\d0s | (ever|all time|in history|of all time|in a season|in a single season|careers?|rookie (season|year)s?|as rookies?|primes?|peak|graphic|image|card|picture) ' +
   `| ${ERA_AW} .*(race|voting|votes?|voted|won|win|winner|finish\\w*|seasons?|years?|ladder|results?) | (who won|winner of|how many|won the) .*${ERA_AW} ` +
   '| (michael jordan|jordan|wilt|chamberlain|kareem|abdul jabbar|magic johnson|larry bird|bird|kobe|bryant|shaq|shaquille|bill russell|hakeem|olajuwon|tim duncan|iverson|barkley|karl malone|stockton|ewing|pippen|isiah|dr j|erving|jerry west|oscar robertson|baylor|garnett|nowitzki|dirk|steve nash|wade|carmelo|mcgrady|t mac|vince carter|payton|jason kidd|david robinson|drexler|dominique|mchale|worthy|moses malone|gervin|maravich|havlicek|cousy|mikan|pettit|walton|rodman|reggie miller|ray allen|paul pierce|bosh|mj) ');
+// words that mark a history question (the history answers decide for themselves whether they have one)
+const HIST_HINT = / (draft\w*|drafted|what pick|which pick|number one pick|first pick|rings?|championships?|champions?|champs|titles?|finals|hall of fame|hof|all ?stars?|all nba|all defensive|mvps|dpoys|winners|retire\w*|played for|play for|what teams?|which teams?|how many teams|club|goat|greatest|in a (single )?game|single game|game record|league average|win shares?|usage|usg|per(?! (game|36|100|minute|possession))|player efficiency|bpm|box plus minus|franchise|drought|last time|first (player|time)|last player|youngest|oldest|tallest|shortest|heaviest|players who|players with|anyone|averaged|accolades|resume|awards|scoring titles?|back to back|50 40 90|triple double|by a (rookie|center|guard|forward)|at age|age \d\d|teenagers?|rookie (year|season)s?|debut\w*|record book|all time|ever|history|career|scored 100|(first|1st|second|third|top|number one|no 1|overall) (overall )?picks?|playoff (points|rebounds|assists|games|scor\w*|leaders?)|games played|how many (points|rebounds|assists|steals|blocks|threes|three pointers|3s|triple doubles|games) (does|has|did|have)|won the (east|west|eastern|western)|conference (finals|champions?|champs)|players? averag\w*|who averag\w*|(lowest|highest) scoring|when (was|were)|which (year|season|era|decade)|shooting seasons?|how far|how many players|players (have|that|to)|\d{4,5}|\d\d (plus )?(win|wins|loss|losses)|(best|greatest|top|highest|most|lowest|worst) [a-z0-9 ]*seasons?|true shooting|how many (seasons|years|titles|rings|mvps|championships|all))  ?/;
+const HIST_BIO = / (how tall|height|how old|born|birthday|college|school|position|weigh\w*|still play\w*|alive|dead|died|who (is|was)) /;
 const eraTry = async (raw, rows, loose) => { if (IS_C || IS_W) return null; try { return await (await lazy('eras')).eraAnswer(raw, { rows, loose }); } catch (e) { console.error(e); return null; } };
 // this season's award race, as the side-by-side card ("MVP race", "who's winning Rookie of the Year")
 const NOW_AW = [['mvp', / (mvp|most valuable( player)?) /, 'MVP'], ['roy', / (roy|roty|rookie of the year) /, 'Rookie of the Year'], ['dpoy', / (dpoy|defensive player( of the year)?) /, 'Defensive Player of the Year'], ['smoy', / (6moy|smoy|sixth man( of the year)?|6th man( of the year)?) /, 'Sixth Man of the Year']];
@@ -463,12 +524,20 @@ async function aAwardNow(kind, title, n, rows, past) {
 
 /* ---------------- router ---------------- */
 async function answer(raw) {
+  // "who was the MVP that year?" after an answer about one season
+  if (ASK.ctx?.y && /\b(that|the same|same) (year|season)\b/i.test(raw)) raw = raw.replace(/\b(in |during )?(that|the same|same) (year|season)\b/i, `in ${ASK.ctx.y}`);
+  // a follow-up about the retired player the last answer was about: "his best season", "how many MVPs"
+  if (ASK.ctx?.hpFull && !ASK.ctx.pid) {
+    const C = ASK.ctx, words = nameKey(raw).split(' ');
+    if (/\b(he|his|him)\b/i.test(raw)) raw = raw.replace(/\bhis\b/gi, `${C.hpFull}'s`).replace(/\b(he|him)\b/gi, C.hpFull);
+    else if (words.length <= 4 && words.every(w => STOP.has(w) || /^\d+$/.test(w)) && /^(how many|how much|how tall|how old|where|when|what|did|was|is)\b/i.test(raw.trim()) && !/\b(who|most|which|list|leaders?|all time|ever|winners|tonight|today|games?)\b/i.test(raw)) raw = `${raw.replace(/\?+\s*$/, '')} ${C.hpFull}`;
+  }
   await loadStandings().catch(() => {});
   const n = ' ' + nameKey(raw.replace(/\+\/-/g, ' plusminus ').replace(/%/g, ' percent ').replace(/(\d)\+/g, '$1 plus ')) + ' ';
   const nn = n.replace(/ plusminus /g, ' plus minus ');
   const has = re => re.test(nn);
   const rows = await leagueTable();
-  if (ERA_HINT.test(nn) || /'\d\d\b/.test(raw)) { const r = await eraTry(raw, rows, false); if (r) return r; }
+  const eraHint = ERA_HINT.test(nn) || /'\d\d\b/.test(raw), histHint0 = !IS_C && !IS_W && HIST_HINT.test(nn);
   const { teams: teamIds, rest } = findTeams(raw, nn);
   const teams = teamIds.map(id => S.teams[id]).filter(Boolean);
   const stat = parseStat(nn);
@@ -493,7 +562,7 @@ async function answer(raw) {
   if (chunks.length > 1) { for (const c of chunks) { const p = matchPlayer(c, rows); if (p && !players.some(x => x.id === p.id)) players.push(p); } }
   if (!players.length) { const p = matchPlayer(restNoTime, rows); if (p) players.push(p); }
   const leftover = nameKey(restNoTime).split(' ').filter(w => w && !STOP.has(w) && !/^\d+$/.test(w) && w !== '#');
-  if (!players.length && leftover.join(' ').length >= 4 && !teams.length) { const p = await searchPlayerFallback(leftover.join(' ')); if (p) players.push(p); }
+  if (!players.length && leftover.join(' ').length >= 4 && !teams.length && !eraHint && !histHint0) { const p = await searchPlayerFallback(leftover.join(' ')); if (p) players.push(p); }
 
   // follow-up context ("what about rebounds?", "his last 5 games")
   const pronoun = has(/ (he|his|him|she|her|hers|what about|how about|and) /);
@@ -507,7 +576,22 @@ async function answer(raw) {
   const dd = has(/ double ?doubles? /), td = has(/ triple ?doubles? /);
   const st = stat || thrStat;
 
-  if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: `Ask about this season: players, teams, games, leaders, standings, schedules and odds.${IS_C || IS_W ? '' : ' Or any NBA season back to 1947: award races, leaders, old teams, and players side by side.'} Some examples:`, examples: true };
+  if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: `Ask about this season: players (stats, height, age, injuries${LGK === 'nba' ? ', contracts' : ''}), teams (rosters, coaches, schedules, rankings), games, leaders, standings${IS_C ? '' : ', playoff chances, the draft'} and odds. I can also explain the terms and the rules.${IS_C ? '' : IS_W ? ' For the WNBA\'s past: champions, MVPs and career leaders.' : ' And NBA history back to 1947: drafts, careers, awards, champions, records, and searches like "players who averaged 30 and 10".'} If you ask a follow-up ("what about 1999?", "how many rings does he have?") I keep the thread. Some examples:`, examples: true };
+
+  // this season beyond the stat lines: bios, contracts, injuries, rosters, coaches, schedules, team rankings, odds, the draft, glossary
+  const Q = { raw, nn, rows, players, teams, time, stat: st, topN, asc, conf, ctx: ASK.ctx, ui: { pRow, tRow, gRow, table }, f: { aTeamNext, lastNight }, findTeams: (r2, n2) => findTeams(r2, n2).teams.map(id => S.teams[id]).filter(Boolean) };
+  const histFollow = !IS_C && !IS_W && (ASK.ctx.hq || ASK.ctx.pid) && (/ (he|his|him|hes|that (year|season)|same (year|season)) /.test(nn) || (ASK.ctx.hq && /^\s*(and|what about|how about|ok and|same for|now)\b/i.test(raw)));
+  // history: drafts, careers, accolades, champions, searches across every season, bios of retired players, franchises
+  if (histHint0 || eraHint || histFollow || (!IS_C && !IS_W && !players.length && HIST_BIO.test(nn))) { const r = await lazy('askhist').then(m => m.histAnswer(raw, Q)).catch(e => { console.warn('ask history', e); return null; }); if (r) return r; }
+  if (eraHint) { const r = await eraTry(raw, rows, false); if (r) { const ys = [...new Set(raw.match(/\b(?:19|20)\d\d\b/g) || [])]; if (ys.length === 1) r.ctx = { ...(r.ctx || {}), y: +ys[0] }; return r; } }
+  // the WNBA's champions, MVPs and career leaders; college has no history yet, so say so instead of answering about this season
+  if ((IS_W || IS_C) && !players.length) {
+    if (IS_W) { const r = await lazy('askhist').then(m => m.wnbaHist(raw, Q)).catch(() => null); if (r) return r; }
+    const yOld = +(nn.match(/ ((?:19|20)\d\d) /)?.[1] || 0);
+    if ((yOld && yOld < +S.today.slice(0, 4) - 1) || (!teams.length && has(/ (all time|of all time|in history|most career|career leaders?|\d{4} draft|draft class|hall of fame) /)))
+      return { text: IS_W ? `For the WNBA's past I can answer champions, MVPs and career leaders (try "who won the 2020 Finals" or "most career points"). Season-by-season stats and drafts go back through history for the NBA only.` : `I only have this season for college basketball. History questions (past seasons, drafts, careers, champions) work in NBA mode.`, examples: true, miss: true };
+  }
+  if (!has(/ (props?|prop bets?|best bets?|parlay|sgp) /)) { const r = await lazy('asknow').then(m => m.nowAnswer(Q)).catch(e => { console.warn('ask now', e); return null; }); if (r) return r; }
 
   // prop ideas
   if (has(/ (props?|prop bets?|player props|best bets?|locks?|good bets?|bets? (for |to make )?(tonight|today|tomorrow)|what should i bet|who should i bet|what to bet|parlay ideas?|sgp ideas?|suggest\w*|recommend\w*|picks?|leans?|best overs?|best unders?) /) && !has(/ (draft|lottery|first|1st|no 1|number one|top \d+) picks? /) && !has(/ over under /))
@@ -593,7 +677,7 @@ async function answer(raw) {
 
   if (teams.length) return aTeamSummary(teams[0], rows);
   { const r = await eraTry(raw, rows, true); if (r) return r; } // a retired player, or a season Ask itself doesn't know
-  return { text: `I couldn't match that to a player, team or stat. Try naming a player or team, a stat (points, rebounds, assists, threes…) and a time (last night, last 5 games, this season).`, examples: true, miss: true };
+  return { text: `I couldn't work that one out. I do best with a name in the question (a player, a team, a season or an award) and what you want to know about it${IS_C ? '' : IS_W ? ', and I know the WNBA\'s champions, MVPs and career leaders' : ', and I can search all of NBA history ("players who averaged 25, 5 and 5", "best seasons at age 19")'}. A few that work:`, examples: true, miss: true };
 }
 
 /* ---------------- game finder: "Luka 40-point games", "Jokic 30 and 10", "Wemby 5+ blocks in the playoffs" ----------------
@@ -616,7 +700,7 @@ function gfParse(nn, dd, td) {
   const bare = nn.match(/ (\d{2}) (?:and )?(\d{1,2})(?: (?:and )?(\d{1,2}))?(?! (?:plus |or more )?(?:points?|pts|pt|rebounds?|rebs?|boards|assists?|asts?|dimes|threes|3s|steals?|blocks?|games?|seasons?|minutes))(?= |$)/);
   if (bare && !conds.length) ['pts', 'reb', 'ast'].forEach((k, i) => bare[i + 1] && add(k, +bare[i + 1]));
   else if (bare && conds.length === 1 && conds[0][0] !== 'pts' && +bare[1] >= 10) add('pts', +bare[1]);
-  const best = / (best|biggest|highest|top) (scoring )?games? | career highs? | most (points|rebounds|assists|threes|steals|blocks|boards|dimes) in a (single )?game | (single )?game highs? /.test(nn);
+  const best = / (best|biggest|highest|top) (scoring )?games? | career highs? | season highs? | most (points|rebounds|assists|threes|steals|blocks|boards|dimes) in a (single )?game | (single )?game highs? /.test(nn);
   return { conds, dd: dd && !conds.length, td: td && !conds.length, best: best && !conds.length };
 }
 async function gfLog(pid) {
@@ -671,7 +755,7 @@ function gfFilters(nn, has, opp) {
   if (has(/ (playoffs?|postseason) /)) f.scope = 'post';
   else if (has(/ regular season /)) f.scope = 'reg';
   if (has(/ last (season|year) /)) f.season = 'prev';
-  else if (has(/ (this season|this year|so far) /)) f.season = 'cur';
+  else if (has(/ (this season|this year|so far|season highs?) /)) f.season = 'cur';
   const sy = nn.match(/ (?:in |during |the )?(20\d\d|19\d\d) (\d\d) (?:season )?/);
   if (sy) f.season = String(+sy[1] + 1);
   else if (IS_W) { const w = nn.match(/ (?:in |the )?(20\d\d) season /); if (w) f.season = w[1]; }
@@ -973,6 +1057,11 @@ const ASK_EXAMPLES = IS_C ? [
   'Most threes per game',
   'Points leaders',
   LGK === 'ncaaw' ? 'LSU leading scorer' : 'Kansas record',
+  LGK === 'ncaaw' ? 'UConn roster' : 'Duke roster',
+  LGK === 'ncaaw' ? 'Who coaches South Carolina?' : 'Who coaches Kentucky?',
+  'Which team scores the most?',
+  'Longest win streak',
+  'What is true shooting?',
 ] : IS_W ? [
   'Who scored the most points last night?',
   "A'ja Wilson last 5 games",
@@ -986,6 +1075,11 @@ const ASK_EXAMPLES = IS_C ? [
   'Most threes per game',
   'East standings',
   'Aces leading scorer',
+  'How tall is Caitlin Clark?',
+  'Who won the 2020 Finals?',
+  'Most career points',
+  'Who wears number 22?',
+  'Best defense',
   "Track: A'ja Wilson over 22.5 points",
 ] : [
   'Who scored the most points last night?',
@@ -997,22 +1091,30 @@ const ASK_EXAMPLES = IS_C ? [
   '1962 MVP race',
   'Wilt 1962 vs Jordan 1988',
   'Top scorers 1987',
-  'Best scoring seasons ever',
   '1996 Bulls',
+  'Players who averaged 30 and 10',
+  'Who was drafted before Jordan?',
+  'How many rings does LeBron have?',
+  'Who won the 1998 Finals?',
+  'Best seasons by a rookie',
+  'Youngest MVP',
+  'How tall was Manute Bol?',
+  'Knicks history',
   'Lakers odds tonight',
   'Who had a double-double last night?',
-  'Most threes per game',
+  'Brunson contract',
+  'Knicks injuries',
+  'Who is the tallest player in the NBA?',
+  'Best defense',
+  'Title odds',
+  'Who has the first pick?',
   'Brunson stats vs the Spurs',
-  'Luka at home this season',
   'Knicks in back-to-backs',
   'Lakers without LeBron',
-  'Tatum when Brown is out',
   'Knicks vs Celtics history',
-  'Tatum in the playoffs',
   'Luka 40-point games',
   'Jokic 30 and 10 this season',
-  'East standings',
-  'Hornets leading scorer',
+  'What is true shooting?',
   'Best props tonight',
   'Track: Jayson Tatum over 26.5 points',
 ];
@@ -1026,7 +1128,7 @@ function askMsgHTML(m) {
 function renderAsk(scroll = true) {
   if (!askSheet?.alive) return;
   const log = $('.ask-log', askSheet.el);
-  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data.${IS_C || IS_W ? " Deep history (past seasons) isn't available." : ' It also knows every NBA season back to 1947: award races, leaders, old teams and any two players side by side, each with a picture you can share.'}</p><p class="ask-bet-tip"><b>Track a bet:</b> type it out, one leg per line, or paste a screenshot of your slip. It shows up under My bets on Scores and updates live.</p>${examplesHTML()}</div>`;
+  log.innerHTML = ASK.log.length ? ASK.log.map(askMsgHTML).join('') : `<div class="ask-empty"><b class="h-display">Ask Fullcourt</b><p>Ask about this season in plain English: players, teams, last night's games, leaders, standings, schedules and odds. It answers from live ESPN data, and it also knows who players are (height, age, college${LGK === 'nba' ? ', contract' : ''}), rosters, coaches, injuries${IS_C ? '' : ', playoff chances and the draft'}, and what the terms mean.${IS_C ? '' : IS_W ? " For the WNBA's past it has champions, MVPs and career leaders." : ' For the NBA it goes back to 1947: drafts, careers, awards, champions, franchise records, and searches across every season, with pictures you can share.'}</p><p class="ask-bet-tip"><b>Track a bet:</b> type it out, one leg per line, or paste a screenshot of your slip. It shows up under My bets on Scores and updates live.</p>${examplesHTML()}</div>`;
   if (scroll) requestAnimationFrame(() => { askSheet.body.scrollTop = askSheet.body.scrollHeight; });
 }
 async function ask(q) {
