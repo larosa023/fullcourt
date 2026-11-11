@@ -16,7 +16,7 @@ permissions:
 concurrency: { group: pages, cancel-in-progress: true }
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
     environment:
       name: github-pages
       url: '${{ steps.deploy.outputs.page_url }}'

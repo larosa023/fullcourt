@@ -13,7 +13,7 @@ permissions:
 concurrency: { group: march, cancel-in-progress: false }
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4

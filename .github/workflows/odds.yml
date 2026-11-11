@@ -18,7 +18,7 @@ permissions: { contents: write }
 concurrency: { group: odds, cancel-in-progress: false }
 jobs:
   pull:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
     steps:
       - uses: actions/checkout@v4
         with: { path: src }

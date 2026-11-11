@@ -13,7 +13,7 @@ permissions:
 concurrency: { group: highlights, cancel-in-progress: false }
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
