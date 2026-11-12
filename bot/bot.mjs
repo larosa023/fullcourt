@@ -8,7 +8,7 @@ import { STATS } from './commands.mjs';
 const LGS = { nba: 'NBA', wnba: 'WNBA' };
 const API = lg => `https://site.api.espn.com/apis/site/v2/sports/basketball/${lg}`;
 const API2 = lg => `https://site.api.espn.com/apis/v2/sports/basketball/${lg}`;
-// the site reads these two from site.web.api.espn.com; that host turns Cloudflare's servers away, and this one serves the same paths
+// the site reads these two from site.web.api.espn.com; that host answers 403 to Cloudflare's servers (checked 2026-11-12), and this one serves the same paths
 const WEB = lg => `https://site.api.espn.com/apis/common/v3/sports/basketball/${lg}`;
 const SEARCH = 'https://site.api.espn.com/apis/common/v3/search';
 const RAW = 'https://raw.githubusercontent.com/larosa023/fullcourt';
@@ -269,7 +269,7 @@ async function cmdHighlights(i, ctx) {
 let checked = null, checkedAt = 0;
 export async function check() {
   if (checked && Date.now() - checkedAt < 60e3) return checked;
-  const feeds = { scores: `${API('nba')}/scoreboard`, standings: `${API2('nba')}/standings`, player: `${WEB('nba')}/athletes/3975`, leaders: `${WEB('nba')}/statistics/byathlete?isqualified=true&page=1&limit=1&sort=offensive.avgPoints:desc`, search: `${SEARCH}?query=curry&limit=1&type=player&sport=basketball`, webhost: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3975', odds: `${RAW}/odds-data/odds.json`, highlights: `${RAW}/yt-data/highlights.json` };
+  const feeds = { scores: `${API('nba')}/scoreboard`, standings: `${API2('nba')}/standings`, player: `${WEB('nba')}/athletes/3975`, leaders: `${WEB('nba')}/statistics/byathlete?isqualified=true&page=1&limit=1&sort=offensive.avgPoints:desc`, search: `${SEARCH}?query=curry&limit=1&type=player&sport=basketball`, odds: `${RAW}/odds-data/odds.json`, highlights: `${RAW}/yt-data/highlights.json` };
   const out = {};
   await Promise.all(Object.entries(feeds).map(async ([k, u]) => { const t0 = Date.now(); try { await get(u, 60); out[k] = `ok ${Date.now() - t0} ms`; } catch (e) { out[k] = String(e.message); } }));
   checkedAt = Date.now(); return (checked = out);
