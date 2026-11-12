@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: node tools/eraprobe.mjs
+        env:
+          SGO_KEY: ${{ secrets.SGO_KEY }}
       - name: Publish
         run: |
           cd probe && git init -q && git checkout -q --orphan era-probe-out

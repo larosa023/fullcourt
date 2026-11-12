@@ -1,24 +1,29 @@
-// One-off: saves sample Basketball-Reference WNBA pages so their table formats can be read before writing parsers.
+// One-off: what the odds feed returns per sportsbook for player props, to see which books come with bet-slip links.
+// Reads two games (two objects of the monthly allowance). Prints and saves field names and link samples only.
 import { writeFileSync, mkdirSync } from 'node:fs';
-const UA = 'Mozilla/5.0 (compatible; fullcourt-history/1.0; weekly; +https://github.com/larosa023/fullcourt)';
-const BR = 'https://www.basketball-reference.com';
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const PAGES = [
-  ['w_totals_2024', '/wnba/years/2024_totals.html'], ['w_adv_2024', '/wnba/years/2024_advanced.html'], ['w_adv_1997', '/wnba/years/1997_advanced.html'],
-  ['w_awards_2024', '/wnba/awards/awards_2024.html'], ['w_awards', '/wnba/awards/'], ['w_all_league', '/wnba/awards/all_league.html'], ['w_all_defense', '/wnba/awards/all_defense.html'], ['w_mvp', '/wnba/awards/mvp.html'],
-  ['w_draft_2024', '/wnba/draft/2024.html'], ['w_draft_1997', '/wnba/draft/1997.html'], ['w_players_a', '/wnba/players/a/'],
-  ['w_allstar', '/wnba/allstar/'], ['w_sum_2003', '/wnba/years/2003.html'], ['w_sum_2026', '/wnba/years/2026.html'], ['w_years', '/wnba/years/'],
-];
-mkdirSync('probe', { recursive: true });
-const note = [];
-for (const [name, url] of PAGES) {
-  try {
-    const r = await fetch(BR + url, { headers: { 'user-agent': UA } });
-    const t = await r.text();
-    note.push(`${name} ${r.status} ${t.length}`);
-    if (r.ok) writeFileSync(`probe/${name}.html`, t.replace(/<!--([\s\S]*?)-->/g, '$1').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, ''));
-  } catch (e) { note.push(`${name} failed ${e.message}`); }
-  await sleep(4200);
+const KEY = process.env.SGO_KEY; if (!KEY) { console.error('SGO_KEY missing'); process.exit(1); }
+const now = new Date(), until = new Date(now.getTime() + 40 * 3600e3);
+const u = new URL('https://api.sportsgameodds.com/v2/events');
+Object.entries({ leagueID: 'NBA', started: 'false', oddsAvailable: 'true', startsAfter: now.toISOString(), startsBefore: until.toISOString(), limit: '2' }).forEach(([k, v]) => u.searchParams.set(k, v));
+const r = await fetch(u, { headers: { 'X-Api-Key': KEY } }), j = await r.json();
+if (!r.ok || !j.success) { console.error('feed error', r.status, JSON.stringify(j).slice(0, 300)); process.exit(1); }
+const out = { status: r.status, events: [] };
+for (const e of j.data || []) {
+  const ev = { id: e.eventID, teams: `${e.teams?.away?.names?.short} @ ${e.teams?.home?.names?.short}`, starts: e.status?.startsAt, topKeys: Object.keys(e), links: e.links || null, books: {}, sample: null };
+  for (const [key, o] of Object.entries(e.odds || {})) {
+    if (!o.playerID || o.periodID !== 'game' || o.betTypeID !== 'ou') continue;
+    if (!ev.sample && o.sideID === 'over' && o.statID === 'points') ev.sample = { key, odd: { ...o, byBookmaker: Object.fromEntries(Object.entries(o.byBookmaker || {}).slice(0, 3)) } };
+    for (const [b, x] of Object.entries(o.byBookmaker || {})) {
+      const B = (ev.books[b] ||= { n: 0, withLink: 0, keys: new Set(), samples: [] });
+      B.n++; Object.keys(x).forEach(k => B.keys.add(k));
+      const link = x.deeplink || x.deepLink || x.link || x.url;
+      if (link) { B.withLink++; if (B.samples.length < 8) B.samples.push({ player: e.players?.[o.playerID]?.name || o.playerID, stat: o.statID, side: o.sideID, line: x.overUnder, odds: x.odds, link }); }
+    }
+  }
+  for (const B of Object.values(ev.books)) B.keys = [...B.keys];
+  out.events.push(ev);
 }
-writeFileSync('probe/_status.txt', note.join('\n'));
-console.log(note.join('\n'));
+mkdirSync('probe', { recursive: true });
+writeFileSync('probe/sgo.json', JSON.stringify(out, null, 1));
+writeFileSync('probe/_status.txt', `sgo ${r.status} events ${out.events.length}`);
+for (const ev of out.events) console.log(ev.teams, Object.entries(ev.books).map(([b, B]) => `${b}:${B.withLink}/${B.n}`).join(' '));
