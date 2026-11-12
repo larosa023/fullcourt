@@ -1,0 +1,9 @@
+{
+ "id": "1570310432151830539",
+ "name": "Fullcourt",
+ "key": "7c22310e5cd1081cae2984f18be9d20e6e75e8421566efa7f81fbf1dc3f2635f",
+ "address": "https://fullcourt-46z.pages.dev/api/discord",
+ "add_to_server": "https://discord.com/oauth2/authorize?client_id=1570310432151830539&scope=applications.commands",
+ "add_to_account": "https://discord.com/oauth2/authorize?client_id=1570310432151830539&integration_type=1&scope=applications.commands",
+ "updated": "2026-11-12T18:21:27.698Z"
+}
