@@ -36,13 +36,13 @@ if (process.argv[2] === 'cards') {
     list.push([{ k: 'standings', lg: 'nba', conf: 'both' }, 1], [{ k: 'standings', lg: 'nba', conf: 'east' }, 1], [{ k: 'standings', lg: 'nba', conf: 'west' }], [{ k: 'standings', lg: 'wnba' }]);
     for (const stat of ['avgPoints', 'avgAssists', 'threePointFieldGoalPct', 'avgBlocks']) list.push([{ k: 'leaders', lg: 'nba', stat }, stat === 'avgPoints']);
     list.push([{ k: 'props', id: 4431678, n: 'Tyrese Maxey' }, 1], [{ k: 'props', id: 3136193, n: 'Devin Booker' }], [{ k: 'odds', lg: 'nba', d: day(0) }, 1], [{ k: 'injuries', lg: 'nba', id: 25 }, 1], [{ k: 'injuries', lg: 'nba', id: 13 }], [{ k: 'injuries', lg: 'nba', id: 1 }]);
-    for (const [v, save] of list) out.cards.push(await grab(view(v), cardUrl(v), save));
+    for (const [v, save] of list.slice(0, 24)) out.cards.push(await grab(view(v), cardUrl(v), save));
     // ten different cards at once
     const burst = [20, 4, 5, 6, 7, 8, 10, 11, 12, 16].map(id => ({ k: 'team', lg: 'nba', id }));
     out.burst = await Promise.all(burst.map(v => grab('burst ' + view(v), cardUrl(v))));
     // the same list again after a pause (a warmed-up copy, numbers kept from the first pass where they're still fresh)
-    await sleep(35000);
-    for (const [v] of list.slice(0, 30)) out.again.push(await grab('again ' + view(v), cardUrl(v)));
+    await sleep(3000);
+    for (const [v] of list.slice(0, 24)) out.again.push(await grab('again ' + view(v), cardUrl(v)));
   }
   const all = [...out.cards, ...out.burst, ...out.again], bad = all.filter(r => !r.png);
   out.summary = { requests: all.length, failed: bad.length, failures: bad.slice(0, 12), slowest: Math.max(0, ...all.map(r => r.ms || 0)), median: all.map(r => r.ms || 0).sort((a, b) => a - b)[all.length >> 1] || 0 };
@@ -65,7 +65,7 @@ if (process.argv[2] === 'cards') {
     const d = j?.data, e = d?.embeds?.[0];
     const rec = { label, status: r?.status, ms: Date.now() - t0, type: j?.type, onlyYou: !!d?.flags, title: e?.title, text: (e?.description || d?.content || (d?.choices ? d.choices.map(c => c.name).join(' | ') : text)).slice(0, 200), image: e?.image?.url, thumb: e?.thumbnail?.url, buttons: (d?.components || []).map(row => row.components.map(c => (c.type === 3 ? `{${c.options.length} choices}` : c.label)).join(' | ')), size: text.length };
     console.log(JSON.stringify(rec));
-    if (rec.image) { rec.img = [await grab(label + ' image', rec.image, true), await grab(label + ' image again', rec.image)].map(x => `${x.status} ${x.bytes}B ${x.ms}ms ${x.how}${x.png ? '' : ' NOT PNG ' + (x.body || x.error)}`); }
+    if (rec.image) { const first = await grab(label + ' image', rec.image, true); await sleep(2500); rec.img = [first, await grab(label + ' image again', rec.image), await grab(label + ' image third', rec.image)].map(x => `${x.status} ${x.bytes}B ${x.ms}ms ${x.how}${x.png ? '' : ' NOT PNG ' + (x.body || x.error)}`); }
     out.tests.push(rec); return d;
   };
   // wait for the address to pick the test key up (it re-reads app.json at most once a minute)
@@ -90,7 +90,8 @@ if (process.argv[2] === 'cards') {
     await send('old button', press('nonsense|x=1')); await send('unknown player', cmd('player', { player: 'zzzzqq' }));
     await send('suggest player', { type: 4, data: { name: 'compare', options: [{ name: 'against', value: 'tatum', type: 3, focused: true }] } }); await send('suggest ask', { type: 4, data: { name: 'ask', options: [{ name: 'question', value: 'stand', type: 3, focused: true }] } });
   }
-  const t = out.tests; out.summary = { accepted: ok, requests: t.length, not200: t.filter(x => x.status !== 200 && x.label !== 'bad signature').map(x => `${x.label}: ${x.status}`), deferred: t.filter(x => x.type === 5 || x.type === 6).map(x => x.label), imagesBad: t.filter(x => x.img?.some(s => !s.startsWith('200'))).map(x => `${x.label}: ${x.img.join(' / ')}`), slowest: Math.max(0, ...t.map(x => x.ms || 0)) };
+  const t = out.tests, tally = {}; for (const x of t) (x.img || []).forEach((s, k) => { const how = s.split('ms ')[1] || s, key = `${k === 0 ? 'first' : 'later'}: ${how}`; tally[key] = (tally[key] || 0) + 1; }); out.how = tally; console.log('HOW', JSON.stringify(tally));
+  out.summary = { accepted: ok, requests: t.length, not200: t.filter(x => x.status !== 200 && x.label !== 'bad signature').map(x => `${x.label}: ${x.status}`), deferred: t.filter(x => x.type === 5 || x.type === 6).map(x => x.label), imagesBad: t.filter(x => x.img?.some(s => !s.startsWith('200'))).map(x => `${x.label}: ${x.img.join(' / ')}`), slowest: Math.max(0, ...t.map(x => x.ms || 0)) };
   console.log('SUMMARY', JSON.stringify(out.summary));
   writeFileSync('probe/bot.json', JSON.stringify(out, null, 1));
   writeFileSync('probe/_status.txt', `bot probe: ${t.length} requests, accepted=${ok}`);
