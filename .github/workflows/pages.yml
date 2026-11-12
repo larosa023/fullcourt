@@ -9,6 +9,8 @@ on:
   schedule:
     - cron: '17 10 * * *' # daily, so the weekly awards update (pushed by a bot, which doesn't trigger this) shows up
   workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
 permissions:
   contents: read
   pages: write
@@ -16,7 +18,7 @@ permissions:
 concurrency: { group: pages, cancel-in-progress: true }
 jobs:
   deploy:
-    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     environment:
       name: github-pages
       url: '${{ steps.deploy.outputs.page_url }}'

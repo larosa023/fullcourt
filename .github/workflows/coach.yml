@@ -8,12 +8,14 @@ on:
   schedule:
     - cron: '17 9 * * 3' # Wednesdays, 4:17 AM ET
   workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
 permissions:
   contents: write
 concurrency: { group: coach, cancel-in-progress: false }
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

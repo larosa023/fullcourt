@@ -8,12 +8,14 @@ on:
   schedule:
     - cron: '29 10,22 * * *' # 5:29 AM and PM ET
   workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
 permissions:
   contents: write
 concurrency: { group: march, cancel-in-progress: false }
 jobs:
   build:
-    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4

@@ -3,6 +3,8 @@ name: odds
 # Runs on that branch never touch main, so Netlify doesn't rebuild.
 on:
   workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
   push:
     branches: [main]
     paths: ['tools/odds.mjs', '.github/workflows/odds.yml']
@@ -18,7 +20,7 @@ permissions: { contents: write }
 concurrency: { group: odds, cancel-in-progress: false }
 jobs:
   pull:
-    runs-on: ubuntu-22.04 # ubuntu-latest machines stopped picking up jobs on 2026-11-11; 22.04 ones still do
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with: { path: src }

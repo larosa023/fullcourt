@@ -1,0 +1,11 @@
+# Temporary: a job that asks for a machine type that doesn't exist, to prove the watchdog rescues stuck jobs.
+name: stucktest
+on:
+  workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type', type: string, default: '' }
+jobs:
+  sit:
+    runs-on: ${{ inputs.runner || 'ubuntu-99.99' }}
+    timeout-minutes: 2
+    steps: [{ run: 'echo rescued on $(lsb_release -ds)' }]

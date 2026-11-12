@@ -1,0 +1,23 @@
+# Watchdog: every 15 minutes, restart any data job that never got a GitHub machine, on a machine type that works.
+# It runs on ubuntu-22.04 on purpose: a different type from the ubuntu-latest the jobs normally ask for, so an outage of
+# one type doesn't take both down. When GitHub retires 22.04, change this to the oldest Ubuntu label still offered
+# (the health check flags it if this stops running).
+name: watchdog
+on:
+  schedule:
+    - cron: '4,19,34,49 * * * *'
+  workflow_dispatch:
+permissions: { actions: write, contents: read }
+concurrency: { group: watchdog, cancel-in-progress: false }
+jobs:
+  watch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the queue
+        run: node tools/watchdog.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MY_RUNNER: ubuntu-22.04

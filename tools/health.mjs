@@ -69,7 +69,17 @@ try {
   const wf = (await (await ghApi('/actions/workflows?per_page=100')).json()).workflows || [];
   for (const w of wf) {
     if (/health\.yml$/.test(w.path) || w.state !== 'active' || !existsSync(w.path)) continue; // skip workflows since deleted
-    const runs = (await (await ghApi(`/actions/workflows/${w.id}/runs?per_page=5&status=completed`)).json()).workflow_runs || [];
+    const all = (await (await ghApi(`/actions/workflows/${w.id}/runs?per_page=8`)).json()).workflow_runs || [];
+    // a run that has sat in the queue is GitHub not handing out machines (the watchdog restarts these on another type)
+    const waiting = all.find(x => x.status !== 'completed' && x.status !== 'in_progress' && now - Date.parse(x.created_at) > 12 * 60e3);
+    if (waiting) { add('jobs', w.name, false, `has waited ${Math.round((now - Date.parse(waiting.created_at)) / 60e3)} min for a GitHub machine`, { url: waiting.html_url }); continue; }
+    const runs = all.filter(x => x.status === 'completed');
+    if (/watchdog\.yml$/.test(w.path)) { // the watchdog itself: it should have run in the last three hours
+      if (!runs.length) continue; // just added, not due yet
+      const last = runs.find(x => x.conclusion === 'success'), h = last ? (now - Date.parse(last.updated_at)) / 3600e3 : Infinity;
+      add('jobs', w.name, h <= 3, last ? `last ran ${ago(h)}` : 'has not run yet', h <= 3 ? {} : { url: `https://github.com/${REPO}/actions/workflows/watchdog.yml` });
+      continue;
+    }
     const r = runs.find(x => !['cancelled', 'skipped'].includes(x.conclusion)); if (!r) continue;
     const ok = r.conclusion === 'success';
     add('jobs', w.name, ok, `${ok ? 'last run passed' : `last run ${r.conclusion}`} ${ago((now - Date.parse(r.updated_at)) / 3600e3)}`, ok ? {} : { url: r.html_url });
