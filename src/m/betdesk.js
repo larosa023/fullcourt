@@ -932,7 +932,73 @@ function slipMath() {
   return { d, bd, boost: bo, stake, pays: stake * bd, win: stake * (bd - 1), amer: SLIP.legs.length ? amerOf(d) : '–', bamer: SLIP.legs.length ? amerOf(bd) : '–' };
 }
 // sportsbooks and pick'em apps: copy the slip in their wording, then open them
-const BOOKS = [['dk', 'DraftKings', 'https://sportsbook.draftkings.com/leagues/basketball/nba'], ['fd', 'FanDuel', 'https://sportsbook.fanduel.com/navigation/nba'], ['fan', 'Fanatics', 'https://sportsbook.fanatics.com/'], ['hr', 'Hard Rock', 'https://app.hardrock.bet/'], ['score', 'theScore Bet', 'https://thescore.bet/'], ['b365', 'bet365', 'https://www.bet365.com/'], ['pp', 'PrizePicks', 'https://app.prizepicks.com/', 1], ['sl', 'Sleeper', 'https://sleeper.com/', 1]];
+const BOOKS = [['dk', 'DraftKings', 'https://sportsbook.draftkings.com/leagues/basketball/nba'], ['fd', 'FanDuel', 'https://sportsbook.fanduel.com/navigation/nba'], ['fan', 'Fanatics', 'https://sportsbook.fanatics.com/'], ['hr', 'Hard Rock', 'https://app.hardrock.bet/'], ['czr', 'Caesars', 'https://sportsbook.caesars.com/'], ['mgm', 'BetMGM', 'https://sports.betmgm.com/'], ['score', 'theScore Bet', 'https://thescore.bet/'], ['b365', 'bet365', 'https://www.bet365.com/'], ['pp', 'PrizePicks', 'https://app.prizepicks.com/', 1], ['sl', 'Sleeper', 'https://sleeper.com/', 1]];
+// Books whose "add to bet slip" links the odds feed carries. The feed gives one link per pick; `url` joins several
+// picks into one address the way each book's own links do, so the app (or site) opens with the slip filled in.
+const LINKS_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/odds-data/links.json';
+const LINKERS = {
+  dk: { feed: 'draftkings', url: t => `https://sportsbook.draftkings.com/event/${t[0].split('|')[0]}?outcomes=${t.map(x => x.split('|')[1]).join('+')}` },
+  fd: { feed: 'fanduel', url: t => `https://sportsbook.fanduel.com/addToBetslip?${t.map((x, i) => { const [m, sel] = x.split('|'); return t.length === 1 ? `marketId=${m}&selectionId=${sel}` : `marketId[${i}]=${m}&selectionId[${i}]=${sel}`; }).join('&')}` },
+  czr: { feed: 'caesars', st: true, url: (t, st) => `https://sportsbook.caesars.com/us/${st}/bet/betslip?selectionIds=${t.join(',')}` },
+  mgm: { feed: 'betmgm', st: true, url: (t, st) => (t.length === 1 ? `https://www.${st}.betmgm.com/en/sports/events/${t[0].split('-')[0]}?options=${t[0]}` : `https://www.${st}.betmgm.com/en/sports?options=${t.join(',')}&type=Parlay`) },
+};
+// Caesars and BetMGM run a separate site per state; the feed's links are New Jersey's
+const BOOK_STATES = [['az', 'Arizona'], ['co', 'Colorado'], ['dc', 'D.C.'], ['il', 'Illinois'], ['in', 'Indiana'], ['ia', 'Iowa'], ['ks', 'Kansas'], ['ky', 'Kentucky'], ['la', 'Louisiana'], ['md', 'Maryland'], ['ma', 'Massachusetts'], ['mi', 'Michigan'], ['nj', 'New Jersey'], ['ny', 'New York'], ['nc', 'North Carolina'], ['oh', 'Ohio'], ['pa', 'Pennsylvania'], ['tn', 'Tennessee'], ['va', 'Virginia'], ['wv', 'West Virginia'], ['wy', 'Wyoming']];
+const bookState = () => { const v = lsGet('fc-book-state'); return BOOK_STATES.some(x => x[0] === v) ? v : 'nj'; };
+let linksP = null, linksAt = 0, LINKS = null;
+function loadLinks() {
+  if (!linksP || Date.now() - linksAt > 5 * 60e3) { linksAt = Date.now(); linksP = getJSON(LINKS_URL + '?t=' + Math.floor(Date.now() / 300e3), { retries: 0, timeout: 10000 }).then(d => (LINKS = d?.events ? d : null)).catch(() => (LINKS = null)); }
+  return linksP;
+}
+// which of the slip's picks a book can take: its own line has to match the pick's line and side
+const linkDay = t => { try { return new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, ''); } catch (e) { return ''; } };
+function slipFor(id) {
+  const L = LINKERS[id]; if (!L || !LINKS) return null;
+  const ab = a => SGO_ABBR[a] || a;
+  const legs = SLIP.legs.map(l => {
+    const es = LINKS.events.filter(x => `${ab(x.away)} @ ${ab(x.home)}` === l.game), e = es.find(x => linkDay(x.starts) === l.date) || es[0];
+    const pk = e && Object.keys(e.props).find(n => nameKey(n) === nameKey(l.name)), row = pk && e.props[pk][l.k]?.[L.feed];
+    if (!row) return { l, tok: null, why: 'not offered there', page: e?.pages?.[L.feed] };
+    const tok = row[l.side === 'u' ? 2 : 1];
+    return row[0] === l.line && tok ? { l, tok } : { l, tok: null, why: row[0] !== l.line ? `their line is ${row[0]}` : 'not offered there', page: e.pages?.[L.feed] };
+  });
+  const toks = legs.filter(x => x.tok).map(x => x.tok);
+  return { legs, n: toks.length, toks, url: toks.length ? L.url(toks, bookState()) : null, one: t => L.url([t], bookState()), st: !!L.st };
+}
+// "Send to FanDuel": the slip as one link, a QR code to hand it to a phone, and each pick's own link as a fallback
+async function sendSheet(id) {
+  const b = BOOKS.find(x => x[0] === id); if (!b) return;
+  const sh = openSheet(`Send to ${b[1]}`), mk = k => MARKETS.find(q => q[0] === k)[1];
+  const draw = async () => {
+    const X = slipFor(id); if (!sh.alive) return;
+    if (!X?.n) { const pg = X?.legs.find(x => x.page)?.page; sh.body.innerHTML = `<div class="ss"><p class="ss-none">None of these picks is on ${esc(b[1])} at your line right now. <a href="${esc(pg || b[2])}" target="_blank" rel="noopener">Open ${pg ? 'the game on ' : ''}${esc(b[1])}</a> and build them there.</p></div>`; return; }
+    const touch = matchMedia('(pointer: coarse)').matches, all = X.n === SLIP.legs.length;
+    const qr = touch ? '' : await lazy('qr').then(Q => Q.qrSvg(X.url, 232)).catch(() => '');
+    if (!sh.alive) return;
+    const pick = l => `${esc(l.name)} <span>${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${esc(mk(l.k))}</span>`;
+    sh.body.innerHTML = `<div class="ss">
+      ${qr ? `<div class="ss-qr">${qr}<p>Scan with your phone to open this slip in the ${esc(b[1])} app.</p></div>` : ''}
+      <p class="ss-count"><b>${all ? (X.n === 1 ? 'Your pick is' : `All ${X.n} picks are`) : `${X.n} of your ${SLIP.legs.length} picks ${X.n === 1 ? 'is' : 'are'}`}</b> on ${esc(b[1])} at your ${X.n === 1 ? 'line' : 'lines'}.</p>
+      <div class="ss-acts"><a class="btn" href="${esc(X.url)}" ${touch ? '' : 'target="_blank"'} rel="noopener" data-ssopen>Open in ${esc(b[1])}</a><button class="btn ghost" data-sscopy>Copy link</button></div>
+      ${X.st ? `<label class="ss-st">Your state <select data-ssstate>${BOOK_STATES.map(([v, n]) => `<option value="${v}"${v === bookState() ? ' selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
+      <div class="ss-legs">${X.legs.map(x => (x.tok ? `<a class="ss-leg ok" href="${esc(X.one(x.tok))}" ${touch ? '' : 'target="_blank"'} rel="noopener"><i>✓</i><span>${pick(x.l)}</span><em>${X.n > 1 ? 'Add this one' : ''}</em></a>` : `<div class="ss-leg no"><i>–</i><span>${pick(x.l)}</span><em>${esc(x.why)}</em></div>`)).join('')}</div>
+      <p class="bs-note">${X.n > 1 ? `If ${esc(b[1])} opens with picks missing, tap a pick above to add it by itself. ` : ''}Check the picks and prices in the book before you place the bet: lines move, and Fullcourt can't see your slip.${LINKS?.updated ? ` Links refreshed ${esc(fmtTime(LINKS.updated))}.` : ''}</p>
+    </div>`;
+  };
+  sh.body.addEventListener('click', e => {
+    if (e.target.closest('[data-sscopy]')) { const X = slipFor(id); try { navigator.clipboard.writeText(X.url).then(() => toast('Link copied'), () => toast('Could not copy the link')); } catch (err) { toast('Could not copy the link'); } }
+  });
+  sh.body.addEventListener('change', e => { const st = e.target.closest('[data-ssstate]'); if (st) { lsSet('fc-book-state', st.value); draw(); } });
+  await loadLinks(); draw();
+}
+// how many of the slip's picks each book can take, shown on its button once the links have loaded
+function markBooks(dock) {
+  for (const a of dock.querySelectorAll('[data-slipbook]')) {
+    const X = slipFor(a.dataset.slipbook), old = a.querySelector('small'); old?.remove();
+    a.classList.toggle('linked', !!X?.n);
+    if (X?.n) a.insertAdjacentHTML('beforeend', `<small>${X.n === SLIP.legs.length ? (X.n === 1 ? 'opens your pick' : `all ${X.n} picks`) : `${X.n} of ${SLIP.legs.length} picks`}</small>`);
+  }
+}
 // the book buttons are real links: a tap on a link (not a script opening a window) is what lets iOS and Android
 // hand the address to the installed app; copying the picks runs alongside it
 function exportSlip(id) {
@@ -971,18 +1037,21 @@ function drawSlip() {
         <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
       </div>
       <div class="bs-boost" role="group" aria-label="Profit boost"><span>Profit boost</span>${[0, 10, 25, 50].map(v => `<button data-slipboost="${v}" aria-pressed="${(+SLIP.boost || 0) === v}">${v ? v + '%' : 'None'}</button>`).join('')}</div>
-      <div class="bs-books" hidden>${BOOKS.map(([id, name, url]) => `<a class="bs-book" href="${url}" ${matchMedia('(pointer: coarse)').matches ? '' : 'target="_blank"'} rel="noopener" data-slipbook="${id}">${name}</a>`).join('')}<p class="bs-note">No sportsbook lets other sites fill your bet slip, so this copies your picks and opens the book. Paste or rebuild them there; lines can differ by book.</p></div>
+      <div class="bs-books"${SLIP.exp ? '' : ' hidden'}>${BOOKS.map(([id, name, url]) => `<a class="bs-book" href="${url}" ${matchMedia('(pointer: coarse)').matches ? '' : 'target="_blank"'} rel="noopener" data-slipbook="${id}">${name}</a>`).join('')}<p class="bs-note">A book that shows a pick count opens with those picks already in your slip. The others copy your picks and open the book, where you add them yourself.</p></div>
       ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
-      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-exp" data-slipexp aria-expanded="false">Export</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
+      <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-exp" data-slipexp aria-expanded="${!!SLIP.exp}">Export</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
     </div>`;
+  if (SLIP.exp) { if (LINKS) markBooks(dock); loadLinks().then(() => { const d = $('#bdSlip'); if (d) markBooks(d); }); }
 }
 function wireSlip(dock) {
   dock.addEventListener('click', e => {
     if (e.target.closest('[data-slipopen]')) { SLIP.open = !SLIP.open; saveSlip(); drawSlip(); return; }
     const d = e.target.closest('[data-slipdel]'); if (d) { SLIP.legs.splice(+d.dataset.slipdel, 1); saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }
     const bb = e.target.closest('[data-slipboost]'); if (bb) { SLIP.boost = +bb.dataset.slipboost || 0; saveSlip(); drawSlip(); return; }
-    const ex = e.target.closest('[data-slipexp]'); if (ex) { const bx = dock.querySelector('.bs-books'); bx.hidden = !bx.hidden; ex.setAttribute('aria-expanded', !bx.hidden); return; }
-    const bk = e.target.closest('[data-slipbook]'); if (bk) { exportSlip(bk.dataset.slipbook); return; } // the link itself does the opening
+    const ex = e.target.closest('[data-slipexp]'); if (ex) { const bx = dock.querySelector('.bs-books'); bx.hidden = !bx.hidden; ex.setAttribute('aria-expanded', !bx.hidden); SLIP.exp = !bx.hidden; if (!bx.hidden) loadLinks().then(() => markBooks(dock)); return; }
+    const bk = e.target.closest('[data-slipbook]');
+    if (bk && bk.classList.contains('linked')) { e.preventDefault(); sendSheet(bk.dataset.slipbook); return; } // this book takes the picks straight into its slip
+    if (bk) { exportSlip(bk.dataset.slipbook); return; } // the link itself does the opening
     if (e.target.closest('[data-slipshare]')) { const m = slipMath(), mk = k => MARKETS.find(q => q[0] === k)[2];
       lazy('bets').then(b => b.shareCard({ title: SLIP.legs.length > 1 ? `${SLIP.legs.length}-leg parlay` : 'Single', sub: 'Built on Fullcourt', legs: SLIP.legs.map(l => ({ name: l.name, what: `${l.side === 'u' ? 'Under' : 'Over'} ${l.line} ${mk(l.k)} · ${l.game}`, val: l.odds > 0 ? '+' + l.odds : String(l.odds) })), foot: [['Stake', usd(m.stake)], ['Odds', m.amer], ['Pays', usd(m.pays), true]] }, 'fullcourt-parlay.png')); return; }
     if (e.target.closest('[data-slipclear]')) { SLIP.legs = []; SLIP.boost = 0; saveSlip(); drawSlip(); bdTable($('#bdMain'), true); return; }

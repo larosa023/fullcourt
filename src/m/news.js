@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-12b', date: 'Nov 12', items: [
+    ['Export puts your picks in the book\'s slip', 'In the Bet Desk slip, Export used to copy your picks and open the sportsbook for you to rebuild them. For FanDuel, DraftKings, Caesars and BetMGM it now shows how many of your picks that book has at your line ("all 3 picks", "2 of 3 picks") and opens a Send sheet. On a phone, Open takes you into the book\'s app with those picks already in the bet slip. On a computer the sheet shows a QR code to scan with your phone, plus Copy link and a button to open the book\'s site. Each pick also has its own link in case the book drops one. Caesars and BetMGM run a separate site per state, so the sheet asks for yours once. Player props only, for now; other books and pick\'em apps still copy and open.'],
+  ] },
   { id: '2026-11-12a', date: 'Nov 12', items: [
     ['WNBA history in Ask', 'In WNBA mode Ask now knows every season back to 1997, not only champions and MVPs: award races and voting by year ("2019 MVP race"), leaders ("top scorers 2008"), any two players or seasons side by side ("A\'ja Wilson 2024 vs Breanna Stewart 2018"), team seasons, every draft, career totals, All-WNBA and All-Defensive teams, playoff series, franchise records, and searches across all of it ("players who averaged 20 and 10", "best rookie seasons", "highest PER ever"). Not in yet: All-Star rosters, and questions that depend on a player\'s age.'],
     ['Share any answer as a picture', 'The share button used to appear only on the side-by-side player cards. Now any Ask answer with a list, a table or a fact sheet has one: a draft board, a list of champions, a roster, a franchise\'s history, career leaders, a player\'s bio. On a computer it copies the image; on a phone it opens the share sheet.'],
