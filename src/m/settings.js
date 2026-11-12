@@ -4,7 +4,7 @@ const PREFS = [
   ['ticker', 'Score ticker', 'The scrolling scores under the header on a computer'],
 ];
 // the Scores page's sections, in the order you choose (Settings > Scores page); games can't be hidden
-const HOME_ROWS = { bets: ['My bets', 'Bets you track from Ask'], watch: ['Your players', 'The strip of players you starred'], games: ['Games', 'The day\'s games'], perf: ['Top scorers', 'Scorers and players to watch, under the games'],
+const HOME_ROWS = { bets: ['My bets', 'Bets you track from Ask'], watch: ['Your players', 'The strip of players you starred'], games: ['Games', 'The day\'s games'], perf: ['Top performers', 'The day\'s leaders in the stat you pick, under the games'],
   race: ['Conference race', 'The standings beside the games'], picks: ["Pick'em", 'Pick the winner of each game and track your record'], out: ["Who's out", 'The day\'s injury report'] };
 const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>', DN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 function homeSection(p) {

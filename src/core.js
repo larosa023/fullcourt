@@ -928,36 +928,72 @@ function renderGames(animate) {
   renderPerformers(animate);
 }
 
+/* The strip under the games. Points, rebounds and assists rank each team's leader straight from the scoreboard, so they
+   move with the live scores. Steals, blocks and threes aren't on the scoreboard: picking one reads the box scores of the
+   games that have started (finals once, live games again every 45 seconds while it stays picked). */
+const PERF_CATS = [['pts', 'PTS', 'Points', 'Top scorers', /^points/i, 'PPG'], ['reb', 'REB', 'Rebounds', 'Top rebounders', /rebound/i, 'RPG'], ['ast', 'AST', 'Assists', 'Top passers', /assist/i, 'APG'],
+  ...(IS_C ? [] : [['stl', 'STL', 'Steals', 'Most steals'], ['blk', 'BLK', 'Blocks', 'Most blocks'], ['tpm', '3PM', 'Threes', 'Most threes']])];
+const PERF = { cat: null, rows: null, key: '', at: 0, busy: false }; // cat: the stat picked last time, read on first draw
+// every player's line from the box scores of the games under way or finished
+async function perfBox(key) {
+  if (PERF.busy) return;
+  PERF.busy = true;
+  try {
+    const games = S.games.filter(g => g.state !== 'pre');
+    const all = await Promise.all(games.map(g => summaryCached(g.id, 40000).then(d => boxRows(d).filter(r => !r.dnp).map(r => ({ ...r, g }))).catch(() => [])));
+    PERF.rows = all.flat(); PERF.key = key; PERF.at = Date.now();
+  } finally { PERF.busy = false; }
+  if (PERF_CATS.find(c => c[0] === PERF.cat)?.[4] == null && S.view === 'scores') renderPerformers(false);
+}
 function renderPerformers(animate) {
-  const items = [];
   const anyPlayed = S.games.some(g => g.state !== 'pre');
-  for (const g of S.games) {
-    if (anyPlayed && g.state === 'pre') continue;
-    for (const side of [g.away, g.home]) {
-      const cat = side.leaders.find(l => l.name === 'points' || l.name === 'pointsPerGame');
-      const L = cat?.leaders?.[0];
-      if (!L?.athlete) continue;
-      const opp = side === g.away ? g.home : g.away;
-      items.push({ v: parseFloat(L.displayValue) || 0, dv: L.displayValue, a: L.athlete, side, opp, g });
-      const reb = side.leaders.find(l => /rebound/i.test(l.name))?.leaders?.[0];
-      const ast = side.leaders.find(l => /assist/i.test(l.name))?.leaders?.[0];
-      items.at(-1).extra = [reb?.athlete?.id === L.athlete.id ? `${reb.displayValue} reb` : '', ast?.athlete?.id === L.athlete.id ? `${ast.displayValue} ast` : ''].filter(Boolean).join(' · ');
+  if (PERF.cat == null) PERF.cat = lsGet('fc-perf') || 'pts';
+  let C = PERF_CATS.find(c => c[0] === PERF.cat) || PERF_CATS[0];
+  if (!C[4] && !anyPlayed) C = PERF_CATS[0]; // nothing has tipped off: no box scores to read yet
+  const lead = (side, re) => side.leaders.find(l => re.test(l.name))?.leaders?.[0];
+  const fromBoard = re => {
+    const out = [];
+    for (const g of S.games) {
+      if (anyPlayed && g.state === 'pre') continue;
+      for (const side of [g.away, g.home]) {
+        const L = lead(side, re); if (!L?.athlete) continue;
+        // the other two numbers, when the same player leads the team in them too
+        const extra = PERF_CATS.filter(c => c[4] && c !== C).map(c => { const o = lead(side, c[4]); return o?.athlete?.id === L.athlete.id ? `${o.displayValue} ${c[1].toLowerCase()}` : ''; }).filter(Boolean).join(' · ');
+        out.push({ v: parseFloat(L.displayValue) || 0, dv: L.displayValue, a: L.athlete, side, opp: side === g.away ? g.home : g.away, g, extra });
+      }
+    }
+    return out;
+  };
+  const blk = $('#perfBlock');
+  if (!fromBoard(PERF_CATS[0][4]).length) { blk.hidden = true; return; } // no leaders at all on this day
+  blk.hidden = false;
+  let items = [], loading = false;
+  if (C[4]) items = fromBoard(C[4]);
+  else {
+    const key = S.games.filter(g => g.state !== 'pre').map(g => g.id).join(','), live = S.games.some(g => g.state === 'in');
+    // another day's games: start clean. The same night with one more game tipped off: keep what's showing while it reloads
+    if (PERF.key !== key && !(PERF.rows && key.split(',').some(id => PERF.key.split(',').includes(id)))) { PERF.rows = null; loading = true; }
+    if (PERF.key !== key || (live && Date.now() - PERF.at > 45000)) perfBox(key).catch(() => {});
+    for (const r of PERF.rows || []) {
+      const v = valOf(r, C[0]) || 0, side = String(r.g.home.id) === String(r.teamId) ? r.g.home : r.g.away; if (v <= 0) continue;
+      items.push({ v, dv: String(v), a: { id: r.id, displayName: r.name, shortName: r.short }, side, opp: side === r.g.home ? r.g.away : r.g.home, g: r.g, tie: r.pts, extra: C[0] === 'tpm' ? `${r.tp[0]}-${r.tp[1]} 3PT · ${r.pts} pts` : `${r.pts} pts · ${r.reb} reb · ${r.ast} ast` });
     }
   }
-  items.sort((a, b) => b.v - a.v);
-  if (items.length > 30) items.length = 30; // a full college day has 300 team leaders: the strip shows the top of the list
-  const blk = $('#perfBlock');
-  if (!items.length) { blk.hidden = true; return; }
-  blk.hidden = false;
-  $('#perfTitle').textContent = anyPlayed ? 'Top scorers' : 'Players to watch';
-  patchList($('#perf'), items.map((p, i) => {
+  items.sort((a, b) => b.v - a.v || (b.tie || 0) - (a.tie || 0));
+  const perfMax = C[4] ? 30 : 15; // a full college day has 300 team leaders, a box score night 200 players: the strip shows the top of the list
+  if (items.length > perfMax) items.length = perfMax;
+  $('#perfTitle').textContent = anyPlayed ? C[3] : 'Players to watch';
+  $('#perfCats').innerHTML = PERF_CATS.map(c => `<button class="count${c === C ? ' filter-on' : ''}" data-perfcat="${c[0]}" aria-pressed="${c === C}" title="${c[2]}"${!c[4] && !anyPlayed ? ' disabled' : ''}>${c[1]}</button>`).join('');
+  const box = $('#perf');
+  if (!items.length) { box._pl = null; box.innerHTML = loading ? Array.from({ length: 6 }, () => '<div class="pcard sk" aria-hidden="true"></div>').join('') : `<p class="perf-none">No ${C[2].toLowerCase()} yet.</p>`; return; }
+  patchList(box, items.map((p, i) => {
     rememberPlayer(p.a, p.side.id);
-    return [`${p.a.id}|${p.g.id}`, `<button class="pcard" style="--i:${i};--tc:${teamColor(p.side.id)}" data-player="${p.a.id}">
-      <div class="ph">${face(p.a.id, p.a.displayName, 'face', 350)}${logo(p.side.abbr, 44)}<span class="pv">${esc(p.dv)}<small>${anyPlayed ? 'PTS' : 'PPG'}</small></span></div>
+    return [`${C[0]}|${p.a.id}|${p.g.id}`, `<button class="pcard" style="--i:${i};--tc:${teamColor(p.side.id)}" data-player="${p.a.id}">
+      <div class="ph">${face(p.a.id, p.a.displayName, 'face', 350)}${logo(p.side.abbr, 44)}<span class="pv">${esc(p.dv)}<small>${anyPlayed ? C[1] : C[5]}</small></span></div>
       <div class="pi"><b>${esc(p.a.displayName)}</b><span>${esc(p.side.abbr)} ${p.side === p.g.home ? 'vs' : '@'} ${esc(p.opp.abbr)}</span><span class="ex">${esc(p.extra || (p.side.rec ? `${p.side.rec} record` : ''))}&nbsp;</span></div>
     </button>`];
   }), animate);
-  dragScroll($('#perf'));
+  dragScroll(box);
 }
 
 function rememberPlayer(a, teamId, extra = {}) {
@@ -2535,7 +2571,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-12b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-12c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3770,6 +3806,7 @@ document.addEventListener('click', e => {
   const d = el.closest('[data-date]'); if (d) { pickDate(d.dataset.date); return; }
   const r = el.closest('[data-rail]'); if (r) { const rail = $('#rail'); rail.scrollBy({ left: +r.dataset.rail * rail.clientWidth * 0.7, behavior: reduced ? 'auto' : 'smooth' }); return; }
   const f = el.closest('[data-filter]'); if (f) { gamesFilter = f.dataset.filter; renderGames(true); return; }
+  const pc = el.closest('[data-perfcat]'); if (pc) { PERF.cat = pc.dataset.perfcat; lsSet('fc-perf', PERF.cat); renderPerformers(true); $('#perf').scrollLeft = 0; return; }
   if (el.closest('[data-cscopeall]')) { cScope = 'all'; gamesFilter = 'all'; renderGames(true); return; }
   const mc = el.closest('[data-conf]'); if (mc) { S.miniConf = +mc.dataset.conf; $$('#miniSeg button').forEach(b => b.setAttribute('aria-pressed', b === mc)); placeKnob($('#miniSeg')); renderMini(); return; }
   const sc = el.closest('[data-sconf]'); if (sc) { S.stdConf = +sc.dataset.sconf; $$('#stdSeg button').forEach(b => b.setAttribute('aria-pressed', b === sc)); placeKnob($('#stdSeg')); renderStandings(); return; }

@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-12c', date: 'Nov 12', items: [
+    ['Pick the stat on Top scorers', 'The strip of players under the games used to rank points only. It now has a row of buttons: PTS, REB, AST, STL, BLK and 3PM. Points, rebounds and assists show each team\'s leader and move with the live scores. Steals, blocks and threes read the box scores, so they rank every player in the day\'s games and refresh about every 45 seconds while games are on. Your pick is remembered. Before the first tip-off the strip shows season averages, and steals, blocks and threes wait until a game has started. College has points, rebounds and assists.'],
+  ] },
   { id: '2026-11-12b', date: 'Nov 12', items: [
     ['Export puts your picks in the book\'s slip', 'In the Bet Desk slip, Export used to copy your picks and open the sportsbook for you to rebuild them. For FanDuel, Caesars and BetMGM it now shows how many of your picks that book has at your line ("all 3 picks", "2 of 3 picks") and opens a Send sheet. On a phone, Open takes you into the book\'s app with those picks already in the bet slip. On a computer the sheet shows a QR code to scan with your phone, plus Copy link and a button for the book\'s site. Each pick also has its own link in case the book drops one. Caesars and BetMGM run a separate site per state, so the sheet asks for yours once. DraftKings\' links don\'t say over or under yet, so it copies your picks and opens the right game instead. Player props only, for now; other books and pick\'em apps still copy and open.'],
   ] },

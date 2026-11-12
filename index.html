@@ -63,9 +63,9 @@
   // arriving from a league switch: start behind the veil, lift it once the new league has loaded
   try { if (sessionStorage.getItem('fc-swap')) { sessionStorage.removeItem('fc-swap'); document.documentElement.classList.add('arriving'); } } catch (e) {}
 </script>
-<script type="importmap">{"imports":{"core":"./assets/core.269ab487d6.js"}}</script>
-<link rel="modulepreload" href="./assets/core.269ab487d6.js">
-<link rel="stylesheet" href="./assets/core.0c00298f9e.css">
+<script type="importmap">{"imports":{"core":"./assets/core.3bb5e62f9d.js"}}</script>
+<link rel="modulepreload" href="./assets/core.3bb5e62f9d.js">
+<link rel="stylesheet" href="./assets/core.f0e8827ffe.css">
 </head>
 <body>
 
@@ -153,7 +153,7 @@
         </div>
         <div class="games" id="games"></div>
         <div class="perf-block" id="perfBlock" hidden>
-          <div class="sec-h"><h2 id="perfTitle">Top scorers</h2><span class="eyebrow">Drag to browse</span></div>
+          <div class="sec-h"><h2 id="perfTitle">Top scorers</h2><div class="counts perf-cats" id="perfCats" role="group" aria-label="Stat"></div></div>
           <div class="hs-wrap"><div class="hs perf drag-x" id="perf" data-drag></div></div>
         </div>
       </div>
@@ -328,6 +328,6 @@
 <div id="layer"></div>
 <div class="toast" id="toast" role="status"></div>
 
-<script type="module" src="./assets/core.269ab487d6.js"></script>
+<script type="module" src="./assets/core.3bb5e62f9d.js"></script>
 </body>
 </html>
