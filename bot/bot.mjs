@@ -8,8 +8,9 @@ import { STATS } from './commands.mjs';
 const LGS = { nba: 'NBA', wnba: 'WNBA' };
 const API = lg => `https://site.api.espn.com/apis/site/v2/sports/basketball/${lg}`;
 const API2 = lg => `https://site.api.espn.com/apis/v2/sports/basketball/${lg}`;
-const WEB = lg => `https://site.web.api.espn.com/apis/common/v3/sports/basketball/${lg}`;
-const SEARCH = 'https://site.web.api.espn.com/apis/common/v3/search';
+// the site reads these two from site.web.api.espn.com; that host turns Cloudflare's servers away, and this one serves the same paths
+const WEB = lg => `https://site.api.espn.com/apis/common/v3/sports/basketball/${lg}`;
+const SEARCH = 'https://site.api.espn.com/apis/common/v3/search';
 const RAW = 'https://raw.githubusercontent.com/larosa023/fullcourt';
 const TZ = 'America/New_York';
 const ACCENT = 0xf2703a;
@@ -19,7 +20,7 @@ class Say extends Error {}
 
 async function get(url, ttl = 30) {
   // cf.cacheTtl: Cloudflare keeps the answer for that many seconds, so a busy server costs one upstream read, not one per command
-  const r = await fetch(url, { cf: { cacheTtl: ttl, cacheEverything: true }, signal: AbortSignal.timeout(8000) });
+  const r = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Fullcourt-Discord/1.0 (+https://github.com/larosa023/fullcourt)' }, cf: { cacheTtl: ttl, cacheEverything: true }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error(`${new URL(url).hostname} answered ${r.status}`);
   return r.json();
 }
@@ -262,6 +263,16 @@ async function cmdHighlights(i, ctx) {
   // one video: post the link itself so Discord shows the player
   if (t) return { content: `**${name(vids[0])}**\nhttps://www.youtube.com/watch?v=${vids[0].id}` };
   return { embeds: [embed({ title: `${LGS[lg]} full game highlights`, url: `${ctx.site}/?league=${lg}#replay`, description: vids.slice(0, 10).map(v => `[${name(v)}](https://www.youtube.com/watch?v=${v.id})`).join('\n') })], components: [button('Open Replay in Fullcourt', `${ctx.site}/?league=${lg}#replay`)] };
+}
+
+// Can Cloudflare reach each feed the commands read? (GET /api/discord?check=1; kept for a minute so it can't be used to hammer them)
+let checked = null, checkedAt = 0;
+export async function check() {
+  if (checked && Date.now() - checkedAt < 60e3) return checked;
+  const feeds = { scores: `${API('nba')}/scoreboard`, standings: `${API2('nba')}/standings`, player: `${WEB('nba')}/athletes/3975`, leaders: `${WEB('nba')}/statistics/byathlete?isqualified=true&page=1&limit=1&sort=offensive.avgPoints:desc`, search: `${SEARCH}?query=curry&limit=1&type=player&sport=basketball`, webhost: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3975', odds: `${RAW}/odds-data/odds.json`, highlights: `${RAW}/yt-data/highlights.json` };
+  const out = {};
+  await Promise.all(Object.entries(feeds).map(async ([k, u]) => { const t0 = Date.now(); try { await get(u, 60); out[k] = `ok ${Date.now() - t0} ms`; } catch (e) { out[k] = String(e.message); } }));
+  checkedAt = Date.now(); return (checked = out);
 }
 
 const RUN = { score: cmdScore, standings: cmdStandings, player: cmdPlayer, team: cmdTeam, leaders: cmdLeaders, props: cmdProps, injuries: cmdInjuries, highlights: cmdHighlights };

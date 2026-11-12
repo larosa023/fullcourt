@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: the address Discord sends slash commands to (https://<the Cloudflare site>/api/discord).
 // It only checks that the request is really from Discord and hands it to bot/bot.mjs. Nothing runs between commands.
-import { handle } from '../../bot/bot.mjs';
+import { handle, check } from '../../bot/bot.mjs';
 import { appInfo, fromDiscord } from '../../bot/verify.mjs';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
@@ -14,7 +14,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
 }
 
 // a plain visit: says whether the bot has its key yet (the setup job waits for this before pointing Discord here)
-export async function onRequestGet({ env }) {
-  const app = await appInfo(env, true);
-  return json({ ok: true, service: 'Fullcourt Discord bot', ready: !!app, app: app?.id || null, key: app ? app.key.slice(0, 8) : null });
+export async function onRequestGet({ request, env }) {
+  const app = await appInfo(env, true), out = { ok: true, service: 'Fullcourt Discord bot', ready: !!app, app: app?.id || null, key: app ? app.key.slice(0, 8) : null };
+  if (new URL(request.url).searchParams.has('check')) out.feeds = await check(); // ?check=1: can Cloudflare reach the data
+  return json(out);
 }
