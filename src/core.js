@@ -3817,9 +3817,12 @@ markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick();
 try {
-  const qs = new URLSearchParams(location.search), gq = qs.get('game');
-  if (gq || qs.has('league')) history.replaceState(null, '', location.pathname + location.hash);
+  // links from outside (the scores widget, the Discord bot): ?game=, ?player= and ?team= open that page
+  const qs = new URLSearchParams(location.search), gq = qs.get('game'), pq = qs.get('player'), tq = qs.get('team');
+  if (gq || pq || tq || qs.has('league')) history.replaceState(null, '', location.pathname + location.hash);
   if (gq) setTimeout(() => openGame(gq), 300);
+  else if (/^\d+$/.test(pq || '')) setTimeout(() => openPlayer(pq), 300);
+  else if (/^\d+$/.test(tq || '')) setTimeout(() => openTeam(tq), 300);
 } catch (e) {}
 loadStandings().catch(() => { $('#miniStd').innerHTML = `<div class="empty" style="padding:20px"><b>Standings unavailable</b><button class="btn" data-retry="standings">Retry</button></div>`; });
 // refresh "tips in" countdowns & time labels each minute

@@ -5,7 +5,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths-ignore: ['desktop/**', 'tools/**', 'netlify/**', 'README.md', 'netlify.toml', '.github/workflows/desktop.yml', '.github/workflows/odds.yml']
+    paths-ignore: ['desktop/**', 'tools/**', 'netlify/**', 'bot/**', 'functions/**', '.github/workflows/discord.yml', 'README.md', 'netlify.toml', '.github/workflows/desktop.yml', '.github/workflows/odds.yml']
   schedule:
     - cron: '17 10 * * *' # daily, so the weekly awards update (pushed by a bot, which doesn't trigger this) shows up
   workflow_dispatch:

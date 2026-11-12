@@ -1,0 +1,40 @@
+# Sets up Fullcourt's Discord bot: reads the bot's public key from Discord, saves it on the discord-data branch (the
+# site's /api/discord address reads it from there), points Discord at that address and registers the slash commands.
+# Needs one repo secret, DISCORD_TOKEN (the bot's token from Discord's developer portal). Until that exists the job
+# does nothing and passes. It runs again by itself whenever the list of commands changes.
+name: discord
+on:
+  workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
+  push:
+    branches: [main]
+    paths: ['bot/commands.mjs', 'tools/discord.mjs', '.github/workflows/discord.yml']
+permissions:
+  contents: write
+concurrency: { group: discord, cancel-in-progress: false }
+jobs:
+  setup:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Read the bot's id and public key from Discord
+        id: app
+        run: node tools/discord.mjs app
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      - name: Save them to discord-data
+        if: steps.app.outputs.ready == 'yes'
+        run: |
+          cd pub && git init -q && git checkout -q --orphan discord-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add app.json && git commit -qm "discord app $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
+      - name: Point Discord at the site and register the commands
+        if: steps.app.outputs.ready == 'yes'
+        run: node tools/discord.mjs setup
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}

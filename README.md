@@ -81,4 +81,18 @@ https://nbafullcourty.netlify.app/api/scores?league=nba
 
 Games come back live first, then upcoming, then finals, each with a `url` that opens it on the site in the right league (`?league=…&game=…`). Responses are cached at Netlify's edge for 15 seconds during games and longer otherwise, so it barely uses function runs.
 
+### Discord bot
+
+Slash commands that answer from the same data as the site: `/score`, `/standings`, `/player`, `/team`, `/leaders`, `/props`, `/injuries`, `/highlights`. NBA and WNBA.
+
+Nothing stays running. Discord sends each command to `https://fullcourt-46z.pages.dev/api/discord`, a Cloudflare Pages Function (`functions/api/discord.js`) that checks Discord's signature and calls `bot/bot.mjs`. The commands themselves are listed in `bot/commands.mjs`.
+
+One-time setup:
+
+1. On [discord.com/developers/applications](https://discord.com/developers/applications): **New Application**, then **Bot → Reset Token** and copy the token.
+2. In this repo: **Settings → Secrets and variables → Actions → New repository secret**, name `DISCORD_TOKEN`, paste the token.
+3. Run the **discord** workflow (Actions tab → discord → Run workflow). It reads the bot's public key from Discord, saves it on the `discord-data` branch, points Discord at the address above and registers the commands. The run's summary has the two links for adding the bot: to a server, or to your own account so the commands work anywhere.
+
+The workflow runs again by itself when `bot/commands.mjs` changes.
+
 Data comes from ESPN's public feeds. Odds are for reference only.
