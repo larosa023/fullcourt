@@ -7,15 +7,29 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: node tools/eraprobe.mjs
-        env:
-          SGO_KEY: ${{ secrets.SGO_KEY }}
+      - run: node tools/eraprobe.mjs key
+      - name: Publish the throwaway key
+        run: |
+          cd pub && git init -q && git checkout -q --orphan discord-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add app.json && git commit -qm "test key $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
+      - run: node tools/eraprobe.mjs run
+      - name: Take the throwaway key away again
+        if: always()
+        run: |
+          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" --delete discord-data && exit 0
+          rm -rf blank && mkdir blank && cd blank && git init -q && git checkout -q --orphan discord-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          echo '{}' > app.json && git add app.json && git commit -qm "no key"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
       - name: Publish
+        if: always()
         run: |
           cd probe && git init -q && git checkout -q --orphan era-probe-out
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
