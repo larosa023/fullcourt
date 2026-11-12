@@ -8,6 +8,7 @@ import { model, hasModel } from '../../bot/espn.mjs';
 import { decodeView } from '../../bot/bot.mjs';
 import { cacheStore } from '../../bot/store.mjs';
 
+// x-card says how the picture was produced (drawn now, or kept from before) and where its numbers came from
 const png = (body, how, seconds) => new Response(body, { headers: { 'content-type': 'image/png', 'cache-control': `public, max-age=${seconds}`, 'x-card': how } });
 const RECENT = new Map(); // the last few pictures this running copy drew
 
@@ -20,13 +21,13 @@ export async function onRequestGet({ request, waitUntil }) {
     const hit = await cache.match(request).catch(() => null); if (hit) return hit;
   }
   try {
-    const m = await model(view, cacheStore(cache, url.origin, waitUntil));
+    const seen = {}, m = await model(view, cacheStore(cache, url.origin, waitUntil), seen);
     if (String(view.side || '').startsWith('team:')) view.side = m.h?.id === view.side.slice(5) ? 'h' : 'a';
     if (!hasCard(view, m)) return new Response('nothing to draw', { status: 404 });
     loadFonts(fontBin);
     const bytes = card(view, m).png();
     if (pinned) { RECENT.set(id, bytes); if (RECENT.size > 12) RECENT.delete(RECENT.keys().next().value); waitUntil(cache.put(request, png(bytes, 'cache', keep)).catch(() => {})); }
-    return png(bytes, 'drawn', keep);
+    return png(bytes, `drawn, numbers from ${seen.from}`, keep);
   } catch (e) {
     console.log('card failed:', view.k, e?.message);
     return new Response('the stats feed didn\'t answer', { status: 502, headers: { 'cache-control': 'no-store' } });

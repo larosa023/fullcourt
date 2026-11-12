@@ -50,11 +50,13 @@ const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : null
 const teamObj = (lg, t) => ({ lg, id: t[0], ab: t[1], loc: t[2], name: t[3], full: `${t[2]} ${t[3]}`, color: t[4] });
 export const teamById = (lg, id) => { const t = TEAMS[lg]?.find(x => x[0] === String(id)); return t ? teamObj(lg, t) : null; };
 export const allTeams = lg => (lg ? [lg] : ['nba', 'wnba']).flatMap(l => TEAMS[l].map(t => teamObj(l, t)));
+// names people use that the team list doesn't have
+export const TEAM_ALIAS = { sixers: '76ers', cavs: 'cavaliers', mavs: 'mavericks', wolves: 'timberwolves', twolves: 'timberwolves', blazers: 'trail blazers', dubs: 'warriors', clips: 'clippers', grizz: 'grizzlies', pels: 'pelicans', nugs: 'nuggets', knickerbockers: 'knicks', philly: '76ers', lakeshow: 'lakers' };
 // what the person picked from the suggestions ("nba:18"), or whatever they typed
 export function findTeam(text, lg) {
   const m = /^(nba|wnba):(\d+)$/.exec(String(text || '').trim());
   if (m) return teamById(m[1], m[2]);
-  const q = norm(text); if (!q) return null;
+  const typed = norm(text), q = TEAM_ALIAS[typed] || typed; if (!q) return null;
   for (const l of lg ? [lg] : ['nba', 'wnba']) {
     const L = TEAMS[l], hit = L.find(t => norm(t[1]) === q) || L.find(t => norm(t[3]) === q || norm(`${t[2]} ${t[3]}`) === q) || L.find(t => norm(`${t[2]} ${t[3]}`).includes(q)) || L.find(t => q.split(' ').some(w => w.length > 2 && norm(t[3]).startsWith(w)));
     if (hit) return teamObj(l, hit);
@@ -134,7 +136,11 @@ function gameFromSummary(lg, id, s) {
   }
   // home win probability, thinned to at most 160 points
   const wp = (s.winprobability || []).map(x => x.homeWinPercentage).filter(x => typeof x === 'number');
-  if (wp.length > 8) { const step = Math.max(1, wp.length / 160); g.wp = []; for (let k = 0; k < wp.length; k += step) g.wp.push(Math.round(wp[Math.floor(k)] * 1000) / 1000); g.wp.push(Math.round(wp[wp.length - 1] * 1000) / 1000); }
+  if (wp.length > 8) {
+    const step = Math.max(1, wp.length / 160); g.wp = []; for (let k = 0; k < wp.length; k += step) g.wp.push(Math.round(wp[Math.floor(k)] * 1000) / 1000);
+    // the feed's last entry is sometimes a stray value; a finished game ends on its result
+    g.wp.push(g.st === 'post' && (g.a.win || g.h.win) ? (g.h.win ? 1 : 0) : Math.round(wp[wp.length - 1] * 1000) / 1000);
+  }
   return g;
 }
 async function loadGame({ lg = 'nba', id, d, tab = 'score' }) {
@@ -268,12 +274,14 @@ const FRESH = { score: 15, game: 15, odds: 60, props: 120, team: 120, standings:
 const DATA_KEYS = { score: ['lg', 'd'], game: ['lg', 'id', 'd', 'tab'], team: ['lg', 'id'], injuries: ['lg', 'id'], standings: ['lg'], player: ['lg', 'id'], compare: ['lg', 'a', 'b', 'lb'], leaders: ['lg', 'stat'], props: ['id', 'n'], odds: ['lg', 'd'] };
 export const hasModel = k => !!LOAD[k];
 const MODELS = new Map();
-export async function model(view, store) {
+// seen (optional) is told where the model came from: this copy's memory, the shared store, or the feeds
+export async function model(view, store, seen) {
   if (!LOAD[view.k]) throw new Error('unknown view ' + view.k);
   const tabKey = view.k === 'game' ? (view.tab === 'score' || !view.tab ? 'score' : 'full') : '';
   const key = view.k + '|' + DATA_KEYS[view.k].map(n => (n === 'tab' ? tabKey : view[n] ?? '')).join('|') + '|' + Math.floor(Date.now() / (FRESH[view.k] * 1000));
-  const hit = MODELS.get(key); if (hit) return hit;
+  const hit = MODELS.get(key); if (hit) { if (seen) seen.from = 'memory'; return hit; }
   let m = store ? await store.get(key).catch(() => null) : null;
+  if (seen) seen.from = m ? 'store' : 'feeds';
   if (!m) { m = await LOAD[view.k](view); if (store) store.put(key, m, FRESH[view.k] * 2); }
   MODELS.set(key, m); if (MODELS.size > 40) MODELS.delete(MODELS.keys().next().value);
   return m;
