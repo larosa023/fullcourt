@@ -7,26 +7,32 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: node tools/eraprobe.mjs key
-      - name: Publish the throwaway key
+      - name: Draw a lot of cards on the live site
+        run: node tools/eraprobe.mjs cards
+      - name: Add a throwaway test key beside the bot's real one
+        id: key
         run: |
+          set -e
+          curl -fsSL "https://api.github.com/repos/${{ github.repository }}/contents/app.json?ref=discord-data" -H "Accept: application/vnd.github.raw" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -o orig.json
+          node tools/eraprobe.mjs key
+          echo "saved=yes" >> "$GITHUB_OUTPUT"
           cd pub && git init -q && git checkout -q --orphan discord-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add app.json && git commit -qm "test key $(date -u +%FT%TZ)"
+          git add app.json && git commit -qm "discord app + test key $(date -u +%FT%TZ)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
-      - run: node tools/eraprobe.mjs run
-      - name: Take the throwaway key away again
-        if: always()
+      - name: Signed commands, buttons and menus against the live address
+        run: node tools/eraprobe.mjs run
+      - name: Put app.json back exactly as it was
+        if: always() && steps.key.outputs.saved == 'yes'
         run: |
-          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" --delete discord-data && exit 0
-          rm -rf blank && mkdir blank && cd blank && git init -q && git checkout -q --orphan discord-data
+          rm -rf back && mkdir back && cp orig.json back/app.json && cd back && git init -q && git checkout -q --orphan discord-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          echo '{}' > app.json && git add app.json && git commit -qm "no key"
+          git add app.json && git commit -qm "discord app $(date -u +%FT%TZ)"
           git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
       - name: Publish
         if: always()
