@@ -19,7 +19,10 @@ if (process.argv[2] === 'key') {
 } else {
   const key = JSON.parse(readFileSync('pub/app.json', 'utf8')).key, priv = createPrivateKey(readFileSync(`${TMP}/priv.pem`));
   let seen; for (let n = 0; n < 60; n++) { seen = await peek(); if (seen.ready && seen.key === key.slice(0, 8)) break; if (n % 6 === 0) console.log('waiting…', JSON.stringify(seen)); await sleep(10000); }
-  const out = { address: seen, tests: [] };
+  // the newest deploy answers ?check=1 with which feeds Cloudflare can reach
+  let feeds = null; for (let n = 0; n < 30 && !feeds; n++) { try { feeds = (await (await fetch(URL_ + '?check=1')).json()).feeds || null; } catch (e) {} if (!feeds) await sleep(10000); }
+  console.log('feeds', JSON.stringify(feeds));
+  const out = { address: seen, feeds, tests: [] };
   const send = async (label, body, bad) => {
     const ts = String(Math.floor(Date.now() / 1000)), raw = JSON.stringify(body); let sig = sign(null, Buffer.from(ts + raw), priv).toString('hex'); if (bad) sig = (sig[0] === '0' ? '1' : '0') + sig.slice(1);
     const t0 = Date.now(); let r, text = '';
