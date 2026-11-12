@@ -83,9 +83,33 @@ Games come back live first, then upcoming, then finals, each with a `url` that o
 
 ### Discord bot
 
-Slash commands that answer from the same data as the site: `/score`, `/standings`, `/player`, `/team`, `/leaders`, `/props`, `/injuries`, `/highlights`. NBA and WNBA.
+Slash commands that answer from the same data as the site, each with an image card and buttons to switch what it shows. NBA and WNBA.
 
-Nothing stays running. Discord sends each command to `https://fullcourt-46z.pages.dev/api/discord`, a Cloudflare Pages Function (`functions/api/discord.js`) that checks Discord's signature and calls `bot/bot.mjs`. The commands themselves are listed in `bot/commands.mjs`.
+| Command | Shows |
+| --- | --- |
+| `/score` | the day's games (pick one from the menu), or one team's game |
+| `/game` | one game: score by quarter, box score for either team, team stats, win probability |
+| `/player` | season card with the last ten games, game log, career by season |
+| `/compare` | two players side by side |
+| `/team` | record, form, recent results, next games |
+| `/standings` | both conferences, or one in detail |
+| `/leaders` | the top ten in a stat |
+| `/props` | a player's lines and the best price each way (NBA) |
+| `/odds` | spreads, totals and moneylines |
+| `/injuries` | a team's injury report |
+| `/highlights` | full game highlight videos |
+| `/ask` | a question in plain words ("did the Knicks win last night", "Curry vs Brunson") |
+| `/help` | this list |
+
+Nothing stays running. Discord sends each command, button press and menu choice to `https://fullcourt-46z.pages.dev/api/discord`, a Cloudflare Pages Function (`functions/api/discord.js`) that checks Discord's signature and calls `bot/bot.mjs`. The picture in a reply is a second address, `/api/card` (`functions/api/card.js`), which draws a PNG from the same numbers.
+
+- `bot/commands.mjs` the command list sent to Discord
+- `bot/bot.mjs` commands, buttons and menus -> a "view" -> the message
+- `bot/ask.mjs` plain-words questions -> a view (keyword matching, no AI model)
+- `bot/espn.mjs` loads the numbers for a view
+- `bot/cards.mjs` draws the card for a view
+- `bot/draw.mjs` the drawing kit (boxes, gradients, text, lines, PNG). It is hand-rolled because Cloudflare's free plan allows about 10 ms of processor time per request; a card takes about 5.
+- `bot/font.bin` the lettering, pre-drawn at each size the cards use by `tools/botfont.py` from the fonts in `bot/fonts/` (Archivo and Instrument Sans, both SIL Open Font License)
 
 One-time setup:
 
