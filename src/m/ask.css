@@ -385,3 +385,8 @@ button.pb:hover { background: var(--surface-2); }
 /* prop detail: market picker */
 .pd-mk { font-weight: 650; }
 @media (max-width: 760px) { .pd-flt { flex-wrap: wrap; } .pd-flt .pd-mk { flex: 1 1 100%; } }
+/* an answer's "Share as image" button */
+.ask-share { display: flex; margin-top: 8px; }
+.ask-share .btn { margin-top: 0; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 7px 12px; }
+.ask-share .btn svg { width: 15px; height: 15px; }
+.ask-share .btn.busy { opacity: .6; pointer-events: none; }

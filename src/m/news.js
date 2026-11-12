@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-12a', date: 'Nov 12', items: [
+    ['WNBA history in Ask', 'In WNBA mode Ask now knows every season back to 1997, not only champions and MVPs: award races and voting by year ("2019 MVP race"), leaders ("top scorers 2008"), any two players or seasons side by side ("A\'ja Wilson 2024 vs Breanna Stewart 2018"), team seasons, every draft, career totals, All-WNBA and All-Defensive teams, playoff series, franchise records, and searches across all of it ("players who averaged 20 and 10", "best rookie seasons", "highest PER ever"). Not in yet: All-Star rosters, and questions that depend on a player\'s age.'],
+    ['Share any answer as a picture', 'The share button used to appear only on the side-by-side player cards. Now any Ask answer with a list, a table or a fact sheet has one: a draft board, a list of champions, a roster, a franchise\'s history, career leaders, a player\'s bio. On a computer it copies the image; on a phone it opens the share sheet.'],
+    ['Data jobs that fix themselves', 'On November 11 GitHub stopped handing out one kind of machine for a few hours, and the odds and highlights refreshes sat in a queue until they were cancelled. A watchdog now checks every 15 minutes and restarts any job that never got a machine on a kind that is working. The health check also flags a job that has waited more than 12 minutes.'],
+  ] },
   { id: '2026-11-11a', date: 'Nov 11', items: [
     ['Ask understands far more', 'Ask used to answer a stat line or tell you it couldn\'t match the question. It now reads many more kinds of question, forgives typos ("gianis", "celtcs", "wembenyama"), knows more nicknames, and keeps the thread: after "who won the 1998 Finals" you can ask "what about 1999?", and after "how tall was Shaq" you can ask "how many rings does he have?"'],
     ['Who players are', 'Height, weight, age, birthday, hometown, college, number, position, draft pick, injury status and, in the NBA, contracts: "how tall is Wemby", "Brunson contract", "is Embiid playing tonight", "highest paid player". Across the league: "who is the oldest player in the NBA", "who wears number 23", "players from Kentucky", "best rookies".'],

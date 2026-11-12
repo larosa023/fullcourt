@@ -508,9 +508,11 @@ const ERA_HINT = new RegExp(' (19[4-9]\\d|20[0-2]\\d)s? | \\d0s | (ever|all time
   `| ${ERA_AW} .*(race|voting|votes?|voted|won|win|winner|finish\\w*|seasons?|years?|ladder|results?) | (who won|winner of|how many|won the) .*${ERA_AW} ` +
   '| (michael jordan|jordan|wilt|chamberlain|kareem|abdul jabbar|magic johnson|larry bird|bird|kobe|bryant|shaq|shaquille|bill russell|hakeem|olajuwon|tim duncan|iverson|barkley|karl malone|stockton|ewing|pippen|isiah|dr j|erving|jerry west|oscar robertson|baylor|garnett|nowitzki|dirk|steve nash|wade|carmelo|mcgrady|t mac|vince carter|payton|jason kidd|david robinson|drexler|dominique|mchale|worthy|moses malone|gervin|maravich|havlicek|cousy|mikan|pettit|walton|rodman|reggie miller|ray allen|paul pierce|bosh|mj) ');
 // words that mark a history question (the history answers decide for themselves whether they have one)
-const HIST_HINT = / (draft\w*|drafted|what pick|which pick|number one pick|first pick|rings?|championships?|champions?|champs|titles?|finals|hall of fame|hof|all ?stars?|all nba|all defensive|mvps|dpoys|winners|retire\w*|played for|play for|what teams?|which teams?|how many teams|club|goat|greatest|in a (single )?game|single game|game record|league average|win shares?|usage|usg|per(?! (game|36|100|minute|possession))|player efficiency|bpm|box plus minus|franchise|drought|last time|first (player|time)|last player|youngest|oldest|tallest|shortest|heaviest|players who|players with|anyone|averaged|accolades|resume|awards|scoring titles?|back to back|50 40 90|triple double|by a (rookie|center|guard|forward)|at age|age \d\d|teenagers?|rookie (year|season)s?|debut\w*|record book|all time|ever|history|career|scored 100|(first|1st|second|third|top|number one|no 1|overall) (overall )?picks?|playoff (points|rebounds|assists|games|scor\w*|leaders?)|games played|how many (points|rebounds|assists|steals|blocks|threes|three pointers|3s|triple doubles|games) (does|has|did|have)|won the (east|west|eastern|western)|conference (finals|champions?|champs)|players? averag\w*|who averag\w*|(lowest|highest) scoring|when (was|were)|which (year|season|era|decade)|shooting seasons?|how far|how many players|players (have|that|to)|\d{4,5}|\d\d (plus )?(win|wins|loss|losses)|(best|greatest|top|highest|most|lowest|worst) [a-z0-9 ]*seasons?|true shooting|how many (seasons|years|titles|rings|mvps|championships|all))  ?/;
+const HIST_HINT = / (draft\w*|drafted|what pick|which pick|number one pick|first pick|rings?|championships?|champions?|champs|titles?|finals|hall of fame|hof|all ?stars?|all w?nba|all defensive|mvps|dpoys|winners|retire\w*|played for|play for|what teams?|which teams?|how many teams|club|goat|greatest|in a (single )?game|single game|game record|league average|win shares?|usage|usg|per(?! (game|36|100|minute|possession))|player efficiency|bpm|box plus minus|franchise|drought|last time|first (player|time)|last player|youngest|oldest|tallest|shortest|heaviest|players who|players with|anyone|averaged|accolades|resume|awards|scoring titles?|back to back|50 40 90|triple double|by a (rookie|center|guard|forward)|at age|age \d\d|teenagers?|rookie (year|season)s?|debut\w*|record book|all time|ever|history|career|scored 100|(first|1st|second|third|top|number one|no 1|overall) (overall )?picks?|playoff (points|rebounds|assists|games|scor\w*|leaders?)|games played|how many (points|rebounds|assists|steals|blocks|threes|three pointers|3s|triple doubles|games) (does|has|did|have)|won the (east|west|eastern|western)|conference (finals|champions?|champs)|players? averag\w*|who averag\w*|(lowest|highest) scoring|when (was|were)|which (year|season|era|decade)|shooting seasons?|how far|how many players|players (have|that|to)|\d{4,5}|\d\d (plus )?(win|wins|loss|losses)|(best|greatest|top|highest|most|lowest|worst) [a-z0-9 ]*seasons?|true shooting|how many (seasons|years|titles|rings|mvps|championships|all))  ?/;
 const HIST_BIO = / (how tall|height|how old|born|birthday|college|school|position|weigh\w*|still play\w*|alive|dead|died|who (is|was)) /;
-const eraTry = async (raw, rows, loose) => { if (IS_C || IS_W) return null; try { return await (await lazy('eras')).eraAnswer(raw, { rows, loose }); } catch (e) { console.error(e); return null; } };
+// WNBA answers come out of the same sentences as the NBA's: fix the league's name and the pronouns
+const herText = r => { if (!IS_W || !r) return r; const sw = t => String(t || '').replace(/\bNBA\b/g, 'WNBA').replace(/\bhimself\b/g, 'herself').replace(/\bhe\b/g, 'she').replace(/\bHe\b/g, 'She').replace(/\bhis\b/g, 'her').replace(/\bHis\b/g, 'Her').replace(/\bhim\b/g, 'her').replace(/\bSixth Man\b/g, 'Sixth Player'); return { ...r, text: sw(r.text), html: r.html ? r.html.replace(/>([^<]*)</g, (m, t) => `>${sw(t)}<`) : r.html }; };
+const eraTry = async (raw, rows, loose) => { if (IS_C) return null; try { return herText(await (await lazy('eras')).eraAnswer(raw, { rows, loose })); } catch (e) { if (!/HTTP 404/.test(String(e))) console.error(e); return null; } }; // a 404 is a season that has no file (before the league began)
 // this season's award race, as the side-by-side card ("MVP race", "who's winning Rookie of the Year")
 const NOW_AW = [['mvp', / (mvp|most valuable( player)?) /, 'MVP'], ['roy', / (roy|roty|rookie of the year) /, 'Rookie of the Year'], ['dpoy', / (dpoy|defensive player( of the year)?) /, 'Defensive Player of the Year'], ['smoy', / (6moy|smoy|sixth man( of the year)?|6th man( of the year)?) /, 'Sixth Man of the Year']];
 async function aAwardNow(kind, title, n, rows, past) {
@@ -518,7 +520,7 @@ async function aAwardNow(kind, title, n, rows, past) {
   if (!race?.list?.length) return { text: `It's too early to call the ${title} race. It fills in once players have a few games in.`, miss: true };
   const top = race.list.slice(0, 5);
   const html = await (await lazy('eras')).eraNowAward(title, kind, race, { rows, n }).catch(() => null);
-  const text = `${past ? 'Award history is NBA only for now, so here is this season. ' : ''}Fullcourt's ${title} ladder right now: ${top.slice(0, 3).map((x, i) => `${i ? '' : '<b>'}${i + 1}. ${esc(x.r.name)}${i ? '' : '</b>'}`).join(', ')}. It blends the media's rankings and betting odds with a stats model; the full race is on the Leaders page.`;
+  const text = `${past ? (IS_W ? 'I don\'t have award voting for that season (the WNBA began in 1997), so here is this season. ' : 'Award history is NBA only for now, so here is this season. ') : ''}Fullcourt's ${title} ladder right now: ${top.slice(0, 3).map((x, i) => `${i ? '' : '<b>'}${i + 1}. ${esc(x.r.name)}${i ? '' : '</b>'}`).join(', ')}. It blends the media's rankings and betting odds with a stats model; the full race is on the Leaders page.`;
   return { text, html: card((html || '') + top.map((x, i) => pRow(x.r, `#${i + 1}`, [x.r.abbr, x.rec, `${f1(x.r.pts)} / ${f1(x.r.reb)} / ${f1(x.r.ast)}`].filter(Boolean).join(' · '))).join('')), ctx: { pid: top[0].r.id } };
 }
 
@@ -537,7 +539,7 @@ async function answer(raw) {
   const nn = n.replace(/ plusminus /g, ' plus minus ');
   const has = re => re.test(nn);
   const rows = await leagueTable();
-  const eraHint = ERA_HINT.test(nn) || /'\d\d\b/.test(raw), histHint0 = !IS_C && !IS_W && HIST_HINT.test(nn);
+  const eraHint = ERA_HINT.test(nn) || /'\d\d\b/.test(raw), histHint0 = !IS_C && HIST_HINT.test(nn);
   const { teams: teamIds, rest } = findTeams(raw, nn);
   const teams = teamIds.map(id => S.teams[id]).filter(Boolean);
   const stat = parseStat(nn);
@@ -580,16 +582,16 @@ async function answer(raw) {
 
   // this season beyond the stat lines: bios, contracts, injuries, rosters, coaches, schedules, team rankings, odds, the draft, glossary
   const Q = { raw, nn, rows, players, teams, time, stat: st, topN, asc, conf, ctx: ASK.ctx, ui: { pRow, tRow, gRow, table }, f: { aTeamNext, lastNight }, findTeams: (r2, n2) => findTeams(r2, n2).teams.map(id => S.teams[id]).filter(Boolean) };
-  const histFollow = !IS_C && !IS_W && (ASK.ctx.hq || ASK.ctx.pid) && (/ (he|his|him|hes|that (year|season)|same (year|season)) /.test(nn) || (ASK.ctx.hq && /^\s*(and|what about|how about|ok and|same for|now)\b/i.test(raw)));
+  const histFollow = !IS_C && (ASK.ctx.hq || ASK.ctx.pid) && (/ (he|his|him|hes|that (year|season)|same (year|season)) /.test(nn) || (ASK.ctx.hq && /^\s*(and|what about|how about|ok and|same for|now)\b/i.test(raw)));
   // history: drafts, careers, accolades, champions, searches across every season, bios of retired players, franchises
-  if (histHint0 || eraHint || histFollow || (!IS_C && !IS_W && !players.length && HIST_BIO.test(nn))) { const r = await lazy('askhist').then(m => m.histAnswer(raw, Q)).catch(e => { console.warn('ask history', e); return null; }); if (r) return r; }
+  if (histHint0 || eraHint || histFollow || (!IS_C && !players.length && HIST_BIO.test(nn))) { const r = await lazy('askhist').then(m => m.histAnswer(raw, Q)).catch(e => { console.warn('ask history', e); return null; }); if (r) return herText(r); }
   if (eraHint) { const r = await eraTry(raw, rows, false); if (r) { const ys = [...new Set(raw.match(/\b(?:19|20)\d\d\b/g) || [])]; if (ys.length === 1) r.ctx = { ...(r.ctx || {}), y: +ys[0] }; return r; } }
   // the WNBA's champions, MVPs and career leaders; college has no history yet, so say so instead of answering about this season
   if ((IS_W || IS_C) && !players.length) {
     if (IS_W) { const r = await lazy('askhist').then(m => m.wnbaHist(raw, Q)).catch(() => null); if (r) return r; }
     const yOld = +(nn.match(/ ((?:19|20)\d\d) /)?.[1] || 0);
-    if ((yOld && yOld < +S.today.slice(0, 4) - 1) || (!teams.length && has(/ (all time|of all time|in history|most career|career leaders?|\d{4} draft|draft class|hall of fame) /)))
-      return { text: IS_W ? `For the WNBA's past I can answer champions, MVPs and career leaders (try "who won the 2020 Finals" or "most career points"). Season-by-season stats and drafts go back through history for the NBA only.` : `I only have this season for college basketball. History questions (past seasons, drafts, careers, champions) work in NBA mode.`, examples: true, miss: true };
+    if (IS_C && ((yOld && yOld < +S.today.slice(0, 4) - 1) || (!teams.length && has(/ (all time|of all time|in history|most career|career leaders?|\d{4} draft|draft class|hall of fame) /))))
+      return { text: IS_W ? '' : `I only have this season for college basketball. History questions (past seasons, drafts, careers, champions) work in NBA mode.`, examples: true, miss: true };
   }
   if (!has(/ (props?|prop bets?|best bets?|parlay|sgp) /)) { const r = await lazy('asknow').then(m => m.nowAnswer(Q)).catch(e => { console.warn('ask now', e); return null; }); if (r) return r; }
 
@@ -1123,8 +1125,92 @@ function examplesHTML() { return `<div class="ask-ex">${ASK_EXAMPLES.map(q => `<
 function askMsgHTML(m) {
   if (m.me) return m.img ? `<div class="msg me img"><img src="${m.img}" alt="Bet slip"></div>` : `<div class="msg me"><p>${esc(m.q).replace(/\n/g, '<br>')}</p></div>`;
   if (m.loading) return `<div class="msg bot loading"><p><span class="dots"><i></i><i></i><i></i></span> <span class="ld-t">${esc(m.loading === true ? 'Looking that up…' : m.loading)}</span></p></div>`;
-  return `<div class="msg bot${m.miss ? ' miss' : ''}"><p>${m.text}</p>${m.html || ''}${m.examples ? examplesHTML() : ''}${m.at ? `<div class="msg-meta">${esc(m.src || 'ESPN')} data · ${esc(m.at)}</div>` : ''}</div>`;
+  // any answer with a list, a table or a fact sheet can go out as a picture (the side-by-side cards have their own button)
+  const share = !m.miss && m.html && /class="(ask-tbl|ask-li|ask-facts)/.test(m.html) && !/data-ecshare/.test(m.html)
+    ? `<div class="ask-share"><button class="btn ghost" data-askshare>${SHARE_ICON}<span>${!isTouch && !!navigator.clipboard?.write && 'ClipboardItem' in window ? 'Copy as image' : 'Share as image'}</span></button></div>` : '';
+  return `<div class="msg bot${m.miss ? ' miss' : ''}"${m.q ? ` data-q="${esc(m.q)}"` : ''}><p>${m.text}</p>${m.html || ''}${share}${m.examples ? examplesHTML() : ''}${m.at ? `<div class="msg-meta">${esc(m.src || 'ESPN')} data · ${esc(m.at)}</div>` : ''}</div>`;
 }
+/* ---------------- an answer as a picture ---------------- */
+// what the picture holds, read off the answer as it is drawn: the question, the sentence, then its lists, tables and facts
+function answerSpec(el) {
+  const tx = n => (n?.innerText ?? n?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const q = el.dataset.q || '', blocks = [];
+  let list = null;
+  for (const n of el.querySelectorAll('.ask-facts, table.ask-tbl, .ask-li, .ask-sub')) {
+    if (n.closest('.ec')) continue;
+    if (n.matches('.ask-li')) { if (!list) blocks.push(list = { kind: 'list', rows: [] }); list.rows.push({ name: tx(n.querySelector('.nm b')), sub: tx(n.querySelector('.nm small')), v: tx(n.querySelector('.v')) }); continue; }
+    list = null;
+    if (n.matches('.ask-sub')) blocks.push({ kind: 'head', t: tx(n) });
+    else if (n.matches('.ask-facts')) blocks.push({ kind: 'facts', rows: [...n.querySelectorAll(':scope > div')].map(d => [tx(d.querySelector('dt')), tx(d.querySelector('dd'))]) });
+    else blocks.push({ kind: 'table', head: [...n.querySelectorAll('thead th')].map(tx), rows: [...n.querySelectorAll('tbody tr')].map(r => [...r.children].map(tx)) });
+  }
+  return { title: q ? q[0].toUpperCase() + q.slice(1) : 'Fullcourt', text: tx(el.querySelector(':scope > p')), blocks, src: (tx(el.querySelector('.msg-meta')).split(' data')[0] || 'ESPN') + ' data' };
+}
+async function answerImage(spec) {
+  const M = await lazy('share');
+  const MAXROWS = 14, W = 936, L = 72;
+  // plan the height first: a throwaway canvas for measuring
+  const K0 = await M.canvasKit(10);
+  const wrap = (K, t, f, max, lines) => { K.x.font = f; const out = []; let cur = ''; for (const w of String(t).split(' ')) { const nx = cur ? cur + ' ' + w : w; if (K.x.measureText(nx).width > max && cur) { out.push(cur); cur = w; } else cur = nx; } if (cur) out.push(cur); if (out.length > lines) { out.length = lines; out[lines - 1] = K.fit(out[lines - 1] + ' …', f, max); } return out; };
+  const fT = K0.font(800, 64), fA = K0.font(500, 30, 'body');
+  const tl = wrap(K0, spec.title, fT, W, 2), al = wrap(K0, spec.text, fA, W, 6);
+  let left = MAXROWS; const plan = [];
+  for (const b of spec.blocks) {
+    if (left <= 0) break;
+    if (b.kind === 'head') { plan.push({ ...b, h: 58 }); continue; }
+    const rows = b.rows.slice(0, left); left -= b.kind === 'facts' ? Math.ceil(rows.length / 2) : rows.length;
+    plan.push({ ...b, rows, more: b.rows.length - rows.length, h: (b.kind === 'list' ? rows.length * 88 : b.kind === 'facts' ? Math.ceil(rows.length / 2) * 98 : 52 + rows.length * 56) + (b.rows.length > rows.length ? 44 : 0) + 20 });
+  }
+  const top = 96 + tl.length * 70 + 18 + al.length * 42 + 34, bodyH = plan.reduce((a, b) => a + b.h, 0) + 28;
+  const H = top + bodyH + 160;
+  const K = await M.canvasKit(H), { x, C, font, text, fit } = K;
+  tl.forEach((t, i) => text(t, L, 150 + i * 70, fT, C.ink));
+  x.globalAlpha = 0.86; al.forEach((t, i) => text(t, L, 150 + (tl.length - 1) * 70 + 62 + i * 42, fA, C.ink)); x.globalAlpha = 1;
+  x.fillStyle = C.surface; M.roundRect(x, L, top, W, bodyH, 28); x.fill();
+  let y = top + 20; const pad = 28, IW = W - pad * 2, X0 = L + pad;
+  for (const b of plan) {
+    if (b.kind === 'head') { text(b.t.toUpperCase(), X0, y + 38, font(600, 22, 'mono'), C.accent); y += b.h; continue; }
+    if (b.kind === 'list') b.rows.forEach((r, i) => {
+      const by = y + i * 88, vw = r.v ? (x.font = font(800, 44), Math.min(360, x.measureText(r.v).width)) : 0;
+      if (i) { x.fillStyle = C.line; x.fillRect(X0, by, IW, 1); }
+      text(fit(r.name, font(600, 32, 'body'), IW - vw - 24), X0, by + (r.sub ? 40 : 54), font(600, 32, 'body'), C.ink);
+      if (r.sub) text(fit(r.sub, font(500, 20, 'mono'), IW - vw - 24), X0, by + 70, font(500, 20, 'mono'), C.muted);
+      if (r.v) text(fit(r.v, font(800, 44), 360), X0 + IW, by + 58, font(800, 44), C.ink, 'right');
+    });
+    else if (b.kind === 'facts') b.rows.forEach((r, i) => {
+      const cx = X0 + (i % 2) * (IW / 2), by = y + Math.floor(i / 2) * 98;
+      text(fit(r[0].toUpperCase(), font(500, 20, 'mono'), IW / 2 - 20), cx, by + 34, font(500, 20, 'mono'), C.muted);
+      text(fit(r[1], font(600, 30, 'body'), IW / 2 - 20), cx, by + 74, font(600, 30, 'body'), C.ink);
+    });
+    else {
+      // column widths: every column as wide as its widest cell, the first takes what is left
+      const n = Math.max(b.head.length, ...b.rows.map(r => r.length)), fB = font(500, 25, 'body'), fH = font(500, 19, 'mono');
+      const need = Array.from({ length: n }, (_, c) => { let w = 0; x.font = fB; for (const r of b.rows) w = Math.max(w, x.measureText(r[c] || '').width); x.font = fH; return Math.max(w, x.measureText((b.head[c] || '').toUpperCase()).width) + 26; });
+      // a text column (names, teams, results) reads from the left; numbers line up on the right
+      const leftCol = Array.from({ length: n }, (_, c) => c === 0 || b.rows.filter(r => /[a-z]{3}/i.test(r[c] || '')).length > b.rows.length / 2);
+      // spare width goes to the widest text column; when there isn't enough, the text columns give way and the numbers keep theirs
+      const total = need.reduce((a, v) => a + v, 0), txt = need.map((w, c) => (leftCol[c] && /[a-z]{3}/i.test(b.rows.map(r => r[c] || '').join(' ')) ? w : 0)), tsum = txt.reduce((a, v) => a + v, 0), cw = need.slice();
+      if (total <= IW) { const k = txt.indexOf(Math.max(...txt)); cw[tsum ? k : 0] += IW - total; }
+      else if (tsum) { const room = Math.max(IW - (total - tsum), IW * 0.35); for (let c = 0; c < n; c++) if (txt[c]) cw[c] = txt[c] * room / tsum; const t2 = cw.reduce((a, v) => a + v, 0); if (t2 > IW) for (let c = 0; c < n; c++) cw[c] *= IW / t2; }
+      else for (let c = 0; c < n; c++) cw[c] *= IW / total;
+      const colX = c => X0 + cw.slice(0, c).reduce((a, v) => a + v, 0);
+      const cell = (t, c, by, f, col) => (leftCol[c] ? text(fit(t, f, cw[c] - 14), colX(c) + (c ? 12 : 0), by, f, col) : text(fit(t, f, cw[c] - 10), colX(c) + cw[c], by, f, col, 'right'));
+      b.head.forEach((h, c) => cell(h.toUpperCase(), c, y + 34, fH, C.muted));
+      b.rows.forEach((r, i) => { const by = y + 52 + i * 56; x.fillStyle = C.line; x.fillRect(X0, by, IW, 1); r.forEach((t, c) => cell(t, c, by + 38, c ? fB : font(600, 25, 'body'), C.ink)); });
+    }
+    if (b.more > 0) text(`and ${b.more} more`, X0, y + b.h - 34, font(500, 20, 'mono'), C.muted);
+    y += b.h;
+  }
+  text(spec.src, 1008, H - 126, font(500, 19, 'mono'), C.muted, 'right');
+  K.foot();
+  return { canvas: K.c, name: `${nameKey(spec.title).replace(/ /g, '-').slice(0, 60) || 'fullcourt'}.png`, title: spec.title };
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-askshare]'); if (!b) return;
+  const el = b.closest('.msg.bot'); if (!el) return;
+  e.preventDefault(); e.stopPropagation();
+  runShare(() => answerImage(answerSpec(el)), b);
+});
 function renderAsk(scroll = true) {
   if (!askSheet?.alive) return;
   const log = $('.ask-log', askSheet.el);
@@ -1145,7 +1231,7 @@ async function ask(q) {
   }
   catch (e) { res = { text: "I couldn't reach the stats feed just now. Give it a moment and try again.", miss: true }; }
   ASK.log.pop();
-  ASK.log.push({ ...res, at: fmtTime(new Date().toISOString()) });
+  ASK.log.push({ ...res, q, at: fmtTime(new Date().toISOString()) });
   if (res.ctx) ASK.ctx = { ...res.ctx, time: res.ctx.time || null };
   ASK.log = ASK.log.slice(-40);
   ASK.busy = false;

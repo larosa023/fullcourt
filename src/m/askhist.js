@@ -3,7 +3,7 @@
    seasons"), bios of retired players, franchise history and the record book. The data is built weekly from
    Basketball-Reference (tools/eras.mjs, era-data branch). histAnswer() returns null when the question isn't one of
    these, and Ask carries on to its other answers. */
-const AH_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/era-data';
+const AH_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/era-data' + (IS_W ? '/wnba' : '');
 const ahP = {};
 const ahGet = (name, hours = 24) => ahP[name] || (ahP[name] = fetch(`${AH_URL}/${name}.json?t=${Math.floor(Date.now() / (hours * 3600e3))}`).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(e => { delete ahP[name]; throw e; }));
 const ahObj = (cols, r) => { const o = {}; for (let i = 0; i < cols.length; i++) o[cols[i]] = r[i]; return o; };
@@ -12,14 +12,16 @@ const ahOnce = (k, fn) => ahM[k] || (ahM[k] = fn().catch(e => { delete ahM[k]; t
 const ahSeasons = () => ahOnce('table', async () => { const d = await ahGet('table'); return { rows: d.rows.map(r => ahObj(d.cols, r)), games: d.games }; });
 const ahCareers = () => ahOnce('careers', async () => { const d = await ahGet('careers'); return new Map(d.players.map(r => [r[0], ahObj(d.cols, r)])); });
 const ahTeams = () => ahOnce('teams', async () => { const d = await ahGet('teams'); return d.rows.map(r => ahObj(d.cols, r)); });
-const ahBios = () => ahOnce('bio', async () => { const d = await ahGet('bio', 24 * 7); return new Map(d.players.map(r => [r[0], ahObj(d.cols, r)])); });
+const ahBios = () => ahOnce('bio', async () => { if (IS_W) return new Map(); const d = await ahGet('bio', 24 * 7); return new Map(d.players.map(r => [r[0], ahObj(d.cols, r)])); }); // no bios for the WNBA yet
 const ahDrafts = () => ahOnce('draft', async () => { const d = await ahGet('draft', 24 * 7); const by = new Map(); for (const [y, L] of Object.entries(d.years)) for (const r of L) { const o = { y: +y, ...ahObj(d.cols, r) }; if (o.id && !by.has(o.id)) by.set(o.id, o); } return { years: Object.fromEntries(Object.entries(d.years).map(([y, L]) => [y, L.map(r => ({ y: +y, ...ahObj(d.cols, r) }))])), by }; });
 const ahN = n => (n == null || !Number.isFinite(+n) ? '–' : Math.round(+n).toLocaleString('en-US'));
 const ahJoin = a => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a.at(-1)}`);
 const ahFt = inch => (inch ? `${Math.floor(inch / 12)}'${inch % 12}"` : '');
 const ahDate = iso => { const d = new Date(iso); return Number.isFinite(+d) ? d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : ''; };
-const ahSeason = y => `${y - 1}-${String(y).slice(2)}`;
+const ahSeason = y => (IS_W ? String(y) : `${y - 1}-${String(y).slice(2)}`);
 const ahPo = po => (!po ? 'missed the playoffs' : po === 'Champions' ? 'won the title' : /Tiebreaker/.test(po) ? 'missed the playoffs' : `lost in the ${po.replace(/^Lost /, '').replace(/ (Finals|Semifinals|First Round|Quarterfinals)$/, (m, w) => ` ${w === 'Finals' ? 'Finals' : w.toLowerCase()}`).replace(/^Finals$/, 'Finals')}`);
+// still playing: in this season's data (the WNBA's "current" season is next year's for half the year)
+const ahLive = (p, I) => !!p && p.y1 >= I.cur - (IS_W ? 1 : 0);
 const ahTimes = n => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
 
 // the stats history questions name. tot: the season/career total. rate: a per-game or percentage column in the seasons table
@@ -46,7 +48,7 @@ const ahStat = nn => AH_STATS.find(s => s.re.test(nn)) || null;
 const ahFmt = (s, v) => (v == null || !Number.isFinite(+v) ? '–' : s.pct ? `${(v * 100).toFixed(1)}%` : (+v).toFixed(s.dp ?? 0));
 const AH_AW = [
   { k: 'MVP', re: / (mvps?|most valuable( players?)?) /, name: 'MVP', plural: 'MVPs' }, { k: 'DPOY', re: / (dpoys?|dpoty|defensive players? of the year|defensive player) /, name: 'Defensive Player of the Year', plural: 'Defensive Player of the Year awards' },
-  { k: 'ROY', re: / (roy|roty|rookies? of the year) /, name: 'Rookie of the Year', plural: 'Rookie of the Year awards' }, { k: '6MOY', re: / (6moy|smoy|(sixth|6th) m[ae]n( of the year)?) /, name: 'Sixth Man of the Year', plural: 'Sixth Man awards' },
+  { k: 'ROY', re: / (roy|roty|rookies? of the year) /, name: 'Rookie of the Year', plural: 'Rookie of the Year awards' }, { k: '6MOY', re: / (6moy|smoy|(sixth|6th) (m[ae]n|woman|women|player)( of the year)?) /, name: IS_W ? 'Sixth Player of the Year' : 'Sixth Man of the Year', plural: IS_W ? 'Sixth Player awards' : 'Sixth Man awards' },
   { k: 'MIP', re: / (mip|most improved( players?)?) /, name: 'Most Improved Player', plural: 'Most Improved Player awards' }, { k: 'CPOY', re: / (cpoy|clutch players? of the year) /, name: 'Clutch Player of the Year', plural: 'Clutch Player awards' },
 ];
 const AH_POS = [[/ (centers?|big men|bigs) /, /C/, 'centers'], [/ (point guards?) /, /PG/, 'point guards'], [/ (shooting guards?) /, /SG/, 'shooting guards'], [/ (guards?) /, /G/, 'guards'], [/ (small forwards?) /, /SF/, 'small forwards'], [/ (power forwards?) /, /PF/, 'power forwards'], [/ (forwards?|wings?) /, /F/, 'forwards']];
@@ -169,9 +171,10 @@ function ahResume(c, X, id) {
 }
 async function ahCareer(X, Q) {
   const { nn, I } = X, has = re => re.test(nn), p = X.ps[0];
+  if (IS_W && has(/ all ?stars? /)) return { text: `I don't have WNBA All-Star rosters yet. I do have MVP and award voting, All-WNBA and All-Defensive teams, titles and career totals.`, ...X.out };
   const C = await ahCareers();
   const st = ahStat(nn), aw = AH_AW.find(a => a.re.test(nn));
-  const acc = has(/ (all ?stars?|all star (games?|selections?|appearances?|teams?)) /) ? ['AS', 'All-Star selections', 'an All-Star', 'All-Star teams'] : has(/ all nba /) ? ['NBA', 'All-NBA teams', 'All-NBA'] : has(/ (all defensive|all defense) /) ? ['DEF', 'All-Defensive teams', 'All-Defensive'] : aw ? [aw.k, aw.plural, aw.name] : null;
+  const acc = has(/ (all ?stars?|all star (games?|selections?|appearances?|teams?)) /) ? ['AS', 'All-Star selections', 'an All-Star', 'All-Star teams'] : has(/ all w?nba /) ? ['NBA', 'All-NBA teams', 'All-NBA'] : has(/ (all defensive|all defense) /) ? ['DEF', 'All-Defensive teams', 'All-Defensive'] : aw ? [aw.k, aw.plural, aw.name] : null;
   const rings = has(/ (rings?|championships?|titles?|champions?|chips?|won it all) /) && !has(/ (scoring|rebounding|assists?|steals?|blocks?) (titles?|champions?) /);
   const fmvp = has(/ finals mvps? /);
   const ldrK = has(/ scoring (titles?|champions?|crowns?) /) ? [0, 'scoring titles', 'pts'] : has(/ (rebounding|rebound) (titles?|champions?|crowns?) /) ? [1, 'rebounding titles', 'trb'] : has(/ assists? (titles?|champions?|crowns?) /) ? [2, 'assists titles', 'ast'] : has(/ steals? (titles?|champions?) /) ? [3, 'steals titles', 'stl'] : has(/ blocks? (titles?|champions?) /) ? [4, 'blocks titles', 'blk'] : null;
@@ -205,7 +208,7 @@ async function ahCareer(X, Q) {
       const v = post ? { ptsT: c.pptsT, trbT: c.ptrbT, astT: c.pastT, g: c.pg }[st.tot] : c[st.tot];
       if (v == null) return null;
       const cov = !post && c.cov?.[st.tot]; if (cov === 0) return { text: `${st.word[0].toUpperCase() + st.word.slice(1)} weren't recorded during ${esc(p.name)}'s career.`, ...X.out };
-      const live = p.y1 >= I.cur, nowRow = live && !post ? Q.players?.[0] : null, nowTot = nowRow?.tot?.[{ ptsT: 'pts', trbT: 'reb', astT: 'ast', stlT: 'stl', blkT: 'blk', tpT: 'tpm', tdT: 'td' }[st.tot]];
+      const live = ahLive(p, I), nowRow = live && !post ? Q.players?.[0] : null, nowTot = nowRow?.tot?.[{ ptsT: 'pts', trbT: 'reb', astT: 'ast', stlT: 'stl', blkT: 'blk', tpT: 'tpm', tdT: 'td' }[st.tot]];
       return { text: `${esc(p.name)} ${live ? 'has' : 'finished with'} <b>${ahN(v)} ${post ? 'playoff ' : live ? 'career ' : ''}${st.k === 'g' ? 'games' : st.word}</b>${Number.isFinite(nowTot) ? ` (${ahN(nowTot)} this season)` : ''} in ${post ? `${ahN(c.pg)} playoff games` : `${ahN(c.g)} regular-season games`}${st.k !== 'g' && st.k !== 'td' && (post ? c.pg : c.g) ? ` (${(v / (post ? c.pg : c.g)).toFixed(1)} a game)` : ''}.${cov ? ` (Recorded for ${cov}% of his games.)` : ''}${live ? ' Totals update weekly.' : ''}`,
         html: card(ahRow(p, ahN(v), `Career ${st.word}${post ? ', playoffs' : ''}`, X)), ...X.out };
     }
@@ -257,7 +260,7 @@ async function ahCareer(X, Q) {
       const hk = { ptsT: 'pts', trbT: 'trb', astT: 'ast', stlT: 'stl', blkT: 'blk', tpT: 'fg3', g: 'g' }[st.tot], HL = !post && hk && X.Hd?.leaders?.[hk];
       const L = (HL ? HL.map(x => ({ p: ahP1(I, x.id, x.name), v: x.v })) : [...C].map(([id, c]) => ({ p: I.byId.get(id), v: c[key] })).filter(x => x.p && x.v > 0).sort((a, b) => b.v - a.v)).slice(0, Q.topN || 10);
       const f = v => (st.k === 'ws' ? v.toFixed(1) : ahN(v));
-      return { text: `${esc(L[0].p.name)} is the all-time ${post ? 'playoff ' : ''}leader in ${st.k === 'g' ? 'games played' : st.word} with <b>${f(L[0].v)}</b>. Next: ${ahJoin(L.slice(1, 3).map(x => `${esc(x.p.name)} (${f(x.v)})`))}.`, html: card(L.map((x, i) => ahRow(x.p, f(x.v), `#${i + 1}${x.p.y1 >= I.cur ? ' · active' : ''}`, X)).join('')), ...X.out };
+      return { text: `${esc(L[0].p.name)} is the all-time ${post ? 'playoff ' : ''}leader in ${st.k === 'g' ? 'games played' : st.word} with <b>${f(L[0].v)}</b>. Next: ${ahJoin(L.slice(1, 3).map(x => `${esc(x.p.name)} (${f(x.v)})`))}.`, html: card(L.map((x, i) => ahRow(x.p, f(x.v), `#${i + 1}${ahLive(x.p, I) ? ' · active' : ''}`, X)).join('')), ...X.out };
     }
   }
   return null;
@@ -267,9 +270,10 @@ async function ahCareer(X, Q) {
 async function ahHonors(X, Q) {
   const { nn, I } = X, has = re => re.test(nn);
   const AW = (await ahGet('awards')).years;
-  const team = has(/ all nba /) ? ['NBA', 'All-NBA'] : has(/ (all defensive|all defense) /) ? ['DEF', 'All-Defensive'] : has(/ (all ?stars?|all star (game|team|roster)s?) /) && !has(/ (most|how many) /) ? ['AS', 'All-Star'] : null;
+  const team = has(/ all w?nba /) ? ['NBA', 'All-NBA'] : has(/ (all defensive|all defense) /) ? ['DEF', 'All-Defensive'] : has(/ (all ?stars?|all star (game|team|roster)s?) /) && !has(/ (most|how many) /) ? ['AS', 'All-Star'] : null;
   if (team && X.y && !X.ps.length) {
     const A = AW[X.y]; if (!A) return null;
+    if (IS_W && team[0] === 'AS') return { text: `I don't have WNBA All-Star rosters yet.`, ...X.out };
     const nm = id => I.byId.get(id) || ahP1(I, id);
     if (team[0] === 'AS') {
       const L = (A.AS || []).map(nm).sort((a, b) => b.score - a.score); if (!L.length) return { text: `There was no All-Star Game in ${ahSeason(X.y)}, or I don't have its rosters.`, ...X.out };
@@ -375,7 +379,7 @@ async function ahTitles(X, Q) {
   // league-wide
   if (has(/ (most|how many) /) && (has(/ (teams?|franchises?|organizations?) /) || (has(/ (who has|which|who) /) && !has(/ (rings?|players?) /))) && has(/ (titles?|championships?|rings?|banners?) /)) {
     const by = new Map(); for (const r of TM) if (r.po === 'Champions') { const k = X.E.eraAbbr(r.ab); by.set(k, (by.get(k) || []).concat(r.y)); }
-    const L = [...by].sort((a, b) => b[1].length - a[1].length).slice(0, 10), nm = k => Object.values(S.teams).find(t => t.abbr === k) || { abbr: k, name: k, id: '' };
+    const L = [...by].sort((a, b) => b[1].length - a[1].length || Math.max(...b[1]) - Math.max(...a[1])).slice(0, 10), nm = k => Object.values(S.teams).find(t => t.abbr === k) || (n => ({ abbr: k, name: n, short: ahNick(n), id: '' }))(TM.filter(r => X.E.eraAbbr(r.ab) === k).at(-1)?.name || k);
     return { text: `The ${esc(nm(L[0][0]).short || nm(L[0][0]).name)} have the most championships with <b>${L[0][1].length}</b>, then the ${esc(nm(L[1][0]).short || nm(L[1][0]).name)} (${L[1][1].length}) and the ${esc(nm(L[2][0]).short || nm(L[2][0]).name)} (${L[2][1].length}).`, html: card(L.map(([k, ys]) => Q.ui.tRow(nm(k), ys.length, `Last: ${Math.max(...ys)}`)).join('')), ...X.out };
   }
   if (has(/ (list|every|all|recent|last (\d+|few|five|ten)|champions by year|past champions|defending|reigning|who won the (title|championship|finals)|last year s|last season s) /) && has(/ (champions?|champs?|finals|titles?|championships?) /)) {
@@ -413,6 +417,7 @@ async function ahSearch(X, Q) {
   const superl = has(/ (best|greatest|top|highest|most|record|leaders?|lowest|fewest|worst) /);
   const seasonish = has(/ (seasons?|years?|ever|all time|in (nba )?history|of all time|single season|averag\w*|per game) /) || X.decade || rookie || ageM || over || under || teen || pos;
   const count = has(/ (how many|number of|count) /);
+  if (IS_W && (ageM || over || under || teen || young || old)) return (C || superl || X.y) ? { text: `Players' ages aren't in the WNBA history data yet, so I can't answer by age. Everything else works: "players who averaged 20 and 10", "best rookie seasons", "highest PER ever".`, ...X.out } : null;
   const F = (X.ps.length || !has(/ (for the|by a|in .* history|franchise|team) /)) ? null : await ahFranchise(Q, X).catch(() => null);
   // one season in particular: every player that year, straight from the season's file
   const pre = [];
@@ -440,7 +445,7 @@ async function ahSearch(X, Q) {
   const y0 = id => I.byId.get(id)?.y0;
   let L = rows;
   if (X.decade) L = L.filter(r => r.y > X.decade && r.y <= X.decade + 10);
-  if (rookie) L = L.filter(r => y0(r.id) === r.y);
+  if (rookie) L = L.filter(r => y0(r.id) === r.y && r.y > I.first); // in the league's first season everyone was new
   if (teen) L = L.filter(r => r.age != null && r.age <= 19);
   if (ageM) L = L.filter(r => r.age === +ageM[1]);
   if (over) L = L.filter(r => r.age >= +over[1]);
@@ -529,10 +534,11 @@ async function ahBio(X, Q) {
     rookie: has(/ (rookie (year|season)|first (season|year|game)|debut\w*|enter(ed)? the (league|nba)|come into the league|start(ed)? playing) /) && !has(/ (stats|averag\w*|points|numbers) /), seasons: has(/ how (many|long) .*(seasons|years|play|career|league) | (how long|career length|years in the league) /),
     died: has(/ (die[ds]?|death|passed away|alive|dead) /) };
   if (!Object.values(wants).some(Boolean)) return null;
-  if (p.y1 >= I.cur && !X.y && !(wants.teams || wants.retire || wants.seasons || wants.rookie || wants.hof) && Q.players.length) return null; // an active player's height, age, college: the live feed has those
+  if (IS_W && !Q.players.length && (wants.height || wants.weight || wants.born || wants.age || wants.pos || wants.hof || wants.died) && !(wants.teams || wants.retire || wants.seasons || wants.rookie || wants.college)) return { text: `I don't have heights, birth dates or Hall of Fame status for past WNBA players yet. I can tell you ${esc(p.name)}'s teams, seasons, college, draft pick, awards and career numbers.`, ...X.out };
+  if (ahLive(p, I) && !X.y && !(wants.teams || wants.retire || wants.seasons || wants.rookie || wants.hof) && Q.players.length) return null; // an active player's height, age, college: the live feed has those
   const [B, C] = await Promise.all([ahBios(), ahCareers()]);
   const b = B.get(p.id) || {}, c = C.get(p.id), L = X.Hd?.legends?.[p.id];
-  const live = p.y1 >= I.cur, was = live ? 'is' : 'was';
+  const live = ahLive(p, I), was = live ? 'is' : 'was';
   const teams = String(c?.teams || '').split(';').filter(Boolean).map(s => { const [ab, ys] = s.split(':'); return { ab, ys, n: ys.split(',').reduce((a, r) => { const [x, y] = r.split('-').map(Number); return a + (y ? y - x + 1 : 1); }, 0) }; });
   const TMn = async ab => { const TM = await ahTeams(); return ahNick(TM.filter(r => r.ab === ab).at(-1)?.name || ab); };
   const span = ys => ys.split(',').map(r => { const [x, y] = r.split('-').map(Number); return y ? `${x - 1}-${String(y).slice(2)}` : ahSeason(x); }).join(', ');
@@ -541,11 +547,13 @@ async function ahBio(X, Q) {
   if (wants.age && X.y) { const Sn = await X.E.eraSeason(X.y).catch(() => null), r = Sn?.byId.get(p.id); text = r?.age != null ? `${esc(p.name)} was <b>${r.age}</b> in the ${ahSeason(X.y)} season${b.born ? ` (born ${esc(ahDate(b.born))})` : ''}.` : b.born ? `${esc(p.name)} was born ${esc(ahDate(b.born))}, so about ${X.y - +b.born.slice(0, 4) - 1} in ${ahSeason(X.y)}. He didn't play that season.` : ''; }
   else if (wants.teams && X.y) { const Sn = await X.E.eraSeason(X.y).catch(() => null), r = Sn?.byId.get(p.id); if (r) { const T = String(r.tm).split('/'); text = `${esc(p.name)} played for the <b>${ahJoin(await Promise.all(T.map(async ab => esc(Sn.teams[ab]?.[0] || await TMn(ab)))))}</b> in ${ahSeason(X.y)}${T.length > 1 ? ' (traded during the season)' : ''}: ${r.pts?.toFixed(1)} points in ${r.g} games.`; } else text = `${esc(p.name)} didn't play in ${ahSeason(X.y)}. His career ran from ${ahSeason(p.y0)} to ${ahSeason(p.y1)}.`; }
   else if (wants.teams && teams.length) { const nm = await Promise.all(teams.map(async t => `the ${esc(await TMn(t.ab))} (${span(t.ys)})`)); text = `${esc(p.name)} ${live ? 'has played' : 'played'} for <b>${teams.length} team${teams.length > 1 ? 's' : ''}</b>: ${ahJoin(nm)}.`; }
-  else if (wants.hof) text = b.hof ? `Yes. ${esc(p.name)} is in the Hall of Fame${L?.hof ? ` (inducted ${esc(String(L.hof))})` : ''}.` : live || p.y1 >= I.cur - 4 ? `Not yet. ${esc(p.name)} ${live ? 'is still playing' : `last played in ${ahSeason(p.y1)}`}, and players have to be retired for several seasons before they are eligible.` : `No. ${esc(p.name)} isn't in the Hall of Fame as a player.`;
+  else if (wants.hof) text = b.hof ? `Yes. ${esc(p.name)} is in the Hall of Fame${L?.hof ? ` (inducted ${esc(String(L.hof))})` : ''}.` : live || ahLive(p, I) - 4 ? `Not yet. ${esc(p.name)} ${live ? 'is still playing' : `last played in ${ahSeason(p.y1)}`}, and players have to be retired for several seasons before they are eligible.` : `No. ${esc(p.name)} isn't in the Hall of Fame as a player.`;
   else if (wants.height && b.height) text = `${esc(p.name)} ${was} <b>${ahFt(b.height)}</b>${b.weight ? ` and ${b.weight} pounds` : ''}.`;
   else if (wants.weight && b.weight) text = `${esc(p.name)} ${was} listed at <b>${b.weight} pounds</b>${b.height ? ` (${ahFt(b.height)})` : ''}.`;
   else if (wants.died && L) text = L.died ? `${esc(p.name)} died ${esc(/^\d{4}-\d\d-\d\d$/.test(L.died) ? ahDate(L.died) : L.died)}${b.born ? ` (born ${esc(ahDate(b.born))})` : ''}.` : `${esc(p.name)} is alive${b.born ? `, born ${esc(ahDate(b.born))}` : ''}.`;
   else if ((wants.born || wants.age) && b.born) { const age = Math.floor((Date.now() - Date.parse(b.born)) / (365.2425 * 864e5)); text = `${esc(p.name)} was born <b>${esc(ahDate(b.born))}</b>${L?.died ? '' : ` (${age} now)`}.${has(/ where /) ? ' I have his birth date but not his birthplace.' : ''}`; }
+  else if (wants.college && !b.college && (await ahDrafts().catch(() => null))?.by.get(p.id)?.college) text = `${esc(p.name)} went to <b>${esc((await ahDrafts()).by.get(p.id).college)}</b>.`;
+  else if (wants.college && IS_W) text = '';
   else if (wants.college) text = b.college ? `${esc(p.name)} went to <b>${esc(b.college)}</b>.` : `${esc(p.name)} didn't play college basketball in the U.S.${L?.draft ? ` (${esc(L.draft)})` : ''}`;
   else if (wants.pos && b.pos) { const P = { G: 'guard', F: 'forward', C: 'center', 'G-F': 'guard and forward', 'F-G': 'forward and guard', 'F-C': 'forward and center', 'C-F': 'center and forward' }[b.pos] || b.pos; text = `${esc(p.name)} ${was} a <b>${P}</b>${b.height ? `, ${ahFt(b.height)}` : ''}.`; }
   else if (wants.retire) text = (has(/ still /) && !live ? 'No. ' : '') + (live ? `${esc(p.name)} is still playing: this is season ${c?.n || ''} of his career, which began in ${ahSeason(p.y0)}.` : `${esc(p.name)}'s last season was <b>${ahSeason(p.y1)}</b>${teams.length ? ` with the ${esc(await TMn(teams.at(-1).ab))}` : ''}, after ${c?.n || p.y1 - p.y0 + 1} seasons.`);
@@ -616,6 +624,7 @@ async function ahTeamHist(X, Q) {
 /* ---------------- the record book, the league through time, and the big argument ---------------- */
 async function ahMisc(X, Q) {
   const { nn, I } = X, has = re => re.test(nn);
+  if (IS_W) return null; // the record book and league averages here are the NBA's
   if (has(/ in a (single )?game | single game | game record | one game | in one night /) && has(/ (most|record|highest|ever|who scored|who had|all time) /) && !X.ps.length && !has(/ (this season|this year|last night|tonight|playoffs?) /)) {
     const g = AH_GAME.find(([re]) => re.test(nn)); if (!g) return null;
     const p = I.byId.get(g[3]);
@@ -625,7 +634,7 @@ async function ahMisc(X, Q) {
   if (has(/ (who scored|scored) (100|a hundred|one hundred) /) || has(/ 100 point game /)) { const p = I.byId.get('chambwi01'); return { text: AH_GAME[0][2], html: p ? card(ahRow(p, '100', 'March 2, 1962', X)) : '', ...X.out }; }
   if (has(/ (goat|greatest of all time|greatest player|best player (ever|of all time|in (nba )?history)|greatest ever|best ever) /) && !X.ps[1]) {
     const C = await ahCareers(), ids = ['jordami01', 'jamesle01', 'abdulka01'], ps = ids.map(id => I.byId.get(id)).filter(Boolean);
-    const cols = await Promise.all(ps.map(p => X.E.eraCol(p, null, X, `${ahSeason(p.y0).slice(0, 4)} to ${p.y1 >= I.cur ? 'now' : p.y1}`, '')));
+    const cols = await Promise.all(ps.map(p => X.E.eraCol(p, null, X, `${ahSeason(p.y0).slice(0, 4)} to ${ahLive(p, I) ? 'now' : p.y1}`, '')));
     const c = id => C.get(id), row = (lab, f) => ({ lab, vals: ids.map(id => f(c(id), id)) });
     const spec = { title: 'The usual three', sub: 'Career · regular season', cols, rows: [row('PTS', x => (x.ptsT / x.g).toFixed(1)), row('REB', x => (x.trbT / x.g).toFixed(1)), row('AST', x => (x.astT / x.g).toFixed(1)), row('Titles', x => String(x.rings.length)), row('MVPs', x => String(x.aw.MVP || 0)), row('All-NBA', x => String(ahAwCount(x, 'NBA')))] };
     return { text: `That one is an argument, not a stat. The names it usually comes down to are <b>Michael Jordan</b> (6 titles in 6 Finals, 10 scoring titles), <b>LeBron James</b> (the all-time leading scorer, 4 titles, the longest prime) and <b>Kareem Abdul-Jabbar</b> (6 MVPs, the most ever). Here is the case in numbers; ask me to compare any two.`, html: card(X.E.ecHTML(spec)), ...X.out };
@@ -689,7 +698,7 @@ async function wnbaHist(raw, Q) {
 
 /* ---------------- the router ---------------- */
 async function histAnswer(raw, Q) {
-  if (IS_C || IS_W) return null;
+  if (IS_C) return null;
   const E = await lazy('eras');
   let I; try { I = await E.eraIndex(); } catch (e) { return null; }
   // a follow-up to the last history answer: "what about 1999?", "and Kobe?"

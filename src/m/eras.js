@@ -6,7 +6,7 @@
      index.json           every player who has appeared (name, first and last season, a career-size number, ESPN id)
      top.json             the best single seasons ever by stat
    A season is named by the year it ended: 1962 is 1961-62. NBA only. */
-const ERA_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/era-data';
+const ERA_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/era-data' + (IS_W ? '/wnba' : ''); // the WNBA's files sit in their own folder
 const eraFetch = (path, hours) => fetch(`${ERA_URL}/${path}?t=${Math.floor(Date.now() / (hours * 3600e3))}`).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 let eraIdxP = null, eraTopP = null;
 const eraSeasonP = new Map();
@@ -46,10 +46,10 @@ const eraTop = () => eraTopP || (eraTopP = eraFetch('top.json', 24).catch(e => {
 const eraAwText = aw => String(aw || '').split(',').map(t => t.trim()).filter(Boolean).map(t => {
   let m = t.match(/^(MVP|ROY|DPOY|6MOY|MIP|CPOY)-(\d+)$/); if (m) return +m[2] === 1 ? m[1] : `${m[1]} ${eraOrd(+m[2])}`;
   if (t === 'AS') return 'All-Star';
-  m = t.match(/^(NBA|DEF)(\d)$/); if (m) return `${m[1] === 'NBA' ? 'All-NBA' : 'All-Defense'} ${eraOrd(+m[2])}`;
+  m = t.match(/^(NBA|DEF)(\d)$/); if (m) return `${m[1] === 'NBA' ? (IS_W ? 'All-WNBA' : 'All-NBA') : 'All-Defense'} ${eraOrd(+m[2])}`;
   return t;
 }).join(', ');
-const eraLabel = y => `${y - 1}-${String(y).slice(2)}`;
+const eraLabel = y => (IS_W ? String(y) : `${y - 1}-${String(y).slice(2)}`); // a WNBA season sits inside one year
 const eraOrd = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 const eraQual = (S, r) => (r.g || 0) >= 0.7 * S.maxG;
 // one number for "how good was this season" (to pick a player's best year)
@@ -93,6 +93,7 @@ const ERA_ALIAS = { shaq: 'onealsh01', mj: 'jordami01', magic: 'johnsma02', 'dr 
   dwight: 'howardw01', blake: 'griffbl01', boogie: 'couside01', nique: 'wilkido01', mamba: 'bryanko01', 'black mamba': 'bryanko01', ad: 'davisan02', pg13: 'georgpa01', pistol: 'maravpe01', 'the joker': 'jokicni01', jokic: 'jokicni01', luka: 'doncilu01', giannis: 'antetgi01' };
 
 // every season the text names, each with where it sits in the text
+if (IS_W) for (const k of Object.keys(ERA_ALIAS)) delete ERA_ALIAS[k]; // those are NBA nicknames
 function eraYears(t, cur) {
   const out = [];
   const ok = y => y >= 1947 && y <= cur;
@@ -149,7 +150,9 @@ function eraFindPlayers(text, I, yearHint) {
 // franchises that have moved or renamed, for a team colour
 const ERA_FR = { PHW: 'GS', SFW: 'GS', GSW: 'GS', MNL: 'LAL', SEA: 'OKC', NJN: 'BKN', NYN: 'BKN', CIN: 'SAC', KCK: 'SAC', KCO: 'SAC', ROC: 'SAC', STL: 'ATL', MLH: 'ATL', TRI: 'ATL', SYR: 'PHI', FTW: 'DET', BAL: 'WSH', CAP: 'WSH', WSB: 'WSH', CHZ: 'WSH', CHP: 'WSH',
   SDR: 'HOU', BUF: 'LAC', SDC: 'LAC', NOJ: 'UTAH', VAN: 'MEM', NOH: 'NO', NOK: 'NO', CHH: 'CHA', CHA: 'CHA', CHO: 'CHA', BRK: 'BKN', NOP: 'NO', NYK: 'NY', PHO: 'PHX', SAS: 'SA', UTA: 'UTAH', WAS: 'WSH' };
-const eraAbbr = tm => { const a = String(tm || '').split('/').pop(); return IS_C || IS_W ? a : ERA_FR[a] || a; };
+// WNBA franchises that moved or were renamed, as ESPN's abbreviation for where they are now
+const ERA_FR_W = { NYL: 'NY', LAS: 'LA', LVA: 'LV', SAS: 'LV', UTA: 'LV', PHO: 'PHX', WAS: 'WSH', TUL: 'DAL', DET: 'DAL', GSV: 'GS' };
+const eraAbbr = tm => { const a = String(tm || '').split('/').pop(); return IS_C ? a : IS_W ? ERA_FR_W[a] || a : ERA_FR[a] || a; };
 const eraLum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; };
 // teams whose old look was nothing like their franchise's current one
 const ERA_OLD_COLOR = { SEA: '#00653A', VAN: '#00B2A9', CHH: '#00788C', NJN: '#002A60', NYN: '#002A60', WSB: '#E31837', BAL: '#E31837', CAP: '#E31837', SDC: '#5091CD', BUF: '#5091CD', NOJ: '#4F2683' };
@@ -167,7 +170,7 @@ async function eraEspnLookup(p) {
   let id = null;
   try {
     const d = await getJSON(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(deaccent(p.name))}&limit=6&type=player`, { retries: 0, timeout: 6000 });
-    const hit = (d.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === 'NBA' && eraFold(c.displayName) === p.key);
+    const hit = (d.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === (IS_W ? 'WNBA' : 'NBA') && eraFold(c.displayName) === p.key);
     id = hit?.uid?.match(/a:(\d+)/)?.[1] || null;
   } catch (e) {}
   eraEspnCache.set(p.id, id);
@@ -542,7 +545,7 @@ async function eraAnswer(raw, opts = {}) {
 }
 // this season's players side by side, in the same card (Ask's "Luka vs Ant")
 async function eraNowCard(names, opts = {}) {
-  const nba = !IS_C && !IS_W; // the WNBA and college have no era files: their cards are built from the live table alone
+  const nba = !IS_C; // college has no era files: its cards are built from the live table alone
   const I = nba ? await eraIndex() : { cur: 0, byKey: new Map() };
   const [H] = await Promise.all([nba ? lazy('history').catch(() => null) : null, ensureTeamColors()]);
   const X = { I, H, Hd: H ? await H.loadHist().catch(() => null) : null, rows: opts.rows || [] };
@@ -558,7 +561,7 @@ async function eraNowCard(names, opts = {}) {
 }
 // this season's award race (Ask's "MVP race" with no year): the top of Fullcourt's ladder in the same card
 async function eraNowAward(title, kind, race, opts = {}) {
-  const nba = !IS_C && !IS_W;
+  const nba = !IS_C;
   const I = nba ? await eraIndex().catch(() => null) : { cur: 0, byKey: new Map() }; if (!I) return null;
   const [H] = await Promise.all([nba ? lazy('history').catch(() => null) : null, ensureTeamColors()]);
   const X = { I, H, Hd: H ? await H.loadHist().catch(() => null) : null, rows: opts.rows || [] };
