@@ -20,7 +20,8 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 const VER = 2;
 const UA = 'Mozilla/5.0 (compatible; fullcourt-history/1.0; weekly; +https://github.com/larosa023/fullcourt)';
 const BR = 'https://www.basketball-reference.com';
-const out = process.argv[2] || 'pub';
+const WN = process.env.ERA_LG === 'wnba'; // the WNBA's files go in a wnba/ folder beside the NBA's
+const out = (process.argv[2] || 'pub') + (WN ? '/wnba' : '');
 const LOCAL = process.env.ERA_PAGES || ''; // testing: read saved pages from this folder instead of the network
 const ONLY = process.env.ERA_YEARS ? new Set(process.env.ERA_YEARS.split(',').map(Number)) : null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -38,6 +39,7 @@ async function get(url, json = false) {
   return null;
 }
 const localFile = url => {
+  if (WN) { const m = url.match(/\/wnba\/years\/(\d{4})(?:_(per_game|totals|advanced))?\.html$/) || url.match(/\/wnba\/(awards)\/awards_(\d{4})\.html$/) || url.match(/\/wnba\/(draft)\/(\d{4})\.html$/); const n = /all_defense/.test(url) ? 'w_all_defense' : !m ? '' : m[1] === 'awards' ? `w_awards_${m[2]}` : m[1] === 'draft' ? `w_draft_${m[2]}` : `w_${{ per_game: 'pergame', totals: 'totals', advanced: 'adv' }[m[2]] || 'sum'}_${m[1]}`; const f = `${LOCAL}/${n}.html`; return n && existsSync(f) ? readFileSync(f, 'utf8') : null; }
   const m = url.match(/_(\d{4})_(totals|advanced|per_game)\.html$/) || url.match(/\/(leagues)\/[A-Z]+_(\d{4})\.html$/) || url.match(/\/(draft)\/[A-Z]+_(\d{4})\.html$/) || url.match(/\/(players)\/([a-z])\/$/);
   const name = !m ? (/stats_per_game/.test(url) ? 'lgavg' : '') : m[1] === 'leagues' ? `league_${m[2]}` : m[1] === 'draft' ? `draft_${m[2]}` : m[1] === 'players' ? `players_${m[2]}` : `${{ totals: 'totals', advanced: 'adv', per_game: 'pergame' }[m[2]]}_${m[1]}`;
   const f = `${LOCAL}/${name}.html`;
@@ -138,33 +140,82 @@ async function season(y, old) {
     tcols: TK, teams: Object.fromEntries(Object.entries(teams).map(([ab, t]) => [ab, TK.map(k => t[k] ?? null)])), po };
 }
 
-const now = new Date(), CUR = now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear(); // the season under way (or about to start in October)
+/* ---------------- the WNBA: the same season file from its own pages ---------------- */
+const widOf = r => r.match(/\/wnba\/players\/[a-z]\/([a-z0-9]+)\.html/)?.[1] || null;
+const W_SRC = { ...SRC, g: 'g', gs: 'gs' }, W_TOT = { ...TOT, tdT: 'tpl_dbl' }, W_ADV = { per: 'per', ts: 'ts_pct', usg: 'usg_pct', ws: 'ws', ws48: 'ws_per_40', bpm: 'bpm', vorp: 'vorp' };
+function wExtra(table, MAP) { const byId = new Map(); for (const r of rowsOf(table.slice(Math.max(0, table.indexOf('<tbody'))))) { const id = widOf(r); if (!id || byId.has(id)) continue; const c = cells(r); byId.set(id, Object.values(MAP).map(k => num(c[k]))); } return byId; }
+let wDef = null; // All-Defensive teams for every year come on one page
+async function seasonW(y) {
+  const html = await brGet(`/wnba/years/${y}_per_game.html`); if (!html) return null;
+  const byId = new Map();
+  for (const r of rowsOf(tableOf(html, 'per_game').replace(/^[\s\S]*?<tbody/, '<tbody'))) {
+    const id = widOf(r); if (!id) continue;
+    const c = cells(r), tm = strip(c.team), prev = byId.get(id);
+    if (prev) { if (tm && tm !== 'TOT') prev.teams.push(tm); continue; }
+    const row = { id, name: strip(c.player).replace(/<\/?\w*$/, '').replace(/\*$/, '').trim(), tm, teams: [], pos: strip(c.pos), aw: '' };
+    for (const [k, k2] of Object.entries(W_SRC)) row[k] = num(c[k2]);
+    byId.set(id, row);
+  }
+  if (byId.size < 30) throw new Error(`WNBA ${y}: only ${byId.size} players parsed`);
+  const tot = await brGet(`/wnba/years/${y}_totals.html`), adv = await brGet(`/wnba/years/${y}_advanced.html`);
+  if (!tot || !adv) throw new Error(`WNBA ${y}: totals or advanced page missing`);
+  const T = wExtra(tableOf(tot, 'totals'), W_TOT), A = wExtra(tableOf(adv, 'advanced'), W_ADV);
+  if (T.size < 30 || A.size < 30) throw new Error(`WNBA ${y}: totals ${T.size}, advanced ${A.size} players parsed`);
+  // award voting (and the ages it lists), the All-WNBA teams, the All-Defensive teams
+  const aw = new Map(), age = new Map(), tag = (id, t) => id && aw.set(id, (aw.get(id) || []).concat(t));
+  const awp = await brGet(`/wnba/awards/awards_${y}.html`);
+  if (awp) {
+    for (const [tid, K] of [['mvp', 'MVP'], ['roy', 'ROY'], ['dpoy', 'DPOY'], ['swoy', '6MOY'], ['mip', 'MIP']]) for (const r of rowsOf(tableOf(awp, tid))) { const id = widOf(r), c = cells(r), rk = parseInt(strip(c.rank), 10); if (id && rk) { tag(id, `${K}-${rk}`); const a = num(c.wnba_age ?? c.age); if (a) age.set(id, a); } }
+    for (const r of rowsOf(tableOf(awp, 'all_wnba'))) { const id = widOf(r), c = cells(r), n = parseInt(strip(c.all_wnba_team), 10); if (id && n) { tag(id, `NBA${n}`); const a = num(c.age ?? c.wnba_age); if (a) age.set(id, a); } }
+  } else console.log('WNBA', y, 'no awards page');
+  if (wDef === null) { wDef = {}; const d = await brGet('/wnba/awards/all_defense.html'); for (const r of rowsOf(tableOf(d || '', 'all-defensive'))) { const id = widOf(r), c = cells(r), yy = parseInt(strip(c.year_id), 10), n = parseInt(strip(c.award_team), 10); if (id && yy && n) (wDef[yy] = wDef[yy] || []).push([id, `DEF${n}`]); } }
+  for (const [id, t] of wDef[y] || []) tag(id, t);
+  const reg = [...byId.values()].map(p => { const tm = p.tm === 'TOT' ? p.teams.join('/') || 'TOT' : p.tm; p.aw = (aw.get(p.id) || []).join(','); if (p.age == null) p.age = age.get(p.id) ?? null; return [...COLS1.map(k => (k === 'tm' ? tm : p[k] ?? null)), ...(T.get(p.id) || Object.keys(TOT).map(() => null)), ...(A.get(p.id) || Object.keys(ADV).map(() => null))]; });
+  const sum = await brGet(`/wnba/years/${y}.html`); if (!sum) throw new Error(`WNBA ${y}: summary page missing`);
+  const teams = {}, byName = {};
+  for (const m of sum.matchAll(/<table[^>]*id="(standings_[ew]|wnba_standings)"/g)) for (const r of rowsOf(tableOf(sum, m[1]))) {
+    const c = cells(r), ab = (c.team_name || '').match(/\/wnba\/teams\/([A-Z]{3})\//)?.[1]; if (!ab) continue;
+    const name = strip(c.team_name).replace(/\*$/, '').trim(), t = teams[ab] || (teams[ab] = { name, w: num(c.wins), l: num(c.losses), conf: '', div: '' });
+    if (m[1] !== 'wnba_standings') { t.conf = m[1].slice(-1).toUpperCase(); t.ppg = num(c.pts_per_g); t.oppg = num(c.opp_pts_per_g); }
+    byName[name] = ab;
+  }
+  if (Object.keys(teams).length < 6) throw new Error(`WNBA ${y}: only ${Object.keys(teams).length} teams parsed`);
+  for (const r of rowsOf(tableOf(sum, 'advanced-team'))) { const c = cells(r), ab = byName[strip(c.team).replace(/\*$/, '').trim()]; if (!ab) continue; for (const [k, k2] of Object.entries(TEAM_ADV)) { const v = num(c[k2]); if (v != null) teams[ab][k] = v; } }
+  const po = [...sum.matchAll(/<strong>([^<]+)<\/strong><\/span><\/td>\s*<td><a href='\/wnba\/teams\/([A-Z]{3})\/\d+\.html'>[^<]+<\/a>\s*over\s*<a href='\/wnba\/teams\/([A-Z]{3})\/\d+\.html'>[^<]+<\/a>\s*(?:&nbsp;)?\s*\((\d+)-(\d+)\)/g)]
+    .map(m => [/^(WNBA )?(Finals|Championship)( Game)?$/i.test(strip(m[1])) ? 'Finals' : strip(m[1]), m[2], m[3], +m[4], +m[5]]);
+  const TK = ['name', 'w', 'l', 'conf', 'div', 'ppg', 'oppg', 'srs', 'ortg', 'drtg', 'pace'];
+  return { v: VER, y, season: String(y), built: new Date().toISOString().slice(0, 10), cols: COLS, reg, post: [], tcols: TK, teams: Object.fromEntries(Object.entries(teams).map(([ab, t]) => [ab, TK.map(k => t[k] ?? null)])), po };
+}
+
+// the season under way or coming next: the NBA's starts in October; the WNBA's runs May to October inside one year
+const now = new Date(), CUR = WN ? (now.getUTCMonth() >= 10 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()) : now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear();
+const FIRST = WN ? 1997 : 1947;
 mkdirSync(`${out}/seasons`, { recursive: true });
 const all = {};
 let fetched = 0;
 const readJSON = f => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch (e) { return null; } };
-for (let y = 1947; y <= CUR; y++) {
+for (let y = FIRST; y <= CUR; y++) {
   const f = `${out}/seasons/${y}.json`;
   const old = existsSync(f) ? readJSON(f) : null;
   // keep a finished season once it has been read after its awards were handed out
-  const done = old && (y <= CUR - 2 || (y === CUR - 1 && old.built >= `${y}-07-15`));
+  const done = old && (WN ? y < now.getUTCFullYear() - 1 || (y < CUR && old.built >= `${y}-11-10`) : y <= CUR - 2 || (y === CUR - 1 && old.built >= `${y}-07-15`));
   if ((done && old.v === VER) || (ONLY && !ONLY.has(y) && old)) { all[y] = old; continue; }
   try {
-    const d = await season(y, done ? { ...old, settledPerGame: true } : null);
+    const d = WN ? await seasonW(y) : await season(y, done ? { ...old, settledPerGame: true } : null);
     if (d) { all[y] = d; writeFileSync(f, JSON.stringify(d)); fetched++; console.log('season', y, d.reg.length, 'players,', d.post.length, 'in the playoffs,', Object.keys(d.teams).length, 'teams,', d.po.length, 'series'); }
     else if (old) all[y] = old;
     else console.log('season', y, 'has no page yet');
   } catch (e) { console.log('season failed', y, e.message); if (old) all[y] = old; }
 }
 const years = Object.keys(all).map(Number).sort((a, b) => a - b);
-if (years.length < 75) throw new Error(`only ${years.length} seasons; keeping the published files`);
+if (years.length < (WN ? (LOCAL ? 1 : 25) : 75)) throw new Error(`only ${years.length} seasons; keeping the published files`);
 console.log('seasons', years.length, 'read this run', fetched, 'not yet on the new format', years.filter(y => all[y].v !== VER).length);
 
 // each season reads through its own column list (a season still on the old format simply lacks the newer columns)
 const colIx = new Map();
 const I = (S, r, k) => { let m = colIx.get(S); if (!m) { m = Object.fromEntries(S.cols.map((c, i) => [c, i])); colIx.set(S, m); } const i = m[k]; return i == null ? null : r[i] ?? null; };
 const teamOf = (S, ab) => { const t = S.teams?.[ab]; if (!t) return null; const k = S.tcols || ['name', 'w', 'l']; return Object.fromEntries(k.map((c, i) => [c, t[i]])); };
-const champOf = S => (S.po || []).find(s => /^Finals$/i.test(s[0]))?.[1] || null;
+const champOf = S => (S.po || []).find(s => /^Finals$/i.test(s[0]) && s[3] > s[4] || /^Finals$/i.test(s[0]))?.[1] || null;
 const awOf = s => { const o = {}; for (const t of String(s || '').split(',')) { const m = t.trim().match(/^([A-Z0-9]+?)(?:-(\d+))?$/); if (m) o[m[1]] = m[2] ? +m[2] : 1; } return o; };
 
 // ---- the player index
@@ -188,17 +239,17 @@ for (const y of years) {
 let prev = {};
 try { prev = Object.fromEntries(JSON.parse(readFileSync(`${out}/index.json`, 'utf8')).players.map(p => [p[0], p[5]])); } catch (e) {}
 const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b\.?/gi, '').replace(/[^a-z ]/gi, '').toLowerCase().replace(/\s+/g, ' ').trim();
-const hasPhoto = async id => { try { const r = await fetch(`https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`, { method: 'HEAD', headers: { 'user-agent': UA } }); return r.ok; } catch (e) { return null; } };
+const hasPhoto = async id => { try { const r = await fetch(`https://a.espncdn.com/i/headshots/${WN ? 'wnba' : 'nba'}/players/full/${id}.png`, { method: 'HEAD', headers: { 'user-agent': UA } }); return r.ok; } catch (e) { return null; } };
 let looked = 0;
 for (const [id, e] of idx) {
   if (prev[id] != null) { e.espn = prev[id]; continue; }
-  if (LOCAL || !notable.has(id) || e.y1 < 1985) { e.espn = null; continue; }
+  if (LOCAL || !notable.has(id) || e.y1 < (WN ? 2005 : 1985)) { e.espn = null; continue; }
   if (looked >= 2500) { e.espn = null; continue; } // a first run does the bulk; later runs only see new names
   looked++;
   e.espn = 0; // looked up, nothing usable
   try {
     const d = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(e.name.normalize('NFD').replace(/[̀-ͯ]/g, ''))}&limit=6&type=player`, true);
-    const hit = (d?.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === 'NBA' && fold(c.displayName) === fold(e.name));
+    const hit = (d?.results || []).flatMap(r => r.type === 'player' ? r.contents || [] : []).find(c => c.description === (WN ? 'WNBA' : 'NBA') && fold(c.displayName) === fold(e.name));
     const m = hit?.uid?.match(/a:(\d+)/);
     if (m && (await hasPhoto(m[1])) !== false) e.espn = m[1];
   } catch (err) { e.espn = null; } // try again next week
@@ -321,7 +372,7 @@ const leadersOf = {}; // year → stat → [id, value, team]
 }
 
 // ---- league averages by season
-try {
+if (!WN) try {
   const html = await brGet('/leagues/NBA_stats_per_game.html');
   const rows = [];
   for (const r of rowsOf(tableOf(html || '', 'stats-Regular-Season'))) {
@@ -335,29 +386,29 @@ try {
 // ---- every draft (finished drafts are kept from the last run)
 {
   const old = readJSON(`${out}/draft.json`)?.years || {}, D = {};
-  const lastDraft = now.getUTCMonth() >= 6 ? now.getUTCFullYear() : now.getUTCFullYear() - 1; // drafts are held in late June
-  for (let y = 1947; y <= lastDraft; y++) {
+  const lastDraft = now.getUTCMonth() >= (WN ? 4 : 6) ? now.getUTCFullYear() : now.getUTCFullYear() - 1; // drafts are held in late June (the WNBA's in April)
+  for (let y = FIRST; y <= lastDraft; y++) {
     if (old[y]?.length && (y <= lastDraft - 2 || (ONLY && !ONLY.has(y)))) { D[y] = old[y]; continue; }
     try {
-      const html = await brGet(`/draft/${y <= 1949 ? 'BAA' : 'NBA'}_${y}.html`);
+      const html = await brGet(WN ? `/wnba/draft/${y}.html` : `/draft/${y <= 1949 ? 'BAA' : 'NBA'}_${y}.html`);
       if (!html) { if (old[y]) D[y] = old[y]; continue; }
       const picks = []; let round = 1;
       for (const r of rowsOf(tableOf(html, 'stats'))) {
-        const rd = r.match(/data-stat="header_draft"[^>]*>\s*Round (\d+)/); if (rd) { round = +rd[1]; continue; }
+        const rd = r.match(/data-stat="header_draft"[^>]*>\s*Round (\d+)/) || (WN && r.match(/over_header[^>]*>\s*Round (\d+)/)); if (rd) { round = +rd[1]; continue; }
         const c = cells(r), pk = num(c.pick_overall), name = strip(c.player); if (!name || pk == null) continue;
-        const id = pidOf(c.player);
+        const id = WN ? widOf(c.player || '') : pidOf(c.player);
         if (!id && pk > 60) continue; // deep picks who never played
-        picks.push([pk, round, strip(c.team_id), id, name, strip(c.college_name) || null]);
+        picks.push([pk, round, WN ? (c.team || '').match(/\/wnba\/teams\/([A-Z]{3})\//)?.[1] || strip(c.team) : strip(c.team_id), id, name, strip(WN ? c.college : c.college_name) || null]);
       }
       if (picks.length >= 5) { D[y] = picks; console.log('draft', y, picks.length, 'picks, first:', picks[0][4]); } else if (old[y]) D[y] = old[y];
     } catch (e) { console.log('draft failed', y, e.message); if (old[y]) D[y] = old[y]; }
   }
-  if (Object.keys(D).length >= (LOCAL ? 1 : 70)) save('draft.json', { v: VER, cols: ['pick', 'round', 'tm', 'id', 'name', 'college'], years: D });
+  if (Object.keys(D).length >= (LOCAL ? 1 : WN ? 25 : 70)) save('draft.json', { v: VER, cols: ['pick', 'round', 'tm', 'id', 'name', 'college'], years: D });
   else console.log('drafts: only', Object.keys(D).length, 'years; keeping the published file');
 }
 
 // ---- bios: position, height, weight, birth date, college, Hall of Fame (re-read about once a month)
-{
+if (!WN) {
   const old = readJSON(`${out}/bio.json`);
   const fresh = old?.players?.length > 4000 && old.v === VER && Date.now() - Date.parse(old.built) < 25 * 864e5;
   if (!fresh) {

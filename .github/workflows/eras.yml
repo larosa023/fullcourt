@@ -1,4 +1,4 @@
-# Eras: every player's per-game line for every NBA season, with award finishes and team records (Basketball-Reference),
+# Eras: every player's per-game line for every NBA season (and, in a wnba/ folder, every WNBA season), with award finishes and team records (Basketball-Reference),
 # for Ask's history answers and graphics. Publishes to the era-data branch (not part of the website, so no deploy).
 # Finished seasons are kept from the last run, so a weekly run reads only the newest two seasons.
 name: eras
@@ -28,6 +28,8 @@ jobs:
           rm -rf pub/.git
       - name: Build
         run: node tools/eras.mjs pub
+      - name: Build (WNBA)
+        run: ERA_LG=wnba node tools/eras.mjs pub || echo "WNBA build failed; keeping last week's files"
       - name: Publish
         run: |
           cd pub && git init -q && git checkout -q --orphan era-data
