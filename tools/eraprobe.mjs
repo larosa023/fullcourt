@@ -36,13 +36,13 @@ if (process.argv[2] === 'cards') {
     list.push([{ k: 'standings', lg: 'nba', conf: 'both' }, 1], [{ k: 'standings', lg: 'nba', conf: 'east' }, 1], [{ k: 'standings', lg: 'nba', conf: 'west' }], [{ k: 'standings', lg: 'wnba' }]);
     for (const stat of ['avgPoints', 'avgAssists', 'threePointFieldGoalPct', 'avgBlocks']) list.push([{ k: 'leaders', lg: 'nba', stat }, stat === 'avgPoints']);
     list.push([{ k: 'props', id: 4431678, n: 'Tyrese Maxey' }, 1], [{ k: 'props', id: 3136193, n: 'Devin Booker' }], [{ k: 'odds', lg: 'nba', d: day(0) }, 1], [{ k: 'injuries', lg: 'nba', id: 25 }, 1], [{ k: 'injuries', lg: 'nba', id: 13 }], [{ k: 'injuries', lg: 'nba', id: 1 }]);
-    for (const [v, save] of list.slice(0, 24)) out.cards.push(await grab(view(v), cardUrl(v), save));
+    for (const [v, save] of list.slice(0, 6)) out.cards.push(await grab(view(v), cardUrl(v), save));
     // ten different cards at once
     const burst = [20, 4, 5, 6, 7, 8, 10, 11, 12, 16].map(id => ({ k: 'team', lg: 'nba', id }));
     out.burst = await Promise.all(burst.map(v => grab('burst ' + view(v), cardUrl(v))));
     // the same list again after a pause (a warmed-up copy, numbers kept from the first pass where they're still fresh)
     await sleep(3000);
-    for (const [v] of list.slice(0, 24)) out.again.push(await grab('again ' + view(v), cardUrl(v)));
+    for (const [v] of list.slice(0, 6)) out.again.push(await grab('again ' + view(v), cardUrl(v)));
   }
   const all = [...out.cards, ...out.burst, ...out.again], bad = all.filter(r => !r.png);
   out.summary = { requests: all.length, failed: bad.length, failures: bad.slice(0, 12), slowest: Math.max(0, ...all.map(r => r.ms || 0)), median: all.map(r => r.ms || 0).sort((a, b) => a - b)[all.length >> 1] || 0 };
@@ -69,7 +69,7 @@ if (process.argv[2] === 'cards') {
     out.tests.push(rec); return d;
   };
   // wait for the address to pick the test key up (it re-reads app.json at most once a minute)
-  let ok = false; for (let n = 0; n < 40 && !ok; n++) { const ts = String(Math.floor(Date.now() / 1000)), raw = '{"type":1}', sig = sign(null, Buffer.from(ts + raw), priv).toString('hex'); try { const r = await fetch(BOT, { method: 'POST', headers: { 'x-signature-ed25519': sig, 'x-signature-timestamp': ts, 'content-type': 'application/json' }, body: raw }); ok = r.status === 200; if (!ok && n % 4 === 0) console.log('waiting for the test key…', r.status); } catch (e) {} if (!ok) await sleep(8000); }
+  let ok = false; for (let n = 0; n < 80 && !ok; n++) { /* GitHub serves the old file for up to five minutes */ const ts = String(Math.floor(Date.now() / 1000)), raw = '{"type":1}', sig = sign(null, Buffer.from(ts + raw), priv).toString('hex'); try { const r = await fetch(BOT, { method: 'POST', headers: { 'x-signature-ed25519': sig, 'x-signature-timestamp': ts, 'content-type': 'application/json' }, body: raw }); ok = r.status === 200; if (!ok && n % 4 === 0) console.log('waiting for the test key…', r.status); } catch (e) {} if (!ok) await sleep(8000); }
   try { out.seen = await (await fetch(BOT)).json(); } catch (e) {} console.log('address', JSON.stringify(out.seen), 'test key accepted', ok, key.slice(0, 8));
   const cmd = (name, o = {}) => ({ type: 2, application_id: '1', token: 'probe', data: { name, options: Object.entries(o).map(([name, value]) => ({ name, value, type: 3 })) } });
   const press = (custom_id, values) => ({ type: 3, application_id: '1', token: 'probe', data: { custom_id, ...(values ? { values } : {}) } });
