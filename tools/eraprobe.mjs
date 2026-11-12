@@ -11,13 +11,14 @@ const out = { status: r.status, events: [] };
 for (const e of j.data || []) {
   const ev = { id: e.eventID, teams: `${e.teams?.away?.names?.short} @ ${e.teams?.home?.names?.short}`, starts: e.status?.startsAt, topKeys: Object.keys(e), links: e.links || null, books: {}, sample: null };
   for (const [key, o] of Object.entries(e.odds || {})) {
-    if (!o.playerID || o.periodID !== 'game' || o.betTypeID !== 'ou') continue;
-    if (!ev.sample && o.sideID === 'over' && o.statID === 'points') ev.sample = { key, odd: { ...o, byBookmaker: Object.fromEntries(Object.entries(o.byBookmaker || {}).slice(0, 3)) } };
+    ev.kinds = ev.kinds || {}; const kind = `${o.playerID ? 'player' : 'game'}:${o.betTypeID}:${o.periodID}`; ev.kinds[kind] = (ev.kinds[kind] || 0) + 1;
+    if (o.periodID !== 'game') continue;
+    if (!ev.sample && Object.keys(o.byBookmaker || {}).length > 3) ev.sample = { key, odd: { ...o, byBookmaker: Object.fromEntries(Object.entries(o.byBookmaker || {}).slice(0, 3)) } };
     for (const [b, x] of Object.entries(o.byBookmaker || {})) {
       const B = (ev.books[b] ||= { n: 0, withLink: 0, keys: new Set(), samples: [] });
       B.n++; Object.keys(x).forEach(k => B.keys.add(k));
       const link = x.deeplink || x.deepLink || x.link || x.url;
-      if (link) { B.withLink++; if (B.samples.length < 8) B.samples.push({ player: e.players?.[o.playerID]?.name || o.playerID, stat: o.statID, side: o.sideID, line: x.overUnder, odds: x.odds, link }); }
+      if (link) { B.withLink++; if (B.samples.length < 6) B.samples.push({ bet: o.betTypeID, player: e.players?.[o.playerID]?.name || o.playerID, stat: o.statID, side: o.sideID, line: x.overUnder, odds: x.odds, link }); }
     }
   }
   for (const B of Object.values(ev.books)) B.keys = [...B.keys];
