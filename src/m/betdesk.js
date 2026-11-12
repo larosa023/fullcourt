@@ -937,10 +937,11 @@ const BOOKS = [['dk', 'DraftKings', 'https://sportsbook.draftkings.com/leagues/b
 // picks into one address the way each book's own links do, so the app (or site) opens with the slip filled in.
 const LINKS_URL = 'https://raw.githubusercontent.com/larosa023/fullcourt/odds-data/links.json';
 const LINKERS = {
-  dk: { feed: 'draftkings', url: t => `https://sportsbook.draftkings.com/event/${t[0].split('|')[0]}?outcomes=${t.map(x => x.split('|')[1]).join('+')}` },
+  // a full DraftKings pick is "market#side"; some arrive as the market alone, which can't choose over or under. The # has to be escaped in the address
+  dk: { feed: 'draftkings', ok: t => /\|[^#]+#./.test(t), url: t => `https://sportsbook.draftkings.com/event/${t[0].split('|')[0]}?outcomes=${t.map(x => encodeURIComponent(x.split('|')[1])).join('+')}` },
   fd: { feed: 'fanduel', url: t => `https://sportsbook.fanduel.com/addToBetslip?${t.map((x, i) => { const [m, sel] = x.split('|'); return t.length === 1 ? `marketId=${m}&selectionId=${sel}` : `marketId[${i}]=${m}&selectionId[${i}]=${sel}`; }).join('&')}` },
   czr: { feed: 'caesars', st: true, url: (t, st) => `https://sportsbook.caesars.com/us/${st}/bet/betslip?selectionIds=${t.join(',')}` },
-  mgm: { feed: 'betmgm', st: true, url: (t, st) => (t.length === 1 ? `https://www.${st}.betmgm.com/en/sports/events/${t[0].split('-')[0]}?options=${t[0]}` : `https://www.${st}.betmgm.com/en/sports?options=${t.join(',')}&type=Parlay`) },
+  mgm: { feed: 'betmgm', st: true, ok: t => /^\d+-\d+-\d+$/.test(t), url: (t, st) => (t.length === 1 ? `https://www.${st}.betmgm.com/en/sports/events/${t[0].split('-')[0]}?options=${t[0]}` : `https://www.${st}.betmgm.com/en/sports?options=${t.join(',')}&type=Parlay`) },
 };
 // Caesars and BetMGM run a separate site per state; the feed's links are New Jersey's
 const BOOK_STATES = [['az', 'Arizona'], ['co', 'Colorado'], ['dc', 'D.C.'], ['il', 'Illinois'], ['in', 'Indiana'], ['ia', 'Iowa'], ['ks', 'Kansas'], ['ky', 'Kentucky'], ['la', 'Louisiana'], ['md', 'Maryland'], ['ma', 'Massachusetts'], ['mi', 'Michigan'], ['nj', 'New Jersey'], ['ny', 'New York'], ['nc', 'North Carolina'], ['oh', 'Ohio'], ['pa', 'Pennsylvania'], ['tn', 'Tennessee'], ['va', 'Virginia'], ['wv', 'West Virginia'], ['wy', 'Wyoming']];
@@ -961,7 +962,7 @@ function slipFor(id) {
     if (!row) return { l, tok: null, why: 'not offered there', page: e?.pages?.[L.feed] };
     const tok = row[l.side === 'u' ? 2 : 1];
     // a link that is the same for over and under can't put the right side in the slip (DraftKings' prop links arrive cut short)
-    return row[0] === l.line && tok && row[1] !== row[2] ? { l, tok } : { l, tok: null, why: row[0] !== l.line ? `their line is ${row[0]}` : 'not offered there', page: e.pages?.[L.feed] };
+    return row[0] === l.line && tok && row[1] !== row[2] && (!L.ok || L.ok(tok)) ? { l, tok } : { l, tok: null, why: row[0] !== l.line ? `their line is ${row[0]}` : 'not offered there', page: e.pages?.[L.feed] };
   });
   const toks = legs.filter(x => x.tok).map(x => x.tok);
   return { legs, n: toks.length, toks, url: toks.length ? L.url(toks, bookState()) : null, one: t => L.url([t], bookState()), st: !!L.st };
