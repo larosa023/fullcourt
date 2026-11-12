@@ -50,9 +50,11 @@ for (const e of events) {
       const row = { l: num(x.overUnder), o: num(x.odds), u: num(u.odds) };
       if (row.l != null) books[b] = row;
       // the slip link for each side. FanDuel's is kept only when over and under sit in the same market: some of its
-      // links point at a different market ("to score 25+") than the over/under line they are filed under
+      // links point at a different market ("to score 25+") than the over/under line they are filed under. A link that
+      // is the same for both sides is dropped: it can't pick a side (DraftKings' prop links arrive cut short at the "#"
+      // in its selection ids, so its props are left out until the feed sends them whole)
       const lo = x.deeplink && tokenOf(b, x.deeplink), lu = u.deeplink && tokenOf(b, u.deeplink);
-      if (row.l != null && (lo || lu) && !(b === 'fanduel' && !(lo && lu && lo.split('|')[0] === lu.split('|')[0]))) (((lk.props[name(o.playerID)] ||= {})[k] ||= {})[b] = [row.l, lo || null, lu || null]);
+      if (row.l != null && (lo || lu) && lo !== lu && !(b === 'fanduel' && !(lo && lu && lo.split('|')[0] === lu.split('|')[0]))) (((lk.props[name(o.playerID)] ||= {})[k] ||= {})[b] = [row.l, lo || null, lu || null]);
     }
     // no book on our plan prices it (FGA, 3PA, 2PT: pick'em apps set those), but the feed still has the consensus line
     const mkt = num(o.fairOverUnder ?? o.bookOverUnder);

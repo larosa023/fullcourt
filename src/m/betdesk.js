@@ -960,7 +960,8 @@ function slipFor(id) {
     const pk = e && Object.keys(e.props).find(n => nameKey(n) === nameKey(l.name)), row = pk && e.props[pk][l.k]?.[L.feed];
     if (!row) return { l, tok: null, why: 'not offered there', page: e?.pages?.[L.feed] };
     const tok = row[l.side === 'u' ? 2 : 1];
-    return row[0] === l.line && tok ? { l, tok } : { l, tok: null, why: row[0] !== l.line ? `their line is ${row[0]}` : 'not offered there', page: e.pages?.[L.feed] };
+    // a link that is the same for over and under can't put the right side in the slip (DraftKings' prop links arrive cut short)
+    return row[0] === l.line && tok && row[1] !== row[2] ? { l, tok } : { l, tok: null, why: row[0] !== l.line ? `their line is ${row[0]}` : 'not offered there', page: e.pages?.[L.feed] };
   });
   const toks = legs.filter(x => x.tok).map(x => x.tok);
   return { legs, n: toks.length, toks, url: toks.length ? L.url(toks, bookState()) : null, one: t => L.url([t], bookState()), st: !!L.st };
@@ -994,9 +995,14 @@ async function sendSheet(id) {
 // how many of the slip's picks each book can take, shown on its button once the links have loaded
 function markBooks(dock) {
   for (const a of dock.querySelectorAll('[data-slipbook]')) {
-    const X = slipFor(a.dataset.slipbook), old = a.querySelector('small'); old?.remove();
-    a.classList.toggle('linked', !!X?.n);
+    const id = a.dataset.slipbook, X = slipFor(id), old = a.querySelector('small'); old?.remove();
+    // no pick it can take, but every pick is in one game the feed has that book's page for: open that game, not the front
+    // page (not for the per-state books: the feed's page is New Jersey's, and their front page finds the right state itself)
+    const pg = X && !X.n && !X.st && X.legs.length && X.legs.every(x => x.page && x.page === X.legs[0].page) ? X.legs[0].page : null;
+    a.classList.toggle('linked', !!X?.n); a.classList.toggle('two', !!(X?.n || pg));
+    a.href = pg || BOOKS.find(b => b[0] === id)[2];
     if (X?.n) a.insertAdjacentHTML('beforeend', `<small>${X.n === SLIP.legs.length ? (X.n === 1 ? 'opens your pick' : `all ${X.n} picks`) : `${X.n} of ${SLIP.legs.length} picks`}</small>`);
+    else if (pg) a.insertAdjacentHTML('beforeend', '<small>opens the game</small>');
   }
 }
 // the book buttons are real links: a tap on a link (not a script opening a window) is what lets iOS and Android
@@ -1037,7 +1043,7 @@ function drawSlip() {
         <div><span>Pays</span><b class="pay">${usd(m.pays)}</b></div>
       </div>
       <div class="bs-boost" role="group" aria-label="Profit boost"><span>Profit boost</span>${[0, 10, 25, 50].map(v => `<button data-slipboost="${v}" aria-pressed="${(+SLIP.boost || 0) === v}">${v ? v + '%' : 'None'}</button>`).join('')}</div>
-      <div class="bs-books"${SLIP.exp ? '' : ' hidden'}>${BOOKS.map(([id, name, url]) => `<a class="bs-book" href="${url}" ${matchMedia('(pointer: coarse)').matches ? '' : 'target="_blank"'} rel="noopener" data-slipbook="${id}">${name}</a>`).join('')}<p class="bs-note">A book that shows a pick count opens with those picks already in your slip. The others copy your picks and open the book, where you add them yourself.</p></div>
+      <div class="bs-books"${SLIP.exp ? '' : ' hidden'}>${BOOKS.map(([id, name, url]) => `<a class="bs-book" href="${url}" ${matchMedia('(pointer: coarse)').matches ? '' : 'target="_blank"'} rel="noopener" data-slipbook="${id}">${name}</a>`).join('')}<p class="bs-note">A book that shows a pick count opens with those picks already in your bet slip. The others copy your picks and open the book (at the game, where it says so) for you to add them.</p></div>
       ${sameGame ? '<p class="bs-note">Some legs are from the same game. Books price same-game parlays differently, so your app may pay a bit less.</p>' : ''}
       <div class="bs-act"><button class="btn" data-sliptrack>Track ${n > 1 ? 'parlay' : 'bet'}</button><button class="btn ghost bs-exp" data-slipexp aria-expanded="${!!SLIP.exp}">Export</button><button class="btn ghost bs-share" data-slipshare title="Share as an image" aria-label="Share as an image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="btn ghost" data-slipclear>Clear</button></div>
     </div>`;
