@@ -30,6 +30,9 @@ export async function get(url, ttl = 30) {
   return data;
 }
 
+// fetch a feed only so Cloudflare keeps a copy for the next request; its contents aren't read here
+export function warm(url, ttl = 30) { if (KEEP.has(url)) return Promise.resolve(); return fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Fullcourt-Discord/1.0 (+https://github.com/larosa023/fullcourt)' }, cf: { cacheTtl: ttl, cacheEverything: true }, signal: AbortSignal.timeout(8000) }).then(r => r.arrayBuffer()).catch(() => {}); }
+
 /* ---------- small helpers ---------- */
 export const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 export const cut = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);

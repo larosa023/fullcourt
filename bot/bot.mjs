@@ -6,7 +6,7 @@
 // A command becomes a view; a button carries the view it leads to as its id; the picture's address carries the same
 // view. espn.mjs loads the numbers for a view (its model), REPLY below writes the message, cards.mjs draws the picture.
 import { STATS } from './commands.mjs';
-import { LGS, Say, model, norm, cut, dayET, addDays, dayLabel, findTeam, teamById, allTeams, searchPlayers, findPlayer, teamGame, highlights, check } from './espn.mjs';
+import { LGS, Say, model, warm, norm, cut, dayET, addDays, dayLabel, findTeam, teamById, allTeams, searchPlayers, findPlayer, teamGame, highlights, check } from './espn.mjs';
 import { hasCard } from './cards.mjs';
 import { ask, EXAMPLES } from './ask.mjs';
 export { check };
@@ -172,19 +172,51 @@ function helpReply(ctx) {
   return { embeds: [embed({ title: 'Fullcourt bot', url: ctx.site, description: `${lines.map(([c, d]) => `**${c}** · ${d}`).join('\n')}\n\n**Things /ask understands**\n${EXAMPLES.map(e => `• ${e}`).join('\n')}\n\nButtons under a reply switch what it shows; the blue one refreshes.` })], components: [row(link('Open Fullcourt', ctx.site))] };
 }
 
+// -> { data: the message, pic: draws its picture as PNG bytes (null when it has none) }
 async function render(v, ctx) {
-  if (v.k === 'help') return helpReply(ctx);
-  if (v.k === 'highlights') return highlightsReply(v, ctx);
+  if (v.k === 'help') return { data: helpReply(ctx), pic: null };
+  if (v.k === 'highlights') return { data: await highlightsReply(v, ctx), pic: null };
   if (!REPLY[v.k]) throw new Say('That button is from an older version of the bot. Run the command again.');
   const m = await model(v, ctx.store);
   if (String(v.side || '').startsWith('team:')) v.side = m.h?.id === v.side.slice(5) ? 'h' : 'a'; // "this team's box score" -> which side that is
-  const data = REPLY[v.k](v, m, ctx);
-  if (hasCard(v, m)) data.embeds[0].image = { url: cardUrl(v, m, ctx) };
+  const data = REPLY[v.k](v, m, ctx), drawable = hasCard(v, m);
+  if (drawable) data.embeds[0].image = { url: cardUrl(v, m, ctx) }; // the picture by address: used when attaching it fails
   if (v.asked) data.content = `> ${cut(v.asked.replace(/[\n`*_~|<>@]/g, ' '), 200)}`;
-  return data;
+  if (drawable && ctx.waitUntil) warmNext(v, m, ctx);
+  return { data, pic: drawable && ctx.png ? () => ctx.png(v, m) : null };
+}
+// The buttons under a game's score open views that need the game's full feed: fetch it now (without reading it) so
+// Cloudflare already holds a copy when the button is pressed
+function warmNext(v, m, ctx) { if (v.k === 'game' && (v.tab || 'score') === 'score' && m.st !== 'pre') ctx.waitUntil(warm(`https://site.api.espn.com/apis/site/v2/sports/basketball/${m.lg}/summary?event=${m.id}`, 15)); }
+
+/* ---------- sending ---------- */
+const FILE = 'fullcourt.png';
+const withFile = data => ({ ...data, embeds: data.embeds.map((e, k) => (k ? e : { ...e, image: { url: `attachment://${FILE}` } })), attachments: [{ id: 0, filename: FILE }] });
+const noPicture = data => ({ ...data, embeds: data.embeds.map((e, k) => (k ? e : (({ image, ...rest }) => rest)(e))) });
+// a message edit; Discord can briefly not know the reply we've only just sent, so a "not found" is tried again
+async function edit(url, body, json) {
+  for (let n = 0; n < 4; n++) {
+    const r = await fetch(url, { method: 'PATCH', ...(json ? { headers: { 'content-type': 'application/json' } } : {}), body: json ? JSON.stringify(body) : body() });
+    if (r.ok) return true;
+    if (r.status !== 404 && r.status !== 429) { console.log('edit failed', r.status, (await r.text()).slice(0, 200)); return false; }
+    await sleep(r.status === 429 ? 1000 : 250 * (n + 1));
+  }
+  return false;
+}
+// Put the reply in place with its picture uploaded as part of the message. That way the picture arrives with the
+// message from Discord's own servers, instead of Discord fetching it from the site in a second trip afterwards.
+// If the upload doesn't go through, the reply gets the picture's address as before.
+async function finish(url, data, pic) {
+  if (pic) {
+    try {
+      const bytes = pic(), form = () => { const f = new FormData(); f.append('payload_json', JSON.stringify(withFile(data))); f.append('files[0]', new Blob([bytes], { type: 'image/png' }), FILE); return f; };
+      if (await edit(url, form)) return;
+    } catch (e) { console.log('picture failed:', e?.message); }
+  }
+  await edit(url, data, true);
 }
 
-// One interaction in, one Discord response out. ctx: { site, waitUntil, store }.
+// One interaction in, one Discord response out. ctx: { site, waitUntil, store, png(view, model) -> PNG bytes }.
 export async function handle(i, ctx) {
   if (i.type === 1) return { type: 1 }; // Discord checking the address is alive
   if (i.type === 4) return { type: 8, data: { choices: await Promise.race([complete(i).catch(() => []), sleep(2500).then(() => [])]) } };
@@ -197,12 +229,19 @@ export async function handle(i, ctx) {
     return decodeView(id);
   };
   let failed = false;
-  const work = view().then(v => render(v, ctx)).catch(e => { failed = true; return e instanceof Say ? { content: e.message, flags: 64 } : (console.log('failed:', i.data?.name || i.data?.custom_id, e?.message), { content: 'The stats feed didn\'t answer just now. Try again in a minute.', flags: 64 }); });
+  const work = view().then(v => render(v, ctx)).catch(e => { failed = true; return { data: e instanceof Say ? { content: e.message, flags: 64 } : (console.log('failed:', i.data?.name || i.data?.custom_id, e?.message), { content: 'The stats feed didn\'t answer just now. Try again in a minute.', flags: 64 }), pic: null }; });
+  const hook = `https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, original = `${hook}/messages/@original`;
   // Discord wants an answer within 3 seconds. Usually the data is back well inside that; when it isn't, say "thinking" and fill it in after
   const quick = await Promise.race([work, sleep(2200).then(() => null)]);
-  // a press replaces the reply it was on; if it can't, the reason goes to the person who pressed, as a note only they see
-  if (quick) return { type: pressed && !failed ? 7 : 4, data: quick };
-  const hook = `https://discord.com/api/v10/webhooks/${i.application_id}/${i.token}`, send = (url, method, data) => fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
-  ctx.waitUntil(work.then(data => (pressed && failed ? send(hook, 'POST', data) : send(`${hook}/messages/@original`, 'PATCH', data))).catch(() => {}));
+  if (quick) {
+    const { data, pic } = quick;
+    // a press replaces the reply it was on; if it can't, the reason goes to the person who pressed, as a note only they see
+    if (!pic) return { type: pressed && !failed ? 7 : 4, data };
+    // with a picture: a command shows its text at once and the picture follows a moment later in the same message;
+    // a press keeps the button spinning until the new text and picture can replace the old ones together
+    ctx.waitUntil(finish(original, data, pic).catch(() => {}));
+    return pressed ? { type: 6 } : { type: 4, data: noPicture(data) };
+  }
+  ctx.waitUntil(work.then(({ data, pic }) => (pressed && failed ? fetch(hook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }) : finish(original, data, pic))).catch(() => {}));
   return { type: pressed ? 6 : 5 };
 }
