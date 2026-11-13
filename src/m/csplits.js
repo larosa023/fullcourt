@@ -58,7 +58,7 @@ async function drawCollegeSplits(card, id) {
     <div class="csp-highs"><div class="csp-hh"><b>Career highs</b><span>${esc(st.seasons.length > 1 ? `${st.seasons.at(-1).label} to now` : cur.label)}</span></div><div class="csp-hg"><div class="sk" style="height:58px;border-radius:12px"></div></div></div>`;
   wireDrag(card);
   card.onclick = e => { const b = e.target.closest('[data-cspy]'); if (b) { e.stopPropagation(); st.sel = +b.dataset.cspy; drawCollegeSplits(card, id); } };
-  if (!card._adv) { card._adv = () => { if (!card.isConnected) { document.removeEventListener('fcadv', card._adv); return; } drawCollegeSplits(card, id); }; document.addEventListener('fcadv', card._adv); }
+  if (!card._adv) { card._adv = true; advWatch(card, () => drawCollegeSplits(card, id)); }
   // career highs across every college season
   const all = (await Promise.all(st.seasons.map(async (x, i) => { if (!st.logs.has(x.year)) st.logs.set(x.year, await gameLog(id, i === 0 ? undefined : x.year).catch(() => [])); return st.logs.get(x.year); }))).flat().filter(g => g.min > 0);
   const hg = $('.csp-hg', card); if (!hg || !card.isConnected) return;

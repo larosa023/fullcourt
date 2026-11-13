@@ -33,8 +33,7 @@ async function fillCareer(card, id) {
       if (!showAll) card.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
     }
   });
-  const onAdv = () => { if (!card.isConnected) { document.removeEventListener('fcadv', onAdv); return; } draw(); };
-  document.addEventListener('fcadv', onAdv);
+  advWatch(card, draw);
   draw();
 }
 // the same seasons as shooting efficiency, shot profile and per-36 numbers

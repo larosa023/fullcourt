@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-13b', date: 'Nov 13', items: [
+    ['Stays light when left open', 'Every game or player you opened, and every visit to the Bet Desk, used to stay in memory after you closed it, for as long as Fullcourt was open. After a day in the Windows app that added up to tens of thousands of hidden page pieces. Closed panels are now let go of, so memory stays level however long it runs. Leaving the Bet Desk before it finished loading also used to leave its loading paused in the background, to wake up again with the next visit and fetch everything twice; it now stops.'],
+  ] },
   { id: '2026-11-13a', date: 'Nov 13', items: [
     ['Game alerts with Fullcourt closed', 'Turn on the bell next to your team and alerts now reach your phone or computer even when Fullcourt isn\'t open: tip-off, overtime, a close finish (within 5 in the last 5 minutes) and the final with the top scorers. On iPhone and iPad this works from the Home Screen app (iOS 16.4 or later). Settings has a new Game alerts section with a test button and an option for a heads-up on any close finish in the league, whoever is playing. The Windows app keeps sending alerts while it runs in the tray.'],
   ] },

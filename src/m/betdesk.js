@@ -445,7 +445,7 @@ async function bdDraw() {
   let done = 0, pending = null;
   const refresh = () => { if (pending) return; pending = setTimeout(() => { pending = null; if (n === drawN && BD.tab === 'props') bdTable(main, true, false, true); }, 900); };
   const seasonYr = (() => { const n = new Date(); return n.getFullYear() + (n.getMonth() >= 7 ? 1 : 0); })();
-  await poolRun(order, 10, async pid => { await bdWait(); const log = await logOf(pid);
+  await poolRun(order, 10, async pid => { await bdWait(n); if (n !== drawN) return; const log = await logOf(pid);
     const needPrev = log.length < 10;
     const prev = needPrev ? await prevOf(pid, seasonYr - 1) : null;
     list.forEach(x => { if (String(x.pid) === pid) { x.log = log; if (prev) x.prevLog = prev; } }); done++; BD.logN = done; refresh(); });
@@ -502,7 +502,10 @@ async function loadQ1(games, n, main) {
 // The props table needs every listed player's game log (a few hundred downloads). That only runs while the Bet Desk
 // is on screen: leave for another page, or switch apps, and it waits, so the page you're on has the connection.
 const bdOnScreen = () => S.view === 'bets' && !document.hidden;
-const bdWait = () => bdOnScreen() ? null : new Promise(res => { const t = setInterval(() => { if (bdOnScreen()) { clearInterval(t); res(); } }, 400); });
+// Background loading pauses while the Bet Desk is off screen and carries on when it's back. With n (the draw it
+// belongs to) it also gives up once a newer draw has started: otherwise every visit left a paused loader behind,
+// holding its whole table in memory and all of them waking up together on the next visit.
+const bdWait = n => bdOnScreen() ? null : new Promise(res => { const t = setInterval(() => { if (bdOnScreen() || (n != null && n !== drawN)) { clearInterval(t); res(); } }, 400); });
 async function poolRun(items, k, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(k, items.length) }, async () => { while (i < items.length) { const it = items[i++]; try { await fn(it); } catch (e) {} } })); }
 
 function bdTable(main, keepScroll, final, soft) {

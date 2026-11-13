@@ -303,12 +303,10 @@ function dragScroll(el) {
   el.addEventListener('click', ev => { if (Date.now() - (el._sup || 0) < 250) { ev.stopPropagation(); ev.preventDefault(); } }, true);
   if (wrap) fadeRO.observe(el);
   el._fades = fades;
-  el.addEventListener('pointerdown', e => {
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    cancelAnimationFrame(raf);
-    down = true; moved = false; sx = lastX = e.clientX; sl = el.scrollLeft; lastT = performance.now(); v = 0;
-  });
-  window.addEventListener('pointermove', e => {
+  // The page-wide listeners a drag needs (the pointer can leave the strip) exist only while the button is down. They
+  // used to be added once per strip and never removed, which kept every strip ever drawn, and the panel around it,
+  // in memory.
+  const move = e => {
     if (!down) return;
     const dx = e.clientX - sx;
     if (!moved && Math.abs(dx) > 5) { moved = true; el.classList.add('dragging'); document.documentElement.classList.add('no-sel'); getSelection()?.removeAllRanges(); }
@@ -319,9 +317,10 @@ function dragScroll(el) {
       if (dt > 0) v = (e.clientX - lastX) / dt;
       lastX = e.clientX; lastT = now;
     }
-  });
-  document.addEventListener('selectstart', e => { if (down && moved) e.preventDefault(); });
-  window.addEventListener('pointerup', () => {
+  };
+  const noSel = e => { if (down && moved) e.preventDefault(); };
+  const up = () => {
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); document.removeEventListener('selectstart', noSel);
     if (!down) return; down = false;
     if (!moved) return;
     el.classList.remove('dragging'); document.documentElement.classList.remove('no-sel'); getSelection()?.removeAllRanges();
@@ -333,6 +332,12 @@ function dragScroll(el) {
       if (Math.abs(vel) > 0.4) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
+  };
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    cancelAnimationFrame(raf);
+    down = true; moved = false; sx = lastX = e.clientX; sl = el.scrollLeft; lastT = performance.now(); v = 0;
+    addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up); document.addEventListener('selectstart', noSel);
   });
   el.addEventListener('wheel', e => {
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth && el.classList.contains('hs')) {
@@ -1399,7 +1404,7 @@ function popSheet() {
   const s = stack.pop(); if (!s) return;
   s.alive = false; s.timers.forEach(clearTimeout);
   s.el.style.transform = ''; s.el.classList.remove('open');
-  setTimeout(() => s.el.remove(), 520);
+  setTimeout(() => { s.el.remove(); advPrune(true); }, 520);
   stack.at(-1)?.el.classList.remove('behind');
   if (!stack.length) {
     $('#scrim').classList.remove('on'); document.documentElement.classList.remove('locked'); bgInert(false);
@@ -1615,7 +1620,7 @@ async function openGame(id, opts = {}) {
     sheet.body.onchange = e => { const sel = e.target.closest('[data-shplayer]'); if (sel) { shotF.pid = sel.value; renderPane(); } };
     renderPane();
     if (fresh) { sheet.body.scrollTop = prevScroll; restoreX(); }
-    if (!sheet._adv) { sheet._adv = true; const onAdv = () => { if (!sheet.alive) { document.removeEventListener('fcadv', onAdv); return; } if (tab === 'box' || tab === 'team') sheet._render?.(); }; document.addEventListener('fcadv', onAdv); }
+    if (!sheet._adv) { sheet._adv = true; advWatch(sheet.el, () => { if (sheet.alive && (tab === 'box' || tab === 'team')) sheet._render?.(); }); }
     sheet._render = renderPane;
     const plays = d.plays || [];
     lastPlayId = plays.at(-1)?.id || lastPlayId;
@@ -2051,6 +2056,14 @@ const SEARCH_API = 'https://site.web.api.espn.com/apis/common/v3/search';
 const isTyping = () => { const a = document.activeElement; return !!a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable); };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+// Cards and panels that redraw when the advanced-stats switch flips ('fcadv'). Each used to add its own document
+// listener and only remove it the next time the switch flipped, so every game or player panel ever opened stayed in
+// memory (closed panels included) for as long as the page was open. They're kept here instead and dropped once their
+// element has left the page.
+const ADV_W = new Set();
+function advPrune(all) { const now = Date.now(); for (const w of ADV_W) if (!w.el.isConnected && (all || now - w.at > 3000)) ADV_W.delete(w); }
+function advWatch(el, fn) { advPrune(); ADV_W.add({ el, fn, at: Date.now() }); }
+document.addEventListener('fcadv', () => { for (const w of [...ADV_W]) { if (w.el.isConnected) w.fn(); else if (Date.now() - w.at > 3000) ADV_W.delete(w); } });
 const unlockIfIdle = () => {
   if (!document.querySelector('.sheet.open') && !$('#drawer')?.classList.contains('open') && $('#searchPop')?.hidden !== false && $('#helpPop')?.hidden !== false)
     document.documentElement.classList.remove('locked');
@@ -2590,7 +2603,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-13a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-13b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3403,7 +3416,7 @@ async function playerTrends(id, box, seasonAvg) {
   const slot = box.parentElement?.querySelector('.splits-slot');
   if (sc && slot) { slot.replaceWith(sc); if (!box.children.length) box.remove(); }
   if (sc && IS_C) lazy('csplits').then(m => m.drawCollegeSplits(sc, id)).catch(() => sc.remove());
-  else if (sc) { drawSplits(sc, box._sp); const onAdv = () => { if (!sc.isConnected) { document.removeEventListener('fcadv', onAdv); return; } drawSplits(sc, box._sp); }; document.addEventListener('fcadv', onAdv); }
+  else if (sc) { drawSplits(sc, box._sp); advWatch(sc, () => drawSplits(sc, box._sp)); }
 }
 // Splits card: basic per-game numbers, or advanced (shooting efficiency, shot profile, per-36)
 function drawSplits(card, sp) {

@@ -41,7 +41,6 @@ async function fillLog(card, id) {
     const b = e.target.closest('[data-logf]'); if (b) { f = b.dataset.logf; all = false; const x = $('.tx-chips', box).scrollLeft; draw(); $('.tx-chips', box).scrollLeft = x; return; }
     if (e.target.closest('[data-logmore]')) { all = !all; draw(); if (!all) card.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); }
   });
-  const onAdv = () => { if (!card.isConnected) { document.removeEventListener('fcadv', onAdv); return; } draw(); };
-  document.addEventListener('fcadv', onAdv);
+  advWatch(card, draw);
   draw();
 }
