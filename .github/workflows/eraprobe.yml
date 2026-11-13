@@ -7,33 +7,14 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - name: Draw a lot of cards on the live site
-        run: node tools/eraprobe.mjs cards
-      - name: Add a throwaway test key beside the bot's real one
-        id: key
-        run: |
-          set -e
-          curl -fsSL "https://api.github.com/repos/${{ github.repository }}/contents/app.json?ref=discord-data" -H "Accept: application/vnd.github.raw" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -o orig.json
-          node tools/eraprobe.mjs key
-          echo "saved=yes" >> "$GITHUB_OUTPUT"
-          cd pub && git init -q && git checkout -q --orphan discord-data
-          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add app.json && git commit -qm "discord app + test key $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
-      - name: Signed commands, buttons and menus against the live address
-        run: node tools/eraprobe.mjs run
-      - name: Put app.json back exactly as it was
-        if: always() && steps.key.outputs.saved == 'yes'
-        run: |
-          rm -rf back && mkdir back && cp orig.json back/app.json && cd back && git init -q && git checkout -q --orphan discord-data
-          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
-          git add app.json && git commit -qm "discord app $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" discord-data
+      - name: Take the push sender from main
+        run: curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/netlify/push/webpush.mjs -o tools/webpush.mjs
+      - run: node tools/eraprobe.mjs
       - name: Publish
         if: always()
         run: |
