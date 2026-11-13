@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-13d', date: 'Nov 13', items: [
+    ['Odds range on the Bet Desk fixed', 'Setting a range like +150 and up could still show -200 overs: a row stayed in when either its over or its under was in range. The range now always applies to the side you\'re looking at, Over or Under (switching in the odds panel switches the table too), and lines no book prices are judged by their fair price.'],
+  ] },
   { id: '2026-11-13c', date: 'Nov 13', items: [
     ['Alerts for your players and your bets', 'Phone alerts now cover more than your team. Players you starred: a 30, 40 or 50-point game, a triple-double, and their final line. Tracked bets: each leg as it hits or misses (with how many are left on a parlay), a leg that\'s one away late in a game, an under that\'s in danger, and when the whole thing cashes. Both come with Fullcourt closed, and both have their own switch in Settings under Game alerts. Bet alerts cover legs tied to a game on the schedule.'],
     ['Smoother phone menu', 'The menu on phones no longer runs off the bottom on smaller screens: the list scrolls with a soft fade, items are spaced evenly, the league switch fills the width, and the slide-in animation is quicker and doesn\'t stutter (the blur behind it was the heavy part on phones and is gone).'],

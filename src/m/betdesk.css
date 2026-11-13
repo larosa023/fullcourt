@@ -293,7 +293,7 @@
 .bd-op-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .bd-op-h b { display: block; font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 18px; }
 .bd-op-h small { font-size: 12px; color: var(--muted); }
-.bd-op-side { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); }
+.bd-op-side { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); }
 .bd-op-in { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .bd-op-in label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 .bd-op-in input { height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: 15px; font-weight: 650; padding: 0 12px; }

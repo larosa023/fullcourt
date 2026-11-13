@@ -516,11 +516,13 @@ function bdTable(main, keepScroll, final, soft) {
   list = list.filter(x => !x.est || !x.log || x.st || (Q1.has(x.k) && (BD.q1busy || !BD.q1.size))); // estimated rows with no games drop out
   if (BD.radar) list = list.filter(x => !x.log || radarOf(x) != null);
   if (BD.odds) {
-    // only lines priced inside the range; overs also bring in DraftKings' alt lines at those prices
-    const sd = BD.odds.side, alts = [];
-    if (sd !== 'u' && BD.side === 'o') for (const x of list) { if (x.est || Q1.has(x.k)) continue; for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
-    // Fullcourt-estimated lines have no price to judge, so they stay (otherwise FGA, 3PA and 2PT markets vanish)
-    list = list.filter(x => x.est || (sd === 'o' ? inOdds(x.over) : sd === 'u' ? inOdds(x.under) : inOdds(x.over) || inOdds(x.under))).concat(alts);
+    // only lines whose price on the side being shown (Over or Under) is inside the range; overs also bring in
+    // DraftKings' alt lines at those prices. (It used to pass a row when either price fit, so a -231 over stayed in
+    // a +150 and up range because its under was +180.)
+    const sd = BD.side === 'u' ? 'u' : 'o', alts = [];
+    if (sd === 'o') for (const x of list) { if (x.est || Q1.has(x.k)) continue; for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
+    // lines no book prices are judged by their fair price (from his hit rate); ones without one yet stay
+    list = list.filter(x => x.est ? x.st?.fair == null || inOdds(x.st.fair) : inOdds(sd === 'u' ? x.under : x.over)).concat(alts);
   }
   BD.shown = list;
   const stars = readStars(), starred = x => !!stars[x.pid + '|' + x.k];
@@ -633,20 +635,21 @@ function morph(a, b) {
   while (a.childNodes.length > out.length) a.lastChild.remove();
 }
 function oddsPanel() {
-  const o = BD.odds || { side: 'e', min: null, max: null }, lo = o.min == null ? -1400 : oddsPos(o.min), hi = o.max == null ? 1400 : oddsPos(o.max);
+  const o = BD.odds || { min: null, max: null }, sd = BD.side === 'u' ? 'u' : 'o', lo = o.min == null ? -1400 : oddsPos(o.min), hi = o.max == null ? 1400 : oddsPos(o.max);
   const an = BD.oddsAnim; BD.oddsAnim = false;
   return `<div class="bd-op${an ? ' anim' : ''}" data-bdop>
-    <div class="bd-op-h"><div><b>Min / max odds</b><small>DraftKings · ${{ e: 'Either side', o: 'Overs', u: 'Unders' }[o.side]}${BD.odds ? ` · ${esc(oddsTxt(o.min) || 'any')} to ${esc(oddsTxt(o.max) || 'any')}` : ''}</small></div><span class="bd-op-act"><button class="btn ghost sm" data-bdoclear>Clear</button><button class="btn sm" data-bdodds>Done</button></span></div>
-    <div class="seg bd-op-side" data-bdopside><span class="knob"></span>${[['e', 'Either'], ['o', 'Overs'], ['u', 'Unders']].map(([k, l]) => `<button data-bdoside="${k}" aria-pressed="${o.side === k}">${l}</button>`).join('')}</div>
+    <div class="bd-op-h"><div><b>Min / max odds</b><small>DraftKings · ${sd === 'u' ? 'Under prices' : 'Over prices'}${BD.odds ? ` · ${esc(oddsTxt(o.min) || 'any')} to ${esc(oddsTxt(o.max) || 'any')}` : ''}</small></div><span class="bd-op-act"><button class="btn ghost sm" data-bdoclear>Clear</button><button class="btn sm" data-bdodds>Done</button></span></div>
+    <div class="seg bd-op-side" data-bdopside><span class="knob"></span>${[['o', 'Overs'], ['u', 'Unders']].map(([k, l]) => `<button data-bdoside="${k}" aria-pressed="${sd === k}">${l}</button>`).join('')}</div>
     <div class="bd-op-in"><label><span>From</span><input inputmode="numeric" placeholder="-1500" value="${esc(oddsTxt(o.min))}" data-bdomin></label><label><span>To</span><input inputmode="numeric" placeholder="+1500" value="${esc(oddsTxt(o.max))}" data-bdomax></label></div>
     <div class="bd-op-sl"><div class="bd-op-tr"><i style="left:${(lo + 1400) / 28}%;right:${100 - (hi + 1400) / 28}%"></i></div><input type="range" min="-1400" max="1400" step="10" value="${lo}" data-bdolo aria-label="Lowest odds"><input type="range" min="-1400" max="1400" step="10" value="${hi}" data-bdohi aria-label="Highest odds"><div class="bd-op-lb"><span>-1500</span><span>EVEN</span><span>+1500</span></div></div>
     <p class="bd-note">Overs also show DraftKings alt lines priced in this range, marked <em class="est alt">alt</em>, with each one's hit rates.</p>
   </div>`;
 }
 function setOdds(patch) {
-  const o = { ...(BD.odds || { side: 'e', min: null, max: null }), ...patch };
-  BD.odds = o.min == null && o.max == null && o.side === 'e' ? null : o;
-  if (o.side === 'o') BD.side = 'o'; if (o.side === 'u') BD.side = 'u';
+  const { side, ...rest } = patch;
+  if (side === 'o' || side === 'u') BD.side = side; // the range always applies to the side on screen
+  const o = { min: null, max: null, ...BD.odds, ...rest }; delete o.side;
+  BD.odds = o.min == null && o.max == null ? null : o;
   saveView();
 }
 const ordN = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
