@@ -68,6 +68,19 @@ async function drawHealth(sheet) {
       <ul class="hl-list">${L.slice().sort((a, c) => a.ok - c.ok).map(x => `<li class="${x.ok ? '' : 'bad'}"><i class="hl-dot ${x.ok ? 'good' : 'warn'}"></i><span><b>${esc(x.name)}</b><small>${esc(x.note || '')}</small></span></li>`).join('')}</ul></details>` : ''; }).join('')}
   </div><p class="set-note">A check on GitHub looks at Fullcourt's data files, background jobs, the ESPN feeds the site reads and the three websites. When something breaks, it opens an issue on GitHub (which emails the owner) and closes it once things are fixed.</p>`;
 }
+// Game alerts: the team's alerts are switched on with the bell on its page; here are the extras and a test
+function alertsSection() {
+  const p = pushPrefs(), team = alertsOn && favId ? S.teams[favId]?.short || 'your team' : '', on = pushOn(), can = canPush();
+  const home = matchMedia('(display-mode: standalone)').matches || navigator.standalone, ios = /iPhone|iPad/.test(navigator.userAgent) && !home;
+  const note = IS_APP ? 'In the Windows app, alerts come while Fullcourt is running. It keeps running in the tray by the clock.'
+    : ios ? 'On iPhone and iPad, alerts work from the Home Screen app: tap Share, then Add to Home Screen, and turn alerts on there (iOS 16.4 or later).'
+    : can ? `Alerts reach this device even when Fullcourt is closed${on ? '' : ', once one is switched on'}.` : 'This browser can only show alerts while Fullcourt is open.';
+  return `<section><h3 class="set-h">Game alerts</h3><div class="set-list">
+    <div class="set-row hm-row"><span><b>Your team</b><small>${team ? `On for the ${esc(team)}: tip-off, overtime, close finishes${on ? ' and the final' : ''}` : 'Off. Pick your team with ☆ on its page, then tap the bell next to it'}</small></span></div>
+    ${can ? `<button class="set-row" role="switch" aria-checked="${p.any}" data-pushany><span><b>Any close finish</b><small>Every game within 5 points in the last 5 minutes, and every overtime, whoever is playing</small></span><i class="sw"><i></i></i></button>` : ''}
+    ${on ? '<button class="set-row" data-pushtest><span><b>Send a test alert</b><small>Check that alerts reach this device</small></span><em class="set-val">Send</em></button>' : ''}
+  </div><p class="set-note">${note}</p></section>`;
+}
 function openSettings() {
   const sheet = openSheet('Settings');
   const draw = () => {
@@ -80,6 +93,7 @@ function openSettings() {
       <section><h3 class="set-h">Appearance</h3><div class="set-list">
         <button class="set-row" data-settheme><span><b>Theme</b><small>Colors for the whole site</small></span><em class="set-val">${esc((THEMES.find(t => t[0] === themeId()) || THEMES[0])[1])}</em></button>
       </div></section>
+      ${alertsSection()}
       ${IS_APP ? `<section><h3 class="set-h">Windows app</h3><div class="set-list">
         <button class="set-row" role="switch" aria-checked="${lsGet('fc-app-tray') !== '0'}" data-apptray><span><b>Keep running in the tray</b><small>Closing the window keeps Fullcourt by the clock so bet alerts keep coming. Right-click the tray icon to quit</small></span><i class="sw"><i></i></i></button>
         <button class="set-row" data-openmini><span><b>Mini scoreboard</b><small>A small always-on-top window with today's games and your tracked bets</small></span><em class="set-val">Open</em></button>
@@ -107,6 +121,26 @@ function openSettings() {
   sheet.body.addEventListener('click', async e => {
     const tr = e.target.closest('[data-apptray]');
     if (tr) { const on = tr.getAttribute('aria-checked') !== 'true'; tr.setAttribute('aria-checked', on); lsSet('fc-app-tray', on ? null : '0'); appCall('set_close_to_tray', { on }).catch(() => {}); return; }
+    const pa = e.target.closest('[data-pushany]');
+    if (pa) {
+      const on = pa.getAttribute('aria-checked') !== 'true';
+      if (on && Notification.permission !== 'granted') { let perm = Notification.permission; if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (x) {} } if (perm !== 'granted') { toast('Alerts are blocked for this site in your browser settings'); return; } }
+      lsSet('fc-push-any', on ? '1' : null); pa.setAttribute('aria-checked', on);
+      const ok = await pushSync().catch(() => false);
+      if (on && !ok) { lsSet('fc-push-any', null); pa.setAttribute('aria-checked', false); toast("Couldn't switch alerts on. Try again in a minute"); }
+      else toast(on ? 'You\'ll get a heads-up for every close finish' : 'Close-finish alerts off');
+      draw(); return;
+    }
+    const pt = e.target.closest('[data-pushtest]');
+    if (pt) {
+      const val = $('.set-val', pt); val.textContent = 'Sending…';
+      try {
+        const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+        const r = sub ? await (await pushPost('test', { endpoint: sub.endpoint })).json() : { error: 'This device isn\'t signed up. Turn alerts off and on again.' };
+        val.textContent = r.ok ? 'Sent' : 'Send'; if (!r.ok) toast(r.error || "Couldn't send it");
+      } catch (x) { val.textContent = 'Send'; toast("Couldn't reach the alert service"); }
+      return;
+    }
     const il = e.target.closest('[data-isle]');
     if (il) {
       const on = il.getAttribute('aria-checked') !== 'true'; il.setAttribute('aria-checked', on); lsSet('fc-isle', on ? '1' : '0');

@@ -2082,6 +2082,7 @@ function renderFavLink() {
 function setFav(id) {
   favId = favId === id ? null : id;
   lsSet(lsKey('fc-fav'), favId);
+  if (lsGet('fc-push') === '1') pushSync().catch(() => {});
   $$('[data-favwrap]').forEach(b => { b.outerHTML = favBtnHTML(b.dataset.favwrap); });
   renderFavLink();
   renderGames(false); renderTicker(); renderMini();
@@ -2589,7 +2590,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-12e'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-13a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3244,6 +3245,7 @@ const canNotify = () => 'Notification' in window;
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 function alertBtnHTML() {
   const on = alertsOn && canNotify() && Notification.permission === 'granted';
+  if (!on && canPush() && !lsGet('fc-push-key')) setTimeout(() => pushKey().catch(() => {}), 0); // fetch the alert service's key ahead of the tap
   return `<button class="fav-btn alert-btn${on ? ' on' : ''}" data-alerts aria-pressed="${on}" title="${on ? 'Game alerts are on' : 'Get alerts for this team'}">${BELL}<span>${on ? 'Alerts on' : 'Alerts'}</span></button>`;
 }
 async function toggleAlerts() {
@@ -3260,9 +3262,54 @@ async function toggleAlerts() {
   }
   lsSet(lsKey('fc-alerts'), alertsOn ? '1' : null);
   $$('[data-alerts]').forEach(b => { b.outerHTML = alertBtnHTML(); });
-  toast(alertsOn ? `You'll get alerts when ${S.teams[favId]?.short || 'your team'} tips off, goes to overtime, or is in a close finish` : 'Game alerts off');
+  const who = S.teams[favId]?.short || 'your team', pushed = canPush() ? await pushSync().catch(() => false) : false;
+  toast(!alertsOn ? 'Game alerts off' : pushed ? `You'll get alerts when the ${who} tip off, go to overtime, are in a close finish and when it's final, even with Fullcourt closed` : `You'll get alerts when ${who} tips off, goes to overtime, or is in a close finish${IS_APP ? ' while Fullcourt is running' : ' while Fullcourt is open'}`);
   if (alertsOn) alertTick(true);
 }
+
+/* ---------------- alerts with the site closed (Web Push) ----------------
+   When alerts are on and the browser supports it (Chrome, Edge, Firefox, Safari on a Mac, and iPhone or iPad once
+   Fullcourt is on the Home Screen), this device signs up with the alert service on Netlify
+   (netlify/functions/push-*.mjs), which watches the scoreboard every minute and sends the alerts itself. The page
+   then stops sending its own, so nothing arrives twice. The Windows app keeps its own alerts (it runs in the tray). */
+const PUSH_API = /\.netlify\.app$/.test(location.hostname) ? '/api/push' : 'https://nbafullcourty.netlify.app/api/push';
+const canPush = () => !IS_APP && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const pushOn = () => lsGet('fc-push') === '1' && canPush();
+// what this device asks for: the team in each league whose alerts are on, and whether it wants every close finish
+function pushPrefs() {
+  const teams = {};
+  for (const [lg, sfx] of [['nba', ''], ['wnba', '-wnba']]) { const t = lsGet('fc-fav' + sfx); if (t && lsGet('fc-alerts' + sfx) === '1') teams[lg] = t; }
+  return { teams, any: lsGet('fc-push-any') === '1' };
+}
+const b64uBytes = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+const bytesB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const pushPost = (what, body) => fetch(`${PUSH_API}/${what}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+// the alert service's public key, kept so signing up right after the permission prompt doesn't wait on the network
+async function pushKey(fresh) {
+  let k = fresh ? null : lsGet('fc-push-key');
+  if (!k) { const r = await fetch(`${PUSH_API}/key`).then(r => r.json()); k = r?.key || null; lsSet('fc-push-key', k); }
+  return k;
+}
+// Make this device's sign-up match what it wants: sign up, update the team, or sign off. -> true when signed up
+async function pushSync() {
+  if (!canPush()) return false;
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 4000))]); if (!reg?.pushManager) return false;
+  const prefs = pushPrefs(), wanted = Object.keys(prefs.teams).length > 0 || prefs.any;
+  let sub = await reg.pushManager.getSubscription();
+  if (!wanted || Notification.permission !== 'granted') {
+    if (sub) { const endpoint = sub.endpoint; await sub.unsubscribe().catch(() => {}); pushPost('unsubscribe', { endpoint }).catch(() => {}); }
+    lsSet('fc-push', null); return false;
+  }
+  let key = await pushKey();
+  // signed up with an older key (the service's key was replaced): that sign-up would never receive anything
+  const has = sub?.options?.applicationServerKey; if (sub && has && bytesB64u(has) !== key) { key = await pushKey(true); if (bytesB64u(has) !== key) { await sub.unsubscribe().catch(() => {}); sub = null; } }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(key) });
+  const ok = (await pushPost('subscribe', { subscription: sub.toJSON(), ...prefs })).ok;
+  lsSet('fc-push', ok ? '1' : null); lsSet('fc-push-at', ok ? String(Date.now()) : null);
+  return ok;
+}
+// once a day, re-confirm the sign-up (phones renew them now and then, and this keeps the team current)
+if (lsGet('fc-push') === '1') setTimeout(() => { if (Date.now() - (+lsGet('fc-push-at') || 0) > 86400e3) pushSync().catch(() => {}); }, 8000);
 async function notify(title, body, gameId) {
   const opts = { body, tag: `fc-${gameId}`, renotify: true, icon: 'icon-192.png', badge: 'icon-192.png', data: { game: gameId, lg: LG } };
   try {
@@ -3273,6 +3320,7 @@ async function notify(title, body, gameId) {
 }
 function alertCheck(games) {
   if (!alertsOn || !favId || !canNotify() || Notification.permission !== 'granted') return;
+  if (pushOn() && pushPrefs().teams[LG] === favId) return; // the alert service sends these now (see pushSync)
   for (const g of games.filter(isFavGame)) {
     const k = `fc-al-${g.id}`;
     let f = null; try { f = JSON.parse(sessionStorage.getItem(k) || 'null'); } catch (e) {}
@@ -3443,7 +3491,11 @@ function calHTML(info, ym) {
 /* ---------------- home-screen app: service worker + notification taps ---------------- */
 if (!IS_APP && 'serviceWorker' in navigator && /^https:$|^http:$/.test(location.protocol) && !location.pathname.startsWith('/__')) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
-  navigator.serviceWorker.addEventListener('message', e => { if (e.data?.game && (!e.data.lg || e.data.lg === LG)) openGame(String(e.data.game)); });
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (!e.data?.game) return;
+    if (e.data.lg && e.data.lg !== LG && /^(nba|wnba)$/.test(e.data.lg)) { location.href = `./?league=${e.data.lg}&game=${encodeURIComponent(e.data.game)}`; return; }
+    openGame(String(e.data.game));
+  });
 }
 
 

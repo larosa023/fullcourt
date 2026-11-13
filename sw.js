@@ -65,13 +65,21 @@ async function trimData() {
   trimming = false;
 }
 
+// an alert from the alert service (netlify/functions/push-check.mjs), arriving with Fullcourt closed.
+// Every one has to be shown: phones stop delivering to sites that receive pushes without showing them.
+self.addEventListener('push', e => {
+  let m = {};
+  try { m = e.data ? e.data.json() : {}; } catch (x) { m = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(m.title || 'Fullcourt', { body: m.body || '', tag: m.tag || undefined, renotify: !!m.tag, icon: 'icon-192.png', badge: 'icon-192.png', data: { game: m.game || null, lg: m.lg || null } }));
+});
+
 // tapping a game alert opens (or focuses) Fullcourt on that game
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const game = e.notification.data?.game, lg = e.notification.data?.lg;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     const c = list[0];
-    if (c) { c.postMessage({ game, lg }); return c.focus(); }
-    return self.clients.openWindow(`./?game=${encodeURIComponent(game || '')}`);
+    if (c) { if (game) c.postMessage({ game, lg }); return c.focus(); }
+    return self.clients.openWindow(game ? `./?${lg ? `league=${lg}&` : ''}game=${encodeURIComponent(game)}` : './');
   }));
 });

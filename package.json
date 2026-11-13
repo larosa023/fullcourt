@@ -1,0 +1,8 @@
+{
+  "name": "fullcourt",
+  "private": true,
+  "description": "The site itself needs nothing installed. This is only for the Netlify functions in netlify/ (phone alerts keep their data in Netlify Blobs).",
+  "dependencies": {
+    "@netlify/blobs": "8.2.0"
+  }
+}

@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-13a', date: 'Nov 13', items: [
+    ['Game alerts with Fullcourt closed', 'Turn on the bell next to your team and alerts now reach your phone or computer even when Fullcourt isn\'t open: tip-off, overtime, a close finish (within 5 in the last 5 minutes) and the final with the top scorers. On iPhone and iPad this works from the Home Screen app (iOS 16.4 or later). Settings has a new Game alerts section with a test button and an option for a heads-up on any close finish in the league, whoever is playing. The Windows app keeps sending alerts while it runs in the tray.'],
+  ] },
   { id: '2026-11-12e', date: 'Nov 12', items: [
     ['Top scorers shows every top scorer', 'Points, rebounds and assists on the strip under the games came from the scoreboard, which only names each team\'s leader, so a teammate with 30 never showed. Once games tip off, all six stats now rank every player from the box scores (the top 20), refreshed about every 25 seconds while games are on. Before tip-off it still shows season averages. College is unchanged.'],
   ] },

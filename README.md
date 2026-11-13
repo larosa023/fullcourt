@@ -81,7 +81,18 @@ https://nbafullcourty.netlify.app/api/scores?league=nba
 
 Games come back live first, then upcoming, then finals, each with a `url` that opens it on the site in the right league (`?league=…&game=…`). Responses are cached at Netlify's edge for 15 seconds during games and longer otherwise, so it barely uses function runs.
 
-### Discord bot
+### Phone alerts
+
+Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish.
+
+- `netlify/functions/push-api.mjs` `/api/push/key`, `/status`, `/subscribe`, `/unsubscribe`, `/test`
+- `netlify/functions/push-check.mjs` runs every minute on Netlify, reads the NBA/WNBA scoreboard and sends what's due; it sleeps between games
+- `netlify/push/` the alert rules, the sender (VAPID signing and message encryption, no library) and storage in Netlify Blobs (store `push`: the site's signing key, one record per device, the last scoreboard state)
+- `sw.js` shows the alert and opens the game when it's tapped
+
+Nothing to set up: the signing key is made on first use and stays in Netlify Blobs. `package.json` exists only for `@netlify/blobs`.
+
+## Discord bot
 
 Slash commands that answer from the same data as the site, each with an image card and buttons to switch what it shows. NBA and WNBA.
 
