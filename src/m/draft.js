@@ -18,7 +18,7 @@ function loadDraft() {
 }
 const DCOL = { nba: 'mens-college-basketball', wnba: 'womens-college-basketball' };
 const DWEB = lg => `https://site.web.api.espn.com/apis/common/v3/sports/basketball/${DCOL[lg]}`;
-const dHead = (lg, id, w = 200) => CDN(`/i/headshots/${DCOL[lg]}/players/full/${id}.png`, w, Math.round(w * 254 / 350));
+const dHead = (lg, id, w = 200) => { const px = hsW(w), b = px <= 120 ? 96 : px <= 200 ? 200 : 400; return CDN(`/i/headshots/${DCOL[lg]}/players/full/${id}.png`, b, Math.round(b * 254 / 350)); };
 const dSchool = (tid, s = 40) => tid ? `<img class="dr-sch" src="${CDN(`/i/teamlogos/ncaa/500/${tid}.png`, imgBucket(s), imgBucket(s))}" alt="" loading="lazy" draggable="false" onerror="this.remove()">` : '';
 function dFace(lg, p, cls, w) {
   const mono = `<div class="${cls} dr-mono"${p.color ? ` style="--mc:#${p.color}"` : ''}><span>${esc(initials(p.name))}</span></div>`;
@@ -156,7 +156,7 @@ async function renderDraft() {
     return `<div class="dr-row${x.mine ? ' mine' : ''}" style="--tc:${t.color ? '#' + t.color : teamColor(x.team)}">
       <span class="dr-no">${x.pick}</span>
       <div class="dr-tm">${logo(x.team, 64)}<span><b>${esc(t.short || t.name)}</b><small>${via ? `<span class="dr-via" title="${esc(x.how || '')}">via ${esc(via.short || x.orig)} (${dRec(L, via)})</span>` : dRec(L, t)}${od ? ' · ' : ''}${od}</small><span class="dr-needs">${need.map(n => `<i class="${p && fits(n, p) ? 'hit' : ''}">${esc(n)}</i>`).join('')}</span></span></div>
-      ${p ? `<button class="dr-pl" data-dpro="${esc(p.id)}">${dFace(lg, p, 'dr-pf', 200)}<span><b>${esc(p.name)}</b><small>${esc([p.pos, p.ht, p.cls].filter(Boolean).join(' · '))}</small><small class="dr-schl">${dSchool(p.tid, 32)}${esc(p.school || '')}</small></span><span class="dr-ln"><span><strong>${d1(p.pts)}</strong>PTS</span><span><strong>${d1(p.reb)}</strong>REB</span><span><strong>${d1(p.ast)}</strong>AST</span><span><strong>${p.tpa >= .5 ? dPct(p.tp) : '–'}</strong>3P</span></span></button>` : '<span class="dr-pl empty">–</span>'}
+      ${p ? `<button class="dr-pl" data-dpro="${esc(p.id)}">${dFace(lg, p, 'dr-pf', 96)}<span><b>${esc(p.name)}</b><small>${esc([p.pos, p.ht, p.cls].filter(Boolean).join(' · '))}</small><small class="dr-schl">${dSchool(p.tid, 32)}${esc(p.school || '')}</small></span><span class="dr-ln"><span><strong>${d1(p.pts)}</strong>PTS</span><span><strong>${d1(p.reb)}</strong>REB</span><span><strong>${d1(p.ast)}</strong>AST</span><span><strong>${p.tpa >= .5 ? dPct(p.tp) : '–'}</strong>3P</span></span></button>` : '<span class="dr-pl empty">–</span>'}
       <div class="dr-act">${x.mine ? `<span class="dr-mine">Your pick</span><button class="icon-btn dr-unl" data-dunlock="${x.pick}" aria-label="Let Fullcourt pick" title="Let Fullcourt pick">${ICON.close}</button>` : ''}<button class="btn ghost dr-chg" data-dchange="${x.pick}">Change</button></div>
     </div>`;
   };

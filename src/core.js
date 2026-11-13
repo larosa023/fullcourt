@@ -174,10 +174,13 @@ const logoSrc = (abbr, sizeIn = 80, dark = isDark()) => {
 const NOLOGO = "this.onerror=null;this.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 40 40&quot;><circle cx=&quot;20&quot; cy=&quot;20&quot; r=&quot;19&quot; fill=&quot;#888&quot; fill-opacity=&quot;.22&quot;/><text x=&quot;20&quot; y=&quot;25&quot; text-anchor=&quot;middle&quot; font-family=&quot;sans-serif&quot; font-weight=&quot;700&quot; font-size=&quot;13&quot; fill=&quot;#888&quot;>'+(this.dataset.ab||'').slice(0,4)+'</text></svg>')";
 const logo = (abbr, size = 80, cls = 'lg') =>
   `<img class="${cls}" data-ab="${esc(abbr)}" data-s="${size}" src="${logoSrc(abbr, size)}" alt="" loading="lazy" draggable="false" onerror="${IS_C ? `this.onerror=function(){${NOLOGO}};this.src='${logoSrc(abbr, size, false)}'` : `this.onerror=null;this.src='${logoSrc(abbr, size, false)}'`}">`;
-const headSrc = (id, wIn = 350) => { const w = wIn <= 200 ? 200 : wIn <= 400 ? 400 : 700; return CDN(`/i/headshots/${LG}/players/full/${id}.png`, w, Math.round(w * 254 / 350)); };
+const headSrc = (id, wIn = 350) => { const w = wIn <= 120 ? 96 : wIn <= 200 ? 200 : wIn <= 300 ? 300 : wIn <= 400 ? 400 : 700; /* up to 120: shown at most ~48 px wide */ return CDN(`/i/headshots/${LG}/players/full/${id}.png`, w, Math.round(w * 254 / 350)); };
+// photo sizes on the page are written for a sharp (2x) screen; a 1x screen (most desktop monitors) gets half the pixels,
+// which for a headshot is a quarter of the download (a 400 px one is ~150 KB, a 200 px one ~40 KB)
+const hsW = w => w * Math.min(2, Math.max(1, devicePixelRatio || 1)) / 2;
 const initials = n => String(n || '').split(/\s+/).map(x => x[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 const face = (id, name, cls = 'face', w = 160) => id
-  ? `<img class="${cls}" src="${headSrc(id, w)}" alt="${esc(name)}" loading="lazy" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls} avatar',textContent:'${esc(initials(name))}'}))">`
+  ? `<img class="${cls}" src="${headSrc(id, hsW(w))}" alt="${esc(name)}" loading="lazy" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'${cls} avatar',textContent:'${esc(initials(name))}'}))">`
   : `<div class="${cls} avatar">${esc(initials(name))}</div>`;
 
 const teamColor = (idOrAbbr) => {
@@ -290,6 +293,7 @@ function dragScroll(el) {
   let fl = -1, fr = -1, max = 0;
   el._fadeRead = () => { max = el.scrollWidth - el.clientWidth; return el.scrollLeft; };
   el._fadeWrite = x => {
+    if (el._glide) x = 5; // the ticker gliding: content is coming in from both sides
     const l = x > 4 ? 1 : 0, r = x < max - 4 ? 1 : 0;
     if (l !== fl) wrap.style.setProperty('--fl', fl = l);
     if (r !== fr) wrap.style.setProperty('--fr', fr = r);
@@ -989,7 +993,7 @@ function renderPerformers(animate) {
   patchList(box, items.map((p, i) => {
     rememberPlayer(p.a, p.side.id);
     return [`${C[0]}|${p.a.id}|${p.g.id}`, `<button class="pcard" style="--i:${i};--tc:${teamColor(p.side.id)}" data-player="${p.a.id}">
-      <div class="ph">${face(p.a.id, p.a.displayName, 'face', 350)}${logo(p.side.abbr, 44)}<span class="pv">${esc(p.dv)}<small>${anyPlayed ? C[1] : C[5]}</small></span></div>
+      <div class="ph">${face(p.a.id, p.a.displayName, 'face', 300)}${logo(p.side.abbr, 44)}<span class="pv">${esc(p.dv)}<small>${anyPlayed ? C[1] : C[5]}</small></span></div>
       <div class="pi"><b>${esc(p.a.displayName)}</b><span>${esc(p.side.abbr)} ${p.side === p.g.home ? 'vs' : '@'} ${esc(p.opp.abbr)}</span><span class="ex">${esc(p.extra || (p.side.rec ? `${p.side.rec} record` : ''))}&nbsp;</span></div>
     </button>`];
   }), animate);
@@ -2163,6 +2167,7 @@ function renderTicker() {
   const rank = g => (isFavGame(g) ? 0 : 1) * 10 + (g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2);
   let list = [...games].sort((a, b) => rank(a) - rank(b) || new Date(a.date) - new Date(b.date));
   if (IS_C) { const top = list.filter(g => g.home.rank || g.away.rank || isFavGame(g)); list = (top.length ? top : list).slice(0, 30); }
+  tr._stopGlide?.();
   const keep = tr.scrollLeft;
   tr.innerHTML = `<span class="tk-group" id="tkA"><span class="tk-day">${S.date === S.today ? 'Tonight' : 'Today'}</span>${list.map(tickerItem).join('')}</span>`;
   const a = $('#tkA');
@@ -2173,40 +2178,46 @@ function renderTicker() {
   tr.scrollLeft = keep;
   dragScroll(tr);
   tr._fades?.(); tr._half = 0; // contents changed: re-measure on the next frame
+  tr._startGlide?.();
 }
 (() => {
   const tr = $('#tickerTrack'); if (!tr) return;
-  let hover = false, pos = 0;
-  tr.addEventListener('pointerenter', () => hover = true);
-  tr.addEventListener('pointerleave', () => hover = false);
-  tr.addEventListener('focusin', () => hover = true);
-  tr.addEventListener('focusout', () => hover = false);
-  // The ticker never measures the page while it runs: its position is kept here and only read back from the page
-  // when it starts moving again (after a hover, a drag, a touch). Reading it every frame forced the browser to lay
-  // the page out at the top of every frame, on every page. On phones (no ticker) and while the ticker is off screen,
-  // the loop stops completely; a resize or scrolling back up starts it again.
-  let onScreen = true, wide = innerWidth > 760, last = 0, raf = 0, paused = true, touchT = 0, held = false;
-  // a finger flick keeps gliding after it lifts: hold off a moment before taking over again
-  tr.addEventListener('touchstart', () => { clearTimeout(touchT); held = true; }, { passive: true });
-  tr.addEventListener('touchend', () => { clearTimeout(touchT); touchT = setTimeout(() => { held = false; }, 1800); }, { passive: true });
+  // The ticker glides on the graphics card: both copies of the list slide left as one animation, and the page's own
+  // code does nothing from frame to frame. (It used to move the scroll position itself every frame, which kept the
+  // processor busy the whole time the page was open: most of what an idle Fullcourt window cost.) When someone takes
+  // over (hover, drag, touch, keyboard focus) the glide hands its spot to the ordinary scroll position, and takes it
+  // back from there when they let go. On phones (no ticker), off screen, or with reduced motion it doesn't run at all.
+  const SPEED = 27; // px a second
+  let hover = false, held = false, touchT = 0, onScreen = true, wide = innerWidth > 760, anims = [];
   const awake = () => wide && onScreen && !reduced;
-  const step = t => {
-    raf = 0;
-    if (!awake()) return;
-    if (!hover && !held && !document.hidden && tr.dataset.loop && !tr.classList.contains('dragging')) {
-      if (paused) { pos = tr.scrollLeft; paused = false; last = 0; }
-      if (!tr._half) { const a = $('#tkA'); tr._half = a ? a.offsetWidth + (parseFloat(getComputedStyle(tr).columnGap) || 0) : 0; }
-      pos += 0.45 * Math.min(3, last ? (t - last) / 16.7 : 1);
-      if (tr._half && pos >= tr._half) pos -= tr._half;
-      tr.scrollLeft = pos;
-    } else paused = true;
-    last = t;
-    raf = requestAnimationFrame(step);
+  const half = () => { if (!tr._half) { const a = $('#tkA'); tr._half = a ? a.offsetWidth + (parseFloat(getComputedStyle(tr).columnGap) || 0) : 0; } return tr._half; };
+  const stop = () => {
+    if (!anims.length) return;
+    const h = half(), x = h ? ((anims[0].currentTime || 0) / 1000 * SPEED) % h : 0;
+    anims.forEach(a => a.cancel()); anims = []; tr._glide = false;
+    tr.scrollLeft = x; tr._fades?.(false);
   };
-  const kick = () => { if (!raf && awake()) { paused = true; raf = requestAnimationFrame(step); } };
-  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; kick(); }).observe(tr);
-  addEventListener('resize', () => { wide = innerWidth > 760; tr._half = 0; kick(); }, { passive: true });
-  kick();
+  const start = () => {
+    if (anims.length || !awake() || hover || held || !tr.dataset.loop || tr.classList.contains('dragging')) return;
+    const h = half(); if (!h) return;
+    const from = ((tr.scrollLeft % h) + h) % h;
+    tr._glide = true; tr.scrollLeft = 0; tr._fadeRead?.(); tr._fadeWrite?.(5);
+    anims = $$('.tk-group', tr).map(g => g.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${-h}px)` }], { duration: h / SPEED * 1000, iterations: Infinity }));
+    anims.forEach(a => { a.currentTime = from / SPEED * 1000; });
+  };
+  const hold = () => { hover = true; stop(); }, release = () => { hover = false; start(); };
+  tr.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hold(); });
+  tr.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') release(); });
+  tr.addEventListener('focusin', hold);
+  tr.addEventListener('focusout', release);
+  // a finger flick keeps gliding after it lifts: hold off a moment before taking over again
+  tr.addEventListener('touchstart', () => { clearTimeout(touchT); held = true; stop(); }, { passive: true });
+  tr.addEventListener('touchend', () => { clearTimeout(touchT); touchT = setTimeout(() => { held = false; start(); }, 1800); }, { passive: true });
+  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; if (onScreen) start(); else stop(); }).observe(tr);
+  addEventListener('resize', () => { const w = innerWidth > 760; if (w === wide && !anims.length) return; wide = w; stop(); tr._half = 0; start(); }, { passive: true });
+  // renderTicker replaces the list: it hands the spot back first, then starts the glide again on the new list
+  tr._stopGlide = stop; tr._startGlide = () => { tr._half = 0; start(); };
+  start();
 })();
 
 /* ---------------- shot chart ---------------- */
@@ -2571,7 +2582,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-12c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-12d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3597,15 +3608,22 @@ async function renderWatch(force) {
 }
 
 /* ---------------- who's out ---------------- */
+let outSeen = false, outIO = null;
 async function renderOut() {
   const box = $('#outPanel'); if (!box) return;
   const games = S.games.filter(g => g.state !== 'post');
   if (S.date < S.today || !games.length) { box.hidden = true; return; }
   box.hidden = false;
   const body = $('#outBody');
-  if (!body.children.length) body.innerHTML = '<div class="sk" style="height:120px"></div>';
+  if (!body.children.length) { body.innerHTML = '<div class="sk" style="height:120px"></div>'; body._html = ''; }
+  // the league injury report is a big download (over 1 MB before compression): on a phone the panel sits far below
+  // the scores, so it waits until the panel is about to scroll into view
+  if (!outSeen) {
+    outIO ||= new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { outSeen = true; outIO.disconnect(); renderOut(); } }, { rootMargin: '800px 0px' });
+    outIO.observe(box); return;
+  }
   const all = await leagueInjuries();
-  if (!all) { body.innerHTML = '<p class="out-none">The injury report is unavailable right now.</p>'; return; }
+  if (!all) { body.innerHTML = '<p class="out-none">The injury report is unavailable right now.</p>'; body._html = ''; return; }
   const entries = all.injuries || all.teams || [];
   const forTeam = s => (entries.find(e => e.id === s.id || e.team?.id === s.id || e.displayName === s.full || e.team?.displayName === s.full)?.injuries || []).map(normInjury)
     .filter(n => /out|doubt|question|day/i.test(n.status));
@@ -3625,7 +3643,8 @@ async function renderOut() {
       <div class="og-b">${teams.map(t => `<div class="og-team"><span class="og-h">${logo(t.s.abbr, 32)}${esc(t.s.name)}</span>${t.l.length ? t.l.map(x => `<button class="og-p" ${x.id ? `data-player="${esc(x.id)}"` : ''}><span>${esc(x.short || x.name)}</span><em class="${cls(x.status)}">${esc(x.status)}</em><small>${esc(x.what)}</small></button>`).join('') : '<span class="og-none">No one listed</span>'}</div>`).join('')}</div>
     </details>`;
   }).join('');
-  body.innerHTML = rows;
+  // the score refresh calls this every few seconds: only rebuild when something changed (it also keeps open rows open)
+  if (rows !== body._html) { body._html = rows; body.innerHTML = rows; }
 }
 
 /* ---------------- daily pick'em ---------------- */

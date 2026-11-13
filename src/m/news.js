@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-12d', date: 'Nov 12', items: [
+    ['Lighter and faster', 'The score ticker across the top of the computer layout now glides on the graphics card instead of being moved by the page\'s code every frame, which was most of what an open Fullcourt window used while you weren\'t touching it. It takes about an eighth of the processor time now, in the browser and in the Windows app. Player photos are now downloaded at the size they\'re shown: about a quarter of the data on a computer, and much less for small faces like the Bet Desk and Leaders lists on a phone. On a phone, the injury report under the scores (over 1 MB) now loads only when you scroll to it.'],
+  ] },
   { id: '2026-11-12c', date: 'Nov 12', items: [
     ['Pick the stat on Top scorers', 'The strip of players under the games used to rank points only. It now has a row of buttons: PTS, REB, AST, STL, BLK and 3PM. Points, rebounds and assists show each team\'s leader and move with the live scores. Steals, blocks and threes read the box scores, so they rank every player in the day\'s games and refresh about every 45 seconds while games are on. Your pick is remembered. Before the first tip-off the strip shows season averages, and steals, blocks and threes wait until a game has started. College has points, rebounds and assists.'],
   ] },
