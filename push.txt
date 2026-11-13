@@ -1,0 +1,15 @@
+good signature: web.push.apple.com 400 {"reason":"BadWebPushToken"}
+ -> failed
+good signature: fcm.googleapis.com 410 push subscription has unsubscribed or expired. 
+ -> gone
+good signature: updates.push.services.mozilla.com 404 
+ -> gone
+mismatched key: web.push.apple.com 400 {"reason":"BadWebPushToken"}
+garbage token: 403 {"reason":"BadJwtToken"}
+service key: {"ok":true,"key":"BB_CLo8dPlzA8PwFZ3iYk32m-FFyHnVr5MvQ236MPH
+subscribe: 200 {"ok":true}
+status: {"ok":true,"subscribers":1,"lastCheck":"2026-11-13T07:08:05.017Z","secondsAgo":42,"sleepingUntil":null,"last":null,"recent":[]}
+test: 400 {"ok":false,"error":"The push service didn't take it. Try again in a minute."}
+status after: {"ok":true,"subscribers":1,"lastCheck":"2026-11-13T07:08:05.017Z","secondsAgo":43,"sleepingUntil":null,"last":null,"recent":[]}
+unsubscribe: 200 {"ok":true}
+checker ran at 2026-11-13T07:08:05.017Z {} sleeping until 
