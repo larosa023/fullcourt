@@ -83,11 +83,11 @@ Games come back live first, then upcoming, then finals, each with a `url` that o
 
 ### Phone alerts
 
-Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish.
+Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish. Starred players (30/40/50 points, triple-doubles, final line) and tracked bets (legs hit or missed, close calls late, unders in danger, parlay cashed) too, each with its own switch; the device sends its starred players and open bets with its sign-up and updates them when they change.
 
 - `netlify/functions/push-api.mjs` `/api/push/key`, `/status`, `/subscribe`, `/unsubscribe`, `/test`
 - `netlify/functions/push-check.mjs` runs every minute on Netlify, reads the NBA/WNBA scoreboard and sends what's due; it sleeps between games
-- `netlify/push/` the alert rules, the sender (VAPID signing and message encryption, no library) and storage in Netlify Blobs (store `push`: the site's signing key, one record per device, the last scoreboard state)
+- `netlify/push/` the alert rules (`extras.mjs`: players and bets, graded with the same rules as the Bets page), the sender (VAPID signing and message encryption, no library) and storage in Netlify Blobs (store `push`: the site's signing key, one record per device, the last scoreboard state)
 - `sw.js` shows the alert and opens the game when it's tapped
 
 Nothing to set up: the signing key is made on first use and stays in Netlify Blobs. `package.json` exists only for `@netlify/blobs`.

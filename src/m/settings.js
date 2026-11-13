@@ -77,7 +77,9 @@ function alertsSection() {
     : can ? `Alerts reach this device even when Fullcourt is closed${on ? '' : ', once one is switched on'}.` : 'This browser can only show alerts while Fullcourt is open.';
   return `<section><h3 class="set-h">Game alerts</h3><div class="set-list">
     <div class="set-row hm-row"><span><b>Your team</b><small>${team ? `On for the ${esc(team)}: tip-off, overtime, close finishes${on ? ' and the final' : ''}` : 'Off. Pick your team with ☆ on its page, then tap the bell next to it'}</small></span></div>
-    ${can ? `<button class="set-row" role="switch" aria-checked="${p.any}" data-pushany><span><b>Any close finish</b><small>Every game within 5 points in the last 5 minutes, and every overtime, whoever is playing</small></span><i class="sw"><i></i></i></button>` : ''}
+    ${can ? `<button class="set-row" role="switch" aria-checked="${on && p.want.players}" data-pushx="players"><span><b>Your players</b><small>A 30, 40 or 50-point game, a triple-double, and each one's final line${p.players.length ? ` (${p.players.length} starred)` : '. Star players with ☆ on their pages'}</small></span><i class="sw"><i></i></i></button>
+    <button class="set-row" role="switch" aria-checked="${on && p.want.bets}" data-pushx="bets"><span><b>Tracked bets</b><small>A leg that hits or misses, one that's close or an under in danger, and when a parlay cashes</small></span><i class="sw"><i></i></i></button>
+    <button class="set-row" role="switch" aria-checked="${p.any}" data-pushany><span><b>Any close finish</b><small>Every game within 5 points in the last 5 minutes, and every overtime, whoever is playing</small></span><i class="sw"><i></i></i></button>` : ''}
     ${on ? '<button class="set-row" data-pushtest><span><b>Send a test alert</b><small>Check that alerts reach this device</small></span><em class="set-val">Send</em></button>' : ''}
   </div><p class="set-note">${note}</p></section>`;
 }
@@ -121,6 +123,18 @@ function openSettings() {
   sheet.body.addEventListener('click', async e => {
     const tr = e.target.closest('[data-apptray]');
     if (tr) { const on = tr.getAttribute('aria-checked') !== 'true'; tr.setAttribute('aria-checked', on); lsSet('fc-app-tray', on ? null : '0'); appCall('set_close_to_tray', { on }).catch(() => {}); return; }
+    const px = e.target.closest('[data-pushx]');
+    if (px) {
+      const what = px.dataset.pushx, on = px.getAttribute('aria-checked') !== 'true';
+      if (on && Notification.permission !== 'granted') { let perm = Notification.permission; if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (x) {} } if (perm !== 'granted') { toast('Alerts are blocked for this site in your browser settings'); return; } }
+      if (on && !pushOn()) lsSet(`fc-push-${what === 'players' ? 'bets' : 'players'}`, '0'); // first sign-up from here: just the one asked for
+      lsSet(`fc-push-${what}`, on ? null : '0');
+      const p2 = pushPrefs(); lsSet('fc-push-extra', on || ((p2.want.players || p2.want.bets) && pushOn()) ? '1' : null);
+      const ok = await pushSync().catch(() => false);
+      if (on && !ok) { lsSet(`fc-push-${what}`, '0'); toast("Couldn't switch alerts on. Try again in a minute"); }
+      else toast(on ? (what === 'players' ? 'You\'ll hear about big games from your players' : 'You\'ll get alerts for your tracked bets') : (what === 'players' ? 'Player alerts off' : 'Bet alerts off'));
+      draw(); return;
+    }
     const pa = e.target.closest('[data-pushany]');
     if (pa) {
       const on = pa.getAttribute('aria-checked') !== 'true';

@@ -2,12 +2,14 @@
 // changes its team, asks for a test) and netlify/functions/push-check.mjs (runs every minute and sends the alerts).
 // Everything is kept in a Netlify Blobs store named "push":
 //   vapid        the site's signing key, made on first use; it never leaves Netlify
-//   sub/<hash>   one per phone or browser: its push address, the teams it follows, whether it wants every close finish
+//   sub/<hash>   one per phone or browser: its push address, the teams it follows, whether it wants every close finish,
+//                its players and its open tracked bets (netlify/push/extras.mjs)
 //   state        what each of today's games looked like a minute ago, and when the checker may next sleep until
 //   log          the last few alerts sent (titles only), for the status page
 import { createHash } from 'node:crypto';
 import { newVapidKeys, sendPush } from './webpush.mjs';
 import { LEAGUES, scoreboardUrl, dayET, slim, step, messageFor, idleFor } from './alerts.mjs';
+import { cleanPlayers, cleanBets, playerAlerts, betAlerts, gamesToRead } from './extras.mjs';
 
 export const SUBJECT = 'https://nbafullcourty.netlify.app'; // who's sending, as push services ask
 const MAX_SUBS = 500;
@@ -30,7 +32,7 @@ export function cleanSub(body) {
   if (!/^[A-Za-z0-9_-]{80,100}=*$/.test(p256dh) || !/^[A-Za-z0-9_-]{16,32}=*$/.test(auth)) return { error: 'The subscription keys are missing.' };
   const teams = {};
   for (const lg of LEAGUES) { const t = body?.teams?.[lg]; if (t != null && /^\d{1,6}$/.test(String(t))) teams[lg] = String(t); }
-  return { sub: { endpoint, keys: { p256dh, auth }, teams, any: !!body?.any } };
+  return { sub: { endpoint, keys: { p256dh, auth }, teams, any: !!body?.any, players: cleanPlayers(body?.players), bets: cleanBets(body?.bets), want: { players: body?.want?.players !== false, bets: body?.want?.bets !== false } } };
 }
 
 export async function saveSub(store, rec) {
@@ -56,7 +58,7 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
   const out = { subs: keys.length, games: 0, sent: 0, gone: 0, failed: 0 };
   if (!keys.length) { await store.setJSON('state', { ...state, lastRun: now, idleUntil: now + 10 * 60e3, note: 'nobody subscribed' }); return out; }
   const subs = (await Promise.all(keys.map(k => store.get(k, { type: 'json' }).then(s => s && { ...s, key: k })))).filter(Boolean);
-  const want = new Set(subs.flatMap(s => (s.any ? LEAGUES : Object.keys(s.teams || {}))));
+  const want = new Set(subs.flatMap(s => [...(s.any ? LEAGUES : Object.keys(s.teams || {})), ...(s.players || []).map(p => p.lg), ...(s.bets || []).map(b => b.lg)]));
   const ymd = dayET(now), games = [], failed = new Set();
   for (const lg of LEAGUES.filter(l => want.has(l))) {
     try {
@@ -70,8 +72,27 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
   const recs = Object.fromEntries(Object.entries(state.games || {}).filter(([, r]) => failed.has(r.lg))), due = [];
   for (const g of games) { const { rec, due: d } = step(g, state.games?.[g.id]); recs[g.id] = rec; for (const key of d) due.push([g, key]); }
   out.games = games.length;
-  const vk = due.length ? await vapid(store) : null, sends = [], log = [];
+  const sends = [], log = [];
   for (const [g, key] of due) for (const s of subs) { const m = messageFor(s, g, key); if (m) sends.push([s, m]); }
+  // players and tracked bets: read the box scores they need (live games, and any that ended this minute)
+  const prevGames = state.games || {}, finals = new Set(games.filter(g => g.state === 'post' && prevGames[g.id] && prevGames[g.id].s !== 'post').map(g => g.id));
+  const quiet = new Set(games.filter(g => !prevGames[g.id]).map(g => g.id)), read = gamesToRead(subs, games, finals), sums = {};
+  const per = state.day === ymd ? state.per || {} : {}; // what each subscriber has already been told today
+  if (read.size) {
+    const list = [...read];
+    for (let k = 0; k < list.length; k += 6) await Promise.all(list.slice(k, k + 6).map(async gid => {
+      const g = games.find(x => x.id === gid);
+      try { const r = await fetchImpl(`https://site.api.espn.com/apis/site/v2/sports/basketball/${g.lg}/summary?event=${gid}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) }); if (r.ok) sums[gid] = await r.json(); } catch (e) {}
+    }));
+    out.boxes = Object.keys(sums).length;
+    for (const s of subs) {
+      const me = s.key.slice(4, 16), mine = per[me] || { seen: [], last: {} }, seen = new Set(mine.seen);
+      const msgs = [...(s.want?.players !== false ? playerAlerts(s, games, sums, seen, quiet, finals) : []), ...(s.want?.bets !== false ? betAlerts(s, sums, seen, mine.last, quiet) : [])];
+      for (const m of msgs) sends.push([s, m]);
+      per[me] = { seen: [...seen].slice(-400), last: mine.last };
+    }
+  }
+  const vk = sends.length ? await vapid(store) : null;
   for (let k = 0; k < sends.length; k += 20) {
     await Promise.all(sends.slice(k, k + 20).map(async ([s, m]) => {
       const { ttl, ...msg } = m, res = await sendPush(s, msg, { keys: vk, subject: SUBJECT, ttl: ttl || 600, fetchImpl });
@@ -81,7 +102,7 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
     }));
   }
   // when nothing has been read (feed down), keep the old records so nothing is announced twice
-  await store.setJSON('state', { games: recs, lastRun: now, idleUntil: failed.size ? now : now + idleFor(games, now), last: out });
+  await store.setJSON('state', { games: recs, day: ymd, per, lastRun: now, idleUntil: failed.size ? now : now + idleFor(games, now), last: out });
   await remember(store, log);
   return out;
 }

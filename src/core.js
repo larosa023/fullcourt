@@ -2603,7 +2603,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-13b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-13c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -3288,12 +3288,24 @@ async function toggleAlerts() {
 const PUSH_API = /\.netlify\.app$/.test(location.hostname) ? '/api/push' : 'https://nbafullcourty.netlify.app/api/push';
 const canPush = () => !IS_APP && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const pushOn = () => lsGet('fc-push') === '1' && canPush();
-// what this device asks for: the team in each league whose alerts are on, and whether it wants every close finish
+// what this device asks for: the team in each league whose alerts are on, whether it wants every close finish, and
+// (unless switched off in Settings) its players and its open tracked bets, NBA and WNBA
+const LS_JSON = k => { try { return JSON.parse(lsGet(k) || 'null'); } catch (e) { return null; } };
 function pushPrefs() {
-  const teams = {};
-  for (const [lg, sfx] of [['nba', ''], ['wnba', '-wnba']]) { const t = lsGet('fc-fav' + sfx); if (t && lsGet('fc-alerts' + sfx) === '1') teams[lg] = t; }
-  return { teams, any: lsGet('fc-push-any') === '1' };
+  const teams = {}, players = [], bets = [];
+  const want = { players: lsGet('fc-push-players') !== '0', bets: lsGet('fc-push-bets') !== '0' };
+  for (const [lg, sfx] of [['nba', ''], ['wnba', '-wnba']]) {
+    const t = lsGet('fc-fav' + sfx); if (t && lsGet('fc-alerts' + sfx) === '1') teams[lg] = t;
+    if (want.players) for (const w of LS_JSON('fc-watch' + sfx) || []) if (w?.id && w.teamId) players.push({ id: String(w.id), name: w.name, short: w.short || w.name, team: String(w.teamId), lg });
+    if (want.bets) for (const b of LS_JSON('fc-bets' + sfx) || []) if (b?.id && !b.result && b.legs?.length && b.legs.every(l => l.gid)) bets.push({ id: String(b.id), lg, legs: b.legs.map(l => ({ k: l.k, pid: l.pid, name: l.name, stats: l.stats, line: l.line, side: l.side, gid: String(l.gid), teamId: l.teamId, abbr: l.abbr, game: l.game })) });
+  }
+  return { teams, any: lsGet('fc-push-any') === '1', players: players.slice(0, 40), bets: bets.slice(-40), want };
 }
+// the alert service sends bet alerts for this device (so the page doesn't send its own as well)
+const pushBets = () => pushOn() && lsGet('fc-push-bets') !== '0' && !IS_APP;
+// a change to your players or bets: tell the alert service, once things settle (only when this device is signed up)
+let pushT = 0;
+function pushSoon() { if (lsGet('fc-push') !== '1' || !canPush()) return; clearTimeout(pushT); pushT = setTimeout(() => { const sig = JSON.stringify(pushPrefs()); if (sig !== lsGet('fc-push-sig')) pushSync().catch(() => {}); }, 2500); }
 const b64uBytes = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
 const bytesB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const pushPost = (what, body) => fetch(`${PUSH_API}/${what}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -3307,7 +3319,7 @@ async function pushKey(fresh) {
 async function pushSync() {
   if (!canPush()) return false;
   const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 4000))]); if (!reg?.pushManager) return false;
-  const prefs = pushPrefs(), wanted = Object.keys(prefs.teams).length > 0 || prefs.any;
+  const prefs = pushPrefs(), wanted = Object.keys(prefs.teams).length > 0 || prefs.any || (lsGet('fc-push') === '1' && (prefs.players.length > 0 || prefs.bets.length > 0)) || lsGet('fc-push-extra') === '1';
   let sub = await reg.pushManager.getSubscription();
   if (!wanted || Notification.permission !== 'granted') {
     if (sub) { const endpoint = sub.endpoint; await sub.unsubscribe().catch(() => {}); pushPost('unsubscribe', { endpoint }).catch(() => {}); }
@@ -3318,7 +3330,7 @@ async function pushSync() {
   const has = sub?.options?.applicationServerKey; if (sub && has && bytesB64u(has) !== key) { key = await pushKey(true); if (bytesB64u(has) !== key) { await sub.unsubscribe().catch(() => {}); sub = null; } }
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(key) });
   const ok = (await pushPost('subscribe', { subscription: sub.toJSON(), ...prefs })).ok;
-  lsSet('fc-push', ok ? '1' : null); lsSet('fc-push-at', ok ? String(Date.now()) : null);
+  lsSet('fc-push', ok ? '1' : null); lsSet('fc-push-at', ok ? String(Date.now()) : null); lsSet('fc-push-sig', ok ? JSON.stringify(prefs) : null);
   return ok;
 }
 // once a day, re-confirm the sign-up (phones renew them now and then, and this keeps the team current)
@@ -3577,7 +3589,7 @@ function watchBtnHTML(id, hero) {
 function toggleWatch(id, info) {
   if (isWatched(id)) watch = watch.filter(w => String(w.id) !== String(id));
   else if (info) watch.push({ ...info, at: Date.now() });
-  lsSet(lsKey('fc-watch'), watch.length ? JSON.stringify(watch) : null);
+  lsSet(lsKey('fc-watch'), watch.length ? JSON.stringify(watch) : null); pushSoon();
   $$(`[data-watch="${id}"]`).forEach(b => { b.outerHTML = watchBtnHTML(id, 'whero' in b.dataset); });
   toast(isWatched(id) ? `${info?.name || 'Player'} added to your players on the Scores page` : 'Removed from your players');
   renderWatch(true);
@@ -3722,7 +3734,7 @@ async function renderOut() {
 /* ---------------- daily pick'em ---------------- */
 let picks = {};
 function resetPicks() { picks = {}; savePicks(); renderPicks(); }
-function clearWatch() { watch = []; lsSet(lsKey('fc-watch'), null); renderWatch(true); }
+function clearWatch() { watch = []; lsSet(lsKey('fc-watch'), null); pushSoon(); renderWatch(true); }
 try { picks = JSON.parse(lsGet(lsKey('fc-picks')) || '{}') || {}; } catch (e) { picks = {}; }
 const savePicks = () => lsSet(lsKey('fc-picks'), JSON.stringify(picks));
 function settlePicks(games) {

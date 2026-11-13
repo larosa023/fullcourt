@@ -4,7 +4,7 @@
    ===================================================================== */
 const BET_KEY = () => lsKey('fc-bets');
 const readBets = () => { try { return JSON.parse(lsGet(BET_KEY()) || '[]') || []; } catch (e) { return []; } };
-const writeBets = list => lsSet(BET_KEY(), list.length ? JSON.stringify(list.slice(-200)) : null);
+const writeBets = list => { lsSet(BET_KEY(), list.length ? JSON.stringify(list.slice(-200)) : null); pushSoon(); }; // pushSoon: the alert service follows open bets
 const BSTAT = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', tpa: '3PA', fga: 'FGA', fgm: 'FGM', fta: 'FTA', ftm: 'FTM', fpts: 'FPTS', oreb: 'OREB', dreb: 'DREB', fg2: '2PM', fg2a: '2PA', pf: 'PF' };
 const KEEP_SETTLED = 20 * 3600e3;
 const MIN_KEY = () => lsKey('fc-bets-min');
@@ -330,6 +330,7 @@ async function renderBets(force) {
 function legAlert(b, l, r) {
   const won = r.st === 'won', left = (S.betRes[b.id] || []).filter((x, i) => x.st !== 'won' && x.st !== 'push' && x.st !== 'void' && i !== b.legs.indexOf(l)).length;
   const msg = `${won ? '✓' : '✗'} ${legName(l)} ${won ? 'hit' : 'missed'}${b.legs.length > 1 ? won ? left ? ` · ${left} to go` : ' · parlay cashed' : ' · parlay down' : ''}`;
+  if (document.hidden && pushBets()) return; // the alert service sends this one
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify(won ? 'Leg hit' : 'Leg missed', msg, l.gid || 'bets');
   else toast(msg);
 }
@@ -359,6 +360,7 @@ function milestoneAlert(b, i, r, prevR) {
   // only when it just became true (not on first load mid-game for something that was already the case)
   if (prevR && prevR.now === r.now && kind !== 'late') { msMark(base + kind); return; }
   msMark(base + kind);
+  if (document.hidden && pushBets()) return; // the alert service sends this one
   if (document.hidden && 'Notification' in window && Notification.permission === 'granted') notify(kind === 'room' ? 'Under in danger' : 'Leg is close', msg, l.gid || 'bets');
   else toast(msg);
 }

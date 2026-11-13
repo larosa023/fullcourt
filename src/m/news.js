@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-13c', date: 'Nov 13', items: [
+    ['Alerts for your players and your bets', 'Phone alerts now cover more than your team. Players you starred: a 30, 40 or 50-point game, a triple-double, and their final line. Tracked bets: each leg as it hits or misses (with how many are left on a parlay), a leg that\'s one away late in a game, an under that\'s in danger, and when the whole thing cashes. Both come with Fullcourt closed, and both have their own switch in Settings under Game alerts. Bet alerts cover legs tied to a game on the schedule.'],
+    ['Smoother phone menu', 'The menu on phones no longer runs off the bottom on smaller screens: the list scrolls with a soft fade, items are spaced evenly, the league switch fills the width, and the slide-in animation is quicker and doesn\'t stutter (the blur behind it was the heavy part on phones and is gone).'],
+  ] },
   { id: '2026-11-13b', date: 'Nov 13', items: [
     ['Stays light when left open', 'Every game or player you opened, and every visit to the Bet Desk, used to stay in memory after you closed it, for as long as Fullcourt was open. After a day in the Windows app that added up to tens of thousands of hidden page pieces. Closed panels are now let go of, so memory stays level however long it runs. Leaving the Bet Desk before it finished loading also used to leave its loading paused in the background, to wake up again with the next visit and fetch everything twice; it now stops.'],
   ] },

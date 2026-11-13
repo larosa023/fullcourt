@@ -438,6 +438,9 @@ table.std { border-collapse: separate; border-spacing: 0; width: 100%; min-width
 /* ---------- flyouts ---------- */
 .scrim { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .35s; z-index: 80; backdrop-filter: blur(2px); }
 .scrim.on { opacity: 1; pointer-events: auto; }
+/* on a phone a panel covers the whole screen, so blurring the page behind it showed nothing and cost a full-screen
+   re-blur on every frame of the slide */
+@media (max-width: 760px) { .scrim { backdrop-filter: none; -webkit-backdrop-filter: none; } .sheet.behind { filter: none; } }
 .sheet {
   position: fixed; z-index: 90; top: 0; right: 0; bottom: 0; width: min(640px, 100vw);
   background: var(--bg); border-left: 1px solid var(--line); box-shadow: -24px 0 60px -30px rgb(0 0 0 / .5);
@@ -666,27 +669,30 @@ table.box { border-collapse: separate; border-spacing: 0; width: 100%; min-width
   .drawer-scrim.on { opacity: 1; pointer-events: auto; }
   .drawer {
     display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; z-index: 99;
-    width: min(300px, 84vw); background: var(--bg); border-right: 1px solid var(--line);
+    width: min(320px, 86vw); background: var(--bg); border-right: 1px solid var(--line); overflow: hidden;
     box-shadow: 24px 0 60px -30px rgb(0 0 0 / .6);
     padding: calc(10px + env(safe-area-inset-top, 0px)) 14px calc(18px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
     transform: translateX(-104%); transition: transform .45s var(--ease); touch-action: pan-y;
   }
   .drawer.open { transform: none; }
-  .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px 14px; border-bottom: 1px solid var(--line); }
-  .drawer-nav { display: grid; gap: 4px; padding: 14px 0; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px 14px; border-bottom: 1px solid var(--line); flex: none; }
+  /* the list scrolls inside the menu on short screens (it used to run off the bottom, hiding the last few sections) */
+  .drawer-nav { display: grid; align-content: start; gap: 2px; padding: 12px 0 26px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
+  .drawer-nav::-webkit-scrollbar { display: none; }
   .drawer-nav button {
-    display: flex; align-items: center; gap: 14px; padding: 13px 14px; border-radius: 14px; text-align: left;
-    font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 23px; text-transform: uppercase; letter-spacing: .01em;
-    color: var(--muted); opacity: 0; transform: translateX(-16px);
-    transition: opacity .25s, transform .25s, background .2s, color .2s;
+    display: flex; align-items: center; gap: 14px; min-height: 46px; padding: 9px 12px; border-radius: 13px; text-align: left;
+    font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .01em;
+    color: var(--muted); opacity: 0; transform: translate3d(-12px, 0, 0);
+    transition: opacity .2s, transform .2s, background .2s, color .2s;
   }
-  .drawer.open .drawer-nav button { opacity: 1; transform: none; transition: opacity .4s var(--ease) calc(var(--i) * 45ms + 90ms), transform .45s var(--ease) calc(var(--i) * 45ms + 90ms), background .2s, color .2s; }
-  .drawer-nav button svg { width: 22px; height: 22px; flex: none; }
+  /* one after another, evenly (several used to share a delay and arrive in clumps) */
+  .drawer.open .drawer-nav button { opacity: 1; transform: none; transition: opacity .32s var(--ease) calc(var(--i) * 22ms + 70ms), transform .38s var(--ease) calc(var(--i) * 22ms + 70ms), background .2s, color .2s; }
+  .drawer-nav button svg { width: 21px; height: 21px; flex: none; }
   .drawer-nav button:active { background: var(--hl-bg); }
   .drawer-nav button[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: inset 3px 0 0 var(--accent); }
   .drawer-nav button[aria-current="page"] svg { color: var(--accent); }
   .drawer-nav .dlive { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: none; color: var(--live); border: 1px solid color-mix(in oklab, var(--live) 45%, transparent); border-radius: 999px; padding: 3px 9px; }
-  .drawer-foot { margin-top: auto; display: grid; gap: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
+  .drawer-foot { flex: none; display: grid; gap: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
   .drawer-foot > span:first-child { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); }
 }
 /* =================== UPGRADES =================== */
@@ -934,8 +940,11 @@ select.count.cs-scope { appearance: none; -webkit-appearance: none; padding-righ
   .drawer-lg .cg-switch button { padding: 8px 14px; font-size: 14px; }
   .drawer-lg .cg-switch { margin-left: 0; }
   :root[data-league^="ncaa"] .drawer-lg { flex-wrap: wrap; }
-  .drawer-lg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 0; }
-  .drawer-lg .lg-switch button { padding: 8px 18px; font-size: 14px; }
+  .drawer-lg { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 0; flex: none; }
+  .drawer-lg .lg-switch { flex: 1; min-width: 0; display: flex; }
+  .drawer-lg .lg-switch button { flex: 1; min-width: 0; padding: 8px 6px; font-size: 14px; }
+  :root[data-league^="ncaa"] .drawer-lg .cg-switch { flex: 1 0 100%; display: flex; }
+  :root[data-league^="ncaa"] .drawer-lg .cg-switch button { flex: 1; }
 }
 @media (max-width: 400px) { .brand b { font-size: 21px; } }
 @media (max-width: 440px) { :root:not([data-league="nba"]) .brand { gap: 6px; } :root:not([data-league="nba"]) .lg-badge { padding: 2px 4px; font-size: 9.5px; margin-left: 0; } :root:not([data-league="nba"]) .mast-in { gap: 8px; } :root:not([data-league="nba"]) .mast-right { gap: 7px; } }
