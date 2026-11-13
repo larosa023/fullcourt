@@ -944,10 +944,10 @@ async function perfBox(key) {
   PERF.busy = true;
   try {
     const games = S.games.filter(g => g.state !== 'pre');
-    const all = await Promise.all(games.map(g => summaryCached(g.id, 40000).then(d => boxRows(d).filter(r => !r.dnp).map(r => ({ ...r, g }))).catch(() => [])));
+    const all = await Promise.all(games.map(g => summaryCached(g.id, 20000).then(d => boxRows(d).filter(r => !r.dnp).map(r => ({ ...r, g }))).catch(() => [])));
     PERF.rows = all.flat(); PERF.key = key; PERF.at = Date.now();
   } finally { PERF.busy = false; }
-  if (PERF_CATS.find(c => c[0] === PERF.cat)?.[4] == null && S.view === 'scores') renderPerformers(false);
+  if (S.view === 'scores') renderPerformers(false);
 }
 function renderPerformers(animate) {
   const anyPlayed = S.games.some(g => g.state !== 'pre');
@@ -972,19 +972,26 @@ function renderPerformers(animate) {
   if (!fromBoard(PERF_CATS[0][4]).length) { blk.hidden = true; return; } // no leaders at all on this day
   blk.hidden = false;
   let items = [], loading = false;
-  if (C[4]) items = fromBoard(C[4]);
+  // Once games are under way every stat is ranked from the box scores, so a team's second-best scorer shows too. The
+  // scoreboard only names one leader per team: it fills the strip while the box scores load, and before tip-off it
+  // gives the season averages. College stays on the scoreboard (a full day there is 150 box scores).
+  const useBox = !C[4] || (anyPlayed && !IS_C);
+  if (!useBox) items = fromBoard(C[4]);
   else {
     const key = S.games.filter(g => g.state !== 'pre').map(g => g.id).join(','), live = S.games.some(g => g.state === 'in');
     // another day's games: start clean. The same night with one more game tipped off: keep what's showing while it reloads
     if (PERF.key !== key && !(PERF.rows && key.split(',').some(id => PERF.key.split(',').includes(id)))) { PERF.rows = null; loading = true; }
-    if (PERF.key !== key || (live && Date.now() - PERF.at > 45000)) perfBox(key).catch(() => {});
+    if (PERF.key !== key || (live && Date.now() - PERF.at > 25000)) perfBox(key).catch(() => {});
+    // the line under the name: the player's other main numbers
+    const line = r => (C[0] === 'tpm' ? `${r.tp[0]}-${r.tp[1]} 3PT · ${r.pts} pts` : [['pts', 'pts'], ['reb', 'reb'], ['ast', 'ast']].filter(([k]) => k !== C[0]).map(([k, u]) => `${r[k]} ${u}`).join(' · '));
     for (const r of PERF.rows || []) {
       const v = valOf(r, C[0]) || 0, side = String(r.g.home.id) === String(r.teamId) ? r.g.home : r.g.away; if (v <= 0) continue;
-      items.push({ v, dv: String(v), a: { id: r.id, displayName: r.name, shortName: r.short }, side, opp: side === r.g.home ? r.g.away : r.g.home, g: r.g, tie: r.pts, extra: C[0] === 'tpm' ? `${r.tp[0]}-${r.tp[1]} 3PT · ${r.pts} pts` : `${r.pts} pts · ${r.reb} reb · ${r.ast} ast` });
+      items.push({ v, dv: String(v), a: { id: r.id, displayName: r.name, shortName: r.short }, side, opp: side === r.g.home ? r.g.away : r.g.home, g: r.g, tie: r.pts, extra: line(r) });
     }
+    if (!PERF.rows && C[4]) { items = fromBoard(C[4]); loading = false; } // box scores still on their way: the team leaders meanwhile
   }
   items.sort((a, b) => b.v - a.v || (b.tie || 0) - (a.tie || 0));
-  const perfMax = C[4] ? 30 : 15; // a full college day has 300 team leaders, a box score night 200 players: the strip shows the top of the list
+  const perfMax = useBox ? 20 : 30; // a full college day has 300 team leaders, a box score night 200 players: the strip shows the top of the list
   if (items.length > perfMax) items.length = perfMax;
   $('#perfTitle').textContent = anyPlayed ? C[3] : 'Players to watch';
   $('#perfCats').innerHTML = PERF_CATS.map(c => `<button class="count${c === C ? ' filter-on' : ''}" data-perfcat="${c[0]}" aria-pressed="${c === C}" title="${c[2]}"${!c[4] && !anyPlayed ? ' disabled' : ''}>${c[1]}</button>`).join('');
@@ -2582,7 +2589,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-12d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-12e'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

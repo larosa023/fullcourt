@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-12e', date: 'Nov 12', items: [
+    ['Top scorers shows every top scorer', 'Points, rebounds and assists on the strip under the games came from the scoreboard, which only names each team\'s leader, so a teammate with 30 never showed. Once games tip off, all six stats now rank every player from the box scores (the top 20), refreshed about every 25 seconds while games are on. Before tip-off it still shows season averages. College is unchanged.'],
+  ] },
   { id: '2026-11-12d', date: 'Nov 12', items: [
     ['Lighter and faster', 'The score ticker across the top of the computer layout now glides on the graphics card instead of being moved by the page\'s code every frame, which was most of what an open Fullcourt window used while you weren\'t touching it. It takes about an eighth of the processor time now, in the browser and in the Windows app. Player photos are now downloaded at the size they\'re shown: about a quarter of the data on a computer, and much less for small faces like the Bet Desk and Leaders lists on a phone. On a phone, the injury report under the scores (over 1 MB) now loads only when you scroll to it.'],
   ] },
