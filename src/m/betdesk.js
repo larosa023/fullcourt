@@ -566,6 +566,7 @@ function bdTable(main, keepScroll, final, soft) {
         <button class="chip sm bd-radar" data-bdradar aria-pressed="${!!BD.radar}" title="Only role players (under 15 a game) whose minutes are up 2+ over their last 3 games"><span class="lgx">Under the radar</span><span class="shx">Radar</span></button>
         <input class="bd-q" type="search" placeholder="Find a player" value="${esc(BD.q)}" data-bdq aria-label="Find a player">
       </div>
+      ${savedRow()}
     </div>
     ${BD.oddsOpen ? oddsPanel() : ''}
     <div class="bd-body">${list.length ? `<div class="bd-wrap drag-x" data-drag><table class="bd-t">
@@ -633,6 +634,33 @@ function morph(a, b) {
   });
   out.forEach((n, j) => { if (a.childNodes[j] !== n) a.insertBefore(n, a.childNodes[j] || null); });
   while (a.childNodes.length > out.length) a.lastChild.remove();
+}
+/* ---------- saved filters: name a set of markets, side, odds range, radar and sort; one tap brings it back ---------- */
+const SV_KEY = () => lsKey('fc-bd-saved');
+const readSaved = () => { const v = LS_JSON(SV_KEY()); return Array.isArray(v) ? v : []; };
+const svState = () => ({ mk: BD.mk, side: BD.side, odds: BD.odds ? { min: BD.odds.min ?? null, max: BD.odds.max ?? null } : null, radar: !!BD.radar, sort: BD.sort, dir: BD.dir });
+const svSig = v => JSON.stringify([v.mk, v.side, v.odds?.min ?? null, v.odds?.max ?? null, !!v.radar, v.sort, v.dir]);
+function svName(v) {
+  const mks = v.mk === 'all' ? 'All stats' : v.mk.split(',').map(k => MARKETS.find(m => m[0] === k)?.[1]).filter(Boolean).join(' + ');
+  const odds = v.odds ? ` ${v.odds.min != null && v.odds.max == null ? `${oddsTxt(v.odds.min)} and up` : v.odds.max != null && v.odds.min == null ? `${oddsTxt(v.odds.max)} or shorter` : `${oddsTxt(v.odds.min)} to ${oddsTxt(v.odds.max)}`}` : '';
+  return `${mks} · ${v.side === 'u' ? 'Unders' : 'Overs'}${odds}${v.radar ? ' · Radar' : ''}`.slice(0, 60);
+}
+function savedRow() {
+  const list = readSaved(), cur = svSig(svState()), have = list.some(v => svSig(v) === cur);
+  if (!list.length && !BD.svNaming) return `<div class="bd-saved"><button class="chip sm bd-svadd" data-bdsvadd title="Name these filters to bring them back with one tap">+ Save these filters</button></div>`;
+  return `<div class="bd-saved hs drag-x" data-drag><span class="bd-sv-l">Saved</span>${list.map(v => `<span class="bd-sv${svSig(v) === cur ? ' on' : ''}"><button data-bdsv="${esc(v.id)}" title="${esc(svName(v))}" aria-pressed="${svSig(v) === cur}">${esc(v.name)}</button><button class="bd-svx" data-bdsvx="${esc(v.id)}" aria-label="Remove ${esc(v.name)}" title="Remove">×</button></span>`).join('')}${BD.svNaming
+    ? `<form class="bd-svform" data-bdsvform><input data-bdsvname maxlength="40" value="${esc(svName(svState()))}" aria-label="Name for these filters" enterkeyhint="done"><button class="btn sm">Save</button><button type="button" class="btn ghost sm" data-bdsvcancel>Cancel</button></form>`
+    : `<button class="chip sm bd-svadd" data-bdsvadd ${have ? 'disabled title="These filters are already saved"' : 'title="Name these filters to bring them back with one tap"'}>+ Save</button>`}</div>`;
+}
+function svApply(id) {
+  const v = readSaved().find(x => x.id === id); if (!v) return;
+  Object.assign(BD, { mk: v.mk || 'all', side: v.side === 'u' ? 'u' : 'o', odds: v.odds && (v.odds.min != null || v.odds.max != null) ? { min: v.odds.min ?? null, max: v.odds.max ?? null } : null, radar: !!v.radar, sort: v.sort || BD.sort, dir: v.dir || BD.dir, limit: 0, oddsOpen: false });
+  saveView(); bdTable($('#bdMain'));
+}
+function svSave(name) {
+  const list = readSaved().filter(v => svSig(v) !== svSig(svState())).slice(-11);
+  list.push({ id: Date.now().toString(36), name: (name || '').trim().slice(0, 40) || svName(svState()), ...svState() });
+  lsSet(SV_KEY(), JSON.stringify(list)); BD.svNaming = false; bdTable($('#bdMain'), true); toast('Saved. One tap brings these filters back');
 }
 function oddsPanel() {
   const o = BD.odds || { min: null, max: null }, sd = BD.side === 'u' ? 'u' : 'o', lo = o.min == null ? -1400 : oddsPos(o.min), hi = o.max == null ? 1400 : oddsPos(o.max);
@@ -875,6 +903,10 @@ function bdWire(body) {
     if (e.target.closest('[data-bdoclear]')) { BD.odds = null; saveView(); bdTable($('#bdMain'), true); return; }
     const os = e.target.closest('[data-bdoside]'); if (os) { setOdds({ side: os.dataset.bdoside }); bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdmore]')) { BD.limit = (BD.limit || 80) + 100; bdTable($('#bdMain'), true); return; }
+    const sv = e.target.closest('[data-bdsv]'); if (sv) { svApply(sv.dataset.bdsv); return; }
+    const svx = e.target.closest('[data-bdsvx]'); if (svx) { lsSet(SV_KEY(), JSON.stringify(readSaved().filter(v => v.id !== svx.dataset.bdsvx)) || null); if (!readSaved().length) lsSet(SV_KEY(), null); bdTable($('#bdMain'), true); return; }
+    if (e.target.closest('[data-bdsvadd]')) { BD.svNaming = true; bdTable($('#bdMain'), true); const i = $('[data-bdsvname]'); if (i) { i.focus(); i.select(); } return; }
+    if (e.target.closest('[data-bdsvcancel]')) { BD.svNaming = false; bdTable($('#bdMain'), true); return; }
     if (e.target.closest('[data-bdradar]')) { BD.radar = !BD.radar; saveView(); bdTable($('#bdMain'), true); return; }
     const sr = e.target.closest('[data-bdstar]');
     if (sr) { const [pid, k] = sr.dataset.bdstar.split('|'); const x = BD.all.find(y => String(y.pid) === pid && y.k === k); const st = readStars(), key = pid + '|' + k;
@@ -896,6 +928,8 @@ function bdWire(body) {
     const pid = String(x.pid), k = x.k;
     return { pj: projOf(x), pjk: x.k, forK: k2 => { const y = (BD.all || []).find(z => String(z.pid) === pid && z.k === k2 && Number.isFinite(z.line)); return y ? { m: Math.floor(+y.line) + 1, tag: y.est ? (Number.isFinite(y.mkt) ? 'mkt' : 'est') : '', extra: pdExtra(y) } : null; }, r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) };
   }
+  body.addEventListener('submit', e => { if (e.target.matches('[data-bdsvform]')) { e.preventDefault(); svSave($('[data-bdsvname]', e.target)?.value); } });
+  body.addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.matches('[data-bdsvname]')) { e.stopPropagation(); BD.svNaming = false; bdTable($('#bdMain'), true); } });
   body.addEventListener('change', e => { if (e.target.matches('[data-bdgame]')) { BD.game = e.target.value; BD.limit = 0; bdTable($('#bdMain')); } });
   body.addEventListener('input', e => { if (e.target.matches('[data-bdq]')) { BD.q = e.target.value; clearTimeout(BD.qt); BD.qt = setTimeout(() => { const pos = e.target.selectionStart; bdTable($('#bdMain'), true); const q = $('[data-bdq]'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }, 200); } });
 }

@@ -68,6 +68,42 @@ function rtStints(d) {
   return { roster: out, stints, endT, lastP, total: Math.max(endT, rtPerStart(Math.max(lastP, RT_REG)) + rtPerLen(Math.max(lastP, RT_REG))) };
 }
 
+// five-man units: every stretch where the same five were on the floor together, with the score over that stretch.
+// → { [teamId]: [{ ids: [5 ids], secs, pf, pa }] } (biggest minutes first)
+function rtLineups(d, R = rtStints(d)) {
+  if (!R) return null;
+  const comp = d.header?.competitions?.[0]?.competitors || [], homeId = String(comp.find(c => c.homeAway === 'home')?.team?.id || '');
+  const sc = (d.plays || []).filter(pl => pl.period?.number && pl.homeScore != null).map(pl => [rtTime(pl), +pl.homeScore || 0, +pl.awayScore || 0]).sort((a, b) => a[0] - b[0]);
+  // the score once everything at time t has happened (free throws after a sub count to the unit that took the floor)
+  const at = t => { let lo = 0, hi = sc.length - 1, r = [0, 0, 0]; while (lo <= hi) { const m = (lo + hi) >> 1; if (sc[m][0] <= t) { r = sc[m]; lo = m + 1; } else hi = m - 1; } return r; };
+  const out = {};
+  for (const [tid, ps] of Object.entries(R.roster)) {
+    const mine = ps.filter(p => R.stints[p.id]?.length), home = tid === homeId;
+    const cuts = [...new Set(mine.flatMap(p => R.stints[p.id].flat()))].sort((a, b) => a - b), units = new Map();
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      const a = cuts[i], b = cuts[i + 1]; if (b - a < 1) continue;
+      const on = mine.filter(p => R.stints[p.id].some(([x, y]) => x <= a && y >= b)).map(p => p.id);
+      if (on.length !== 5) continue;
+      const k = on.sort().join('-'), s0 = at(a), s1 = at(b), u = units.get(k) || { ids: on, secs: 0, pf: 0, pa: 0 };
+      u.secs += b - a; u.pf += (home ? s1[1] - s0[1] : s1[2] - s0[2]); u.pa += (home ? s1[2] - s0[2] : s1[1] - s0[1]);
+      units.set(k, u);
+    }
+    out[tid] = [...units.values()].sort((x, y) => y.secs - x.secs);
+  }
+  return out;
+}
+const rtMS = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+// a lineup table: the five as short names, time together, points for and against, plus/minus
+function lineupTable(units, nameOf, { max = 8, games = 0 } = {}) {
+  if (!units?.length) return '<p class="lu-none">Not enough play-by-play to piece lineups together yet.</p>';
+  const top = units.slice(0, max), most = Math.max(...top.map(u => u.secs));
+  return `<div class="lu-t" role="table">
+    <div class="lu-r lu-hd" role="row"><span role="columnheader">Lineup</span><span role="columnheader">Min</span>${games ? '<span role="columnheader">GP</span>' : ''}<span role="columnheader" title="Points scored and allowed while these five were on the floor">Pts</span><span role="columnheader" title="Plus/minus together">+/−</span></div>
+    ${top.map(u => { const pm = u.pf - u.pa; return `<div class="lu-r" role="row"><span class="lu-n" role="cell">${u.ids.map(id => `<button data-player="${esc(id)}">${esc(nameOf(id))}</button>`).join('<i>·</i>')}</span>
+      <span class="lu-m" role="cell"><b>${rtMS(u.secs)}</b><s style="width:${(u.secs / most * 100).toFixed(1)}%"></s></span>${games ? `<span role="cell">${u.games}</span>` : ''}<span class="lu-p" role="cell">${u.pf}–${u.pa}</span><span class="lu-pm ${pm > 0 ? 'up' : pm < 0 ? 'dn' : ''}" role="cell">${pm > 0 ? '+' : ''}${pm}</span></div>`; }).join('')}
+  </div>`;
+}
+
 function drawRotation(pane, d, sides) {
   const R = rtStints(d);
   if (!R || !Object.keys(R.stints).length) { pane.innerHTML = '<div class="empty" style="border:0"><b>No rotation yet</b>It shows up once the play-by-play has substitutions.</div>'; return; }
@@ -90,8 +126,12 @@ function drawRotation(pane, d, sides) {
           <span class="rot-m">${p.min || Math.round(R.stints[p.id].reduce((x, [a, b]) => x + b - a, 0) / 60)}</span></button>`).join('')}
       </div></div>`;
   };
+  // the units each team used most, under the bars
+  const LU = rtLineups(d, R), nameOf = id => { for (const ps of Object.values(R.roster)) { const p = ps.find(x => x.id === id); if (p) return (p.short || p.name || '').replace(/^\w+\. /, ''); } return '?'; };
+  const luTeam = s => LU?.[String(s.id)]?.length ? `<div class="lu-team" style="${barVars(String(s.id))}"><div class="rot-h">${logo(s.abbr, 40)}<b>${esc(s.abbr)} lineups</b></div>${lineupTable(LU[String(s.id)], nameOf, { max: 6 })}</div>` : '';
   pane.innerHTML = `<div class="rot">${sides.map(team).join('')}</div>
-    <p class="rot-note">Bars show when each player was on the floor, from the play-by-play's substitutions. Starters are marked with a dot.</p>`;
+    <p class="rot-note">Bars show when each player was on the floor, from the play-by-play's substitutions. Starters are marked with a dot.</p>
+    ${LU ? `<div class="lu-wrap">${sides.map(luTeam).join('')}</div><p class="rot-note">Each team's most-used five-man units: how long they played together and the score while they were out there.</p>` : ''}`;
 }
 
 /* ---------------- Assists ---------------- */
@@ -143,4 +183,59 @@ function drawAssists(pane, d, sides) {
   </div>`;
   const seg = $('.seg', pane); if (seg) requestAnimationFrame(() => placeKnob(seg));
   pane.onclick = e => { const b = e.target.closest('[data-astside]'); if (b) { astSide = +b.dataset.astside; drawAssists(pane, d, sides); } };
+}
+
+/* ---------------- team page: lineups and minutes over the last 5 or 10 games ----------------
+   Each game's full feed is read once and boiled down to this team's minutes and five-man units; only that small
+   summary is kept, so flipping between 5 and 10 games (or reopening the team) doesn't fetch or hold the feeds again. */
+const LU_GAMES = new Map();
+async function luGame(gid, tid) {
+  const k = gid + '|' + tid; if (LU_GAMES.has(k)) return LU_GAMES.get(k);
+  const d = await getJSON(`${API}/summary?event=${gid}`, { timeout: 15000 });
+  const R = rtStints(d), L = R ? rtLineups(d, R) : null, ps = (R?.roster || rtPlayers(d))[tid] || [];
+  const v = { mins: Object.fromEntries(ps.filter(p => p.min > 0).map(p => [p.id, p.min])), names: Object.fromEntries(ps.map(p => [p.id, p.short || p.name])), units: (L?.[tid] || []).map(({ ids, secs, pf, pa }) => ({ ids, secs, pf, pa })) };
+  LU_GAMES.set(k, v); if (LU_GAMES.size > 80) LU_GAMES.delete(LU_GAMES.keys().next().value);
+  return v;
+}
+async function fillLineups(box, tid, evs, sheet) {
+  const done = evs.filter(e => e.state === 'post');
+  if (!done.length) { box.hidden = true; return; }
+  let n = lsGet('fc-lu-n') === '10' ? 10 : 5, drawN = 0;
+  const head = () => `<div class="card-h"><h4>Lineups &amp; minutes</h4>${done.length > 5 ? `<div class="seg lu-seg" data-luseg><span class="knob"></span>${[5, 10].map(k => `<button data-lun="${k}" aria-pressed="${n === k}">Last ${k}</button>`).join('')}</div>` : `<span class="eyebrow">Last ${plural(done.length, 'game')}</span>`}</div>`;
+  const draw = async () => {
+    const my = ++drawN, list = done.slice(-n);
+    box.innerHTML = head() + '<div class="sk" style="height:220px;border-radius:12px"></div>'; placeKnob($('[data-luseg]', box));
+    const got = new Array(list.length); let i = 0;
+    await Promise.all([0, 1, 2].map(async () => { while (i < list.length) { const j = i++; try { got[j] = await luGame(list[j].id, tid); } catch (e) { got[j] = null; } } }));
+    if (my !== drawN || !sheet.alive) return;
+    const G = list.map((e, j) => ({ e, v: got[j] })).filter(x => x.v);
+    if (!G.length) { box.innerHTML = head() + '<p class="lu-none">These games didn\'t load. Try again in a minute.</p>'; placeKnob($('[data-luseg]', box)); return; }
+    const names = Object.assign({}, ...G.map(x => x.v.names)), nameOf = id => (names[id] || '?').replace(/^\w+\. /, '');
+    // minutes: everyone who played, most minutes first; trend = last 3 games against the ones before
+    const ids = [...new Set(G.flatMap(x => Object.keys(x.v.mins)))];
+    const avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0;
+    const rows = ids.map(id => {
+      const m = G.map(x => x.v.mins[id] || 0), played = m.filter(v => v > 0);
+      // games he sat out don't count as 0 minutes (an injury isn't a role change)
+      const late = m.slice(-3).filter(v => v > 0), early = m.slice(0, -3).filter(v => v > 0), d = G.length >= 5 && early.length && late.length ? avg(late) - avg(early) : 0;
+      return { id, m, avg: avg(played), tot: m.reduce((s, v) => s + v, 0), gp: played.length, d };
+    }).sort((a, b) => b.tot - a.tot);
+    const cell = v => `<td class="lu-c" style="--h:${Math.min(1, v / 40).toFixed(2)}">${v || '<i>–</i>'}</td>`;
+    const tag = r => Math.abs(r.d) >= 5 ? `<em class="lu-tr ${r.d > 0 ? 'up' : 'dn'}" title="Minutes a game over his last 3, against the ${G.length - 3} before (games he played)">${r.d > 0 ? '▲' : '▼'} ${Math.abs(r.d).toFixed(0)} min</em>` : '';
+    const minutes = `<div class="lu-mw drag-x" data-drag><table class="lu-mt"><thead><tr><th class="lu-pn">Player</th>${G.map(x => `<th title="${esc(fmtShortDate(x.e.date))}"><button data-game="${esc(x.e.id)}">${x.e.home ? '' : '@'}${esc(x.e.op.abbreviation)}</button></th>`).join('')}<th>Avg</th><th class="lu-trh">Role</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><th class="lu-pn"><button data-player="${esc(r.id)}">${esc(nameOf(r.id))}</button></th>${r.m.map(cell).join('')}<td class="lu-avg">${r.avg.toFixed(1)}</td><td class="lu-trc">${tag(r)}</td></tr>`).join('')}</tbody></table></div>`;
+    // lineups across the games
+    const U = new Map();
+    for (const x of G) for (const u of x.v.units) { const k = [...u.ids].sort().join('-'), a = U.get(k) || { ids: u.ids, secs: 0, pf: 0, pa: 0, games: 0 }; a.secs += u.secs; a.pf += u.pf; a.pa += u.pa; a.games++; U.set(k, a); }
+    const units = [...U.values()].sort((a, b) => b.secs - a.secs);
+    const shifts = rows.filter(r => Math.abs(r.d) >= 5);
+    box.innerHTML = `${head()}
+      <p class="lu-sub">${shifts.length ? `Role changes: ${shifts.slice(0, 3).map(r => `<b>${esc(nameOf(r.id))}</b> ${r.d > 0 ? 'up' : 'down'} ${Math.abs(r.d).toFixed(0)} min a game`).join(', ')} over the last 3.` : 'No big minutes swings over the last 3 games.'}</p>
+      <h5 class="lu-h">Minutes by game</h5>${minutes}
+      <h5 class="lu-h">Most-used lineups</h5>${lineupTable(units, nameOf, { max: 8, games: true })}
+      <p class="rot-note">From each game's play-by-play. Plus/minus is the score while those five were on the floor together.</p>`;
+    placeKnob($('[data-luseg]', box)); wireDrag(box);
+  };
+  box.addEventListener('click', e => { const b = e.target.closest('[data-lun]'); if (!b) return; e.stopPropagation(); const k = +b.dataset.lun; if (k === n) return; n = k; lsSet('fc-lu-n', k === 10 ? '10' : null); draw(); });
+  await draw();
 }

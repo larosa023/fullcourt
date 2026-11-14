@@ -1,6 +1,14 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-14a', date: 'Nov 14', items: [
+    ['Injury news on your bets', 'With bet alerts on, your phone tells you when a player on one of your tracked bets is listed questionable, doubtful or ruled out before tip-off (once for each step), or leaves the game and won\'t return. It reads the league injury report every few minutes while those games are ahead, so there\'s time to cancel or hedge.'],
+    ['Today', 'One page for everything you follow tonight: your team\'s game, every bet with a leg tonight (live, with each leg\'s progress), and your starred players\' lines, refreshing every 20 seconds. It\'s the ☆ button at the top, first in the phone menu, the D key, or a long-press on the home-screen icon (Android). The button shows a dot while something of yours is live.'],
+    ['Icon badge', 'On the home-screen app, the Fullcourt icon shows how many alerts are waiting; opening the app clears it.'],
+    ['Lineups and minutes', 'Each team page has a new Lineups & minutes card for its last 5 or 10 games: every player\'s minutes game by game with role changes flagged (up or down 5+ minutes a game over the last 3), and the five-man units used most with their minutes and plus/minus. A game\'s Rotation tab now lists both teams\' lineups too.'],
+    ['Saved filters on the Bet Desk', 'Set up markets, Over or Under, an odds range and Under the radar the way you like, tap + Save, and name it. It sits in a Saved row under the filters: one tap brings it back, × removes it.'],
+    ['More keyboard shortcuts', 'Every section now has a number (1 to 9, then 0 for Draft). D opens Today, B the Bet Desk, W this week, comma Settings, N What\'s new. On Scores, J and K walk the game cards; in an open game, [ and ] go to the previous or next game; on the Bet Desk, O and U switch overs and unders. Press ? for the full list.'],
+  ] },
   { id: '2026-11-13d', date: 'Nov 13', items: [
     ['Odds range on the Bet Desk fixed', 'Setting a range like +150 and up could still show -200 overs: a row stayed in when either its over or its under was in range. The range now always applies to the side you\'re looking at, Over or Under (switching in the odds panel switches the table too), and lines no book prices are judged by their fair price.'],
   ] },

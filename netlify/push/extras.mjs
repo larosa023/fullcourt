@@ -146,3 +146,56 @@ export function gamesToRead(subs, games, finals) {
   }
   return want;
 }
+
+/* ---------- injury news for tracked bets ---------- */
+// The league injury feed (one call per league) → player id → how likely he is to sit tonight. ESPN files most
+// game-time calls under "Day-To-Day" and says questionable / doubtful / ruled out in the comment, so both are read.
+// lvl: 1 questionable, 2 doubtful, 3 out, 4 left tonight's game and won't return
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export function injuryLevel(i, gameDay, now = Date.now()) {
+  const st = String(i?.status || ''), c = String(i?.shortComment || ''), age = now - Date.parse(i?.date || 0);
+  const tonight = new RegExp(`\\b(tonight|${gameDay})\\b`, 'i').test(c);
+  if (/will not return|won't return|ruled out for the (rest|remainder)/i.test(c) && tonight && age < 8 * 3600e3) return 4;
+  if (/^(out|suspension)$/i.test(st)) return /\b(will|expected to|set to|plans to) play\b|\bavailable\b/i.test(c) && tonight ? 0 : 3;
+  if (!tonight || age > 36 * 3600e3) return 0;
+  if (/ruled out|will not play|won't play|\bis out\b|\bout for\b|will sit|sit out/i.test(c)) return 3;
+  if (/doubtful/i.test(c)) return 2;
+  if (/questionable|game-time decision|\bGTD\b/i.test(c)) return 1;
+  return 0;
+}
+export function injuryMap(feed) {
+  const m = new Map();
+  for (const t of feed?.injuries || []) for (const i of t.injuries || []) {
+    const a = i.athlete || {}, pid = String(a.id || String(a.links?.[0]?.href || '').match(/\/id\/(\d+)/)?.[1] || String(a.headshot?.href || '').match(/\/(\d+)\.png/)?.[1] || '');
+    if (pid) m.set(pid, i);
+  }
+  return m;
+}
+const LVL = { 1: 'questionable', 2: 'doubtful', 3: 'ruled out', 4: 'out for the rest of the game' };
+// one alert per leg per step up (questionable → doubtful → out), only for games that haven't finished
+export function injuryAlerts(sub, games, inj, seen, now = Date.now()) {
+  const msgs = [];
+  for (const b of sub.bets || []) b.legs.forEach((l, i) => {
+    if (!l.pid || !['prop', 'dd', 'td'].includes(l.k)) return;
+    const g = games.find(x => x.id === l.gid); if (!g || g.state === 'post') return;
+    const feed = inj[b.lg]; if (!feed) return;
+    const day = DAYS[new Date(Date.parse(g.start || now) - 5 * 3600e3).getUTCDay()];
+    let lvl = injuryLevel(feed.get(String(l.pid)), day, now);
+    if (g.state === 'in' && lvl < 4) return; // once it's started only "won't return" is news
+    if (!lvl) return;
+    const key = `i:${b.id}:${i}`;
+    if ([...Array(5).keys()].some(k => k >= lvl && seen.has(`${key}:${k}`))) return;
+    for (let k = 1; k <= lvl; k++) seen.add(`${key}:${k}`);
+    const who = l.name || 'Your player', parlay = b.legs.length > 1, c = String(feed.get(String(l.pid))?.shortComment || '');
+    const head = lvl === 4 ? `${who} won't return` : lvl === 3 ? `${who} is out tonight` : `${who} is ${LVL[lvl]}`;
+    const tail = lvl >= 3 ? (parlay ? 'Most books void that leg and pay the rest at shorter odds; check your book.' : 'Most books void a prop when the player doesn\'t play; check your book.') : 'Keep an eye on it before tip-off.';
+    msgs.push({ tag: `fc-i-${b.id}-${i}`, game: l.gid, lg: b.lg, title: lvl === 4 ? 'Player left the game' : 'Injury news on your bet', body: `${head} · ${legName(l)}\n${c ? c.slice(0, 140) + ' ' : ''}${lvl === 4 ? '' : tail}`.trim(), ttl: 3 * 3600 });
+  });
+  return msgs;
+}
+// leagues whose injury feed is worth reading this minute: a subscriber has a player leg in a game that hasn't finished
+export function injuryLeagues(subs, games) {
+  const lgs = new Set();
+  for (const s of subs) if (s.want?.bets !== false) for (const b of s.bets || []) for (const l of b.legs) if (l.pid && games.some(g => g.id === l.gid && g.state !== 'post')) lgs.add(b.lg);
+  return lgs;
+}

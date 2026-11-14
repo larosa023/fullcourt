@@ -843,9 +843,13 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 .sp-foot { display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .sp-foot span { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 760px) { .sp-foot { display: none; } .pop-box { max-height: 76vh; } }
-.help-box { padding: 16px 18px 18px; width: min(520px, 100%); }
+.help-box { padding: 16px 18px 18px; width: min(860px, 100%); max-height: min(88vh, 760px); overflow-y: auto; overscroll-behavior: contain; }
+.keys-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.keys .keys-h { display: block; margin: 14px 0 2px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.keys > .keys-h:first-child { margin-top: 4px; }
+@media (max-width: 760px) { .keys-cols { grid-template-columns: 1fr; } }
 .keys { margin: 0; display: grid; }
-.keys div { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: center; font-size: 13.5px; }
+.keys div { display: grid; grid-template-columns: 128px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: center; font-size: 13.5px; }
 .keys div:last-child { border-bottom: 0; }
 .keys dt { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
 .keys dd { margin: 0; }
@@ -1428,6 +1432,10 @@ html.no-odds .odds-line, html.no-odds .game .ml, html.no-odds .odds-card, html.n
 html.no-race #racePanel, html.no-bets #betBlock, html.no-picks #pickPanel, html.no-out #outPanel, html.no-watch #watchBlock, html.no-perf #perfBlock, html.no-ticker .ticker { display: none !important; }
 .set-btn svg { width: 18px; height: 18px; }
 @media (max-width: 760px) { .mast .set-btn { display: none; } }
+.today-btn { position: relative; }
+.today-btn svg { width: 19px; height: 19px; }
+.today-dot { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 2px var(--bg); }
+@media (min-width: 761px) and (max-width: 1100px) { .mast .today-btn { display: none; } }
 
 /* roster moves rows (team pages + Moves tab) */
 .mv-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }

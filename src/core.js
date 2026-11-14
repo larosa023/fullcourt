@@ -683,7 +683,7 @@ async function loadScores({ silent = false } = {}) {
     const wasIn = new Set((S.games || []).filter(g => g.state === 'in').map(g => g.id));
     S.games = (d.events || []).map(parseGame);
     if (S.games.some(g => g.state === 'post' && wasIn.has(g.id))) S.leadFinalAt = S.stdDue = Date.now(); // a game just ended: leaders' season stats and the standings move
-    if (S.date === S.today) S.liveNow = S.games.some(g => g.state === 'in');
+    if (S.date === S.today) { S.liveNow = S.games.some(g => g.state === 'in'); todayDot(); }
     const cal = d.leagues?.[0]?.calendar;
     if (Array.isArray(cal) && cal.length && typeof cal[0] === 'string') S.calendar = cal.map(x => x.slice(0, 10).replace(/-/g, ''));
     // remember each live game's line the first time we see it, so we can tell if the book is moving it in-game
@@ -1466,7 +1466,7 @@ function swipeToClose(el, sheet) {
 
 /* ================= game flyout ================= */
 async function openGame(id, opts = {}) {
-  const sheet = openSheet('Game');
+  const sheet = openSheet('Game'); sheet.gid = String(id);
   warm('h2h');
   // opened from a bet leg: start on that player's team in the box score, scroll to his row and keep it highlighted
   const focusPid = opts.focus ? String(opts.focus) : null; let focusDone = false;
@@ -1899,6 +1899,7 @@ async function openTeam(id) {
     <div class="tx-wrap" id="tx-${id}"><div class="sk" style="height:260px"></div></div>
     ${evs.length ? `<div class="card cal" id="cal-${id}"></div>` : ''}
     <div class="card dc-card" id="dc-${id}" hidden></div>
+    <div class="card lu-card" id="lu-${id}" style="${barVars(String(id))}" hidden></div>
     <div>
       <div class="card-h"><h4 class="h-display" style="font-size:18px;margin:0">Roster</h4><span class="eyebrow">${athletes.length} players</span></div>
       <div class="roster">${athletes.map((a, i) => `
@@ -1911,6 +1912,13 @@ async function openTeam(id) {
   wireDrag(sheet.body);
   const injP = teamInjuries(id, tm.name, evs, athletes);
   { const dcBox = $(`#dc-${id}`, sheet.body); if (dcBox) lazy('depth').then(m => m.fillDepth(dcBox, id, evs, athletes, injP)).catch(() => {}); }
+  // lineups and minutes: needs a feed per game, so it loads only once you scroll near it
+  { const lu = $(`#lu-${id}`, sheet.body);
+    if (lu && evs.some(e => e.state === 'post')) {
+      lu.hidden = false; lu.innerHTML = '<div class="card-h"><h4>Lineups &amp; minutes</h4></div><div class="sk" style="height:220px;border-radius:12px"></div>';
+      const io = new IntersectionObserver(es => { if (!sheet.alive || !lu.isConnected) { io.disconnect(); return; } if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('rotation').then(m => m.fillLineups(lu, String(id), evs, sheet)).catch(() => { lu.hidden = true; }); }, { rootMargin: '400px' });
+      io.observe(lu); // a closed panel's card leaves the page, which wakes the observer to let go
+    } }
   injP.then(({ list }) => {
     const box = sheet.alive && $(`#ir-${id}`, sheet.body);
     if (box) box.innerHTML = irCardHTML(list);
@@ -2530,9 +2538,31 @@ document.addEventListener('keydown', e => {
   if (isTyping() || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); openSearch(); return; }
   if (e.key === '?') { e.preventDefault(); openHelp(); return; }
+  // an open game: [ and ] step through the day's games without closing anything
+  const top = stack.at(-1);
+  if (top?.gid && (e.key === '[' || e.key === ']')) {
+    const list = S.games || [], i = list.findIndex(g => g.id === top.gid), nx = list[i + (e.key === ']' ? 1 : -1)];
+    if (i >= 0 && nx) { e.preventDefault(); closeTop(); setTimeout(() => openGame(nx.id), 60); }
+    return;
+  }
   if (stack.length || $('#drawer').classList.contains('open')) return;
-  const n = '12345'.indexOf(e.key);
-  if (n >= 0) { go(VIEWS[n]); return; }
+  const n = '1234567890'.indexOf(e.key);
+  if (n >= 0 && VIEWS[n]) { go(VIEWS[n]); return; }
+  const k = e.key.toLowerCase();
+  if (k === 'd') { openToday(); return; }
+  if (k === 'b') { go('bets'); return; }
+  if (k === 'w') { openWeek(); return; }
+  if (k === 'n') { openNews(); return; }
+  if (e.key === ',') { openSettings(); return; }
+  // Scores: J / K walk the game cards (Enter opens one)
+  if ((k === 'j' || k === 'k') && S.view === 'scores') {
+    const cards = $$('#games .game'); if (!cards.length) return;
+    const at = cards.indexOf(document.activeElement), to = at < 0 ? 0 : Math.max(0, Math.min(cards.length - 1, at + (k === 'j' ? 1 : -1)));
+    e.preventDefault(); cards[to].focus({ preventScroll: true }); cards[to].scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+    return;
+  }
+  // Bet Desk: O / U switch between overs and unders
+  if ((k === 'o' || k === 'u') && S.view === 'bets') { const b = $(`[data-bdside="${k}"]`); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); return; }
   if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && S.view === 'scores' && !document.activeElement?.closest('#rail, .hs')) {
     const d = addDays(S.date, e.key === 'ArrowLeft' ? -1 : 1);
     if ($(`#rail [data-date="${d}"]`)) { e.preventDefault(); pickDate(d); }
@@ -2603,7 +2633,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-13d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-14a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2640,9 +2670,10 @@ async function staleCheck() {
 const warm = (...names) => { if (navigator.onLine !== false) for (const n of names) if (MODS[n] && !modP[n]) lazy(n).catch(() => {}); };
 const WARM_VIEW = { compare: 'compare', bets: 'betdesk', replay: 'replay', cap: 'cap', draft: 'draft', history: 'history' };
 const warmFor = e => {
-  const el = e.target instanceof Element ? e.target.closest('[data-view], [data-ask], [data-settings], [data-news], [data-week], [data-slate]') : null; if (!el) return;
+  const el = e.target instanceof Element ? e.target.closest('[data-view], [data-ask], [data-settings], [data-news], [data-week], [data-today], [data-slate]') : null; if (!el) return;
   const d = el.dataset;
   if (d.view) warm(WARM_VIEW[d.view]);
+  else if ('today' in d) { warm('today'); warm('bets'); }
   else warm('ask' in d ? 'ask' : 'settings' in d ? 'settings' : 'news' in d ? 'news' : 'week' in d ? 'week' : 'share');
 };
 document.addEventListener('pointerover', warmFor, { passive: true });
@@ -2672,6 +2703,16 @@ const fillTeamExtras = stub('teamx', 'fillTeamExtras');
 const renderMoves = stub('moves', 'renderMoves');
 const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
+const openToday = stub('today', 'openToday');
+// a dot on the header's Today button while something you follow is playing: your team, a starred player, a tracked bet
+function todayDot() {
+  try {
+    const dot = $('.mast .today-dot'); if (!dot) return;
+    const live = S.games.filter(g => g.state === 'in'), gids = new Set(live.map(g => String(g.id))), tids = new Set(live.flatMap(g => [String(g.home.id), String(g.away.id)]));
+    const on = (favId && tids.has(String(favId))) || (watch || []).some(w => tids.has(String(w.teamId))) || (LS_JSON(lsKey('fc-bets')) || []).some(b => !b.result && b.legs?.some(l => gids.has(String(l.gid))));
+    dot.hidden = !on;
+  } catch (e) {}
+}
 
 /* ---------------- data helpers ---------------- */
 // the league-wide player table is a big download (every player's season line), so the last one is kept on the device and
@@ -3885,6 +3926,7 @@ document.addEventListener('click', e => {
   if (el.closest('[data-settings]')) { openSettings(); return; }
   if (el.closest('[data-openmini]')) { appCall('open_mini').catch(() => toast("Couldn't open the mini scoreboard")); return; }
   if (el.closest('[data-week]')) { openWeek(); return; }
+  if (el.closest('[data-today]')) { openToday(); return; }
   if (el.closest('[data-alerts]')) { toggleAlerts(); return; }
   const wb = el.closest('[data-watch]'); if (wb) { const id = wb.dataset.watch; toggleWatch(id, S.watchInfo?.[id]); return; }
   const pk = el.closest('[data-pick]'); if (pk) { const [gid, tid] = pk.dataset.pick.split(':'); makePick(gid, tid); return; }
@@ -3956,11 +3998,15 @@ Promise.resolve(loadScores()).finally(() => {
 markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick();
+// the home-screen icon's badge counts alerts that came in while Fullcourt was closed; seeing the app clears it
+const clearBadge = () => { if (!document.hidden) try { navigator.clearAppBadge?.()?.catch?.(() => {}); } catch (e) {} };
+clearBadge(); document.addEventListener('visibilitychange', clearBadge);
 try {
   // links from outside (the scores widget, the Discord bot): ?game=, ?player= and ?team= open that page
   const qs = new URLSearchParams(location.search), gq = qs.get('game'), pq = qs.get('player'), tq = qs.get('team');
-  if (gq || pq || tq || qs.has('league')) history.replaceState(null, '', location.pathname + location.hash);
-  if (gq) setTimeout(() => openGame(gq), 300);
+  if (gq || pq || tq || qs.has('league') || qs.has('today')) history.replaceState(null, '', location.pathname + location.hash);
+  if (qs.has('today')) setTimeout(() => openToday(), 300); // the home-screen icon's "Today" shortcut
+  else if (gq) setTimeout(() => openGame(gq), 300);
   else if (/^\d+$/.test(pq || '')) setTimeout(() => openPlayer(pq), 300);
   else if (/^\d+$/.test(tq || '')) setTimeout(() => openTeam(tq), 300);
 } catch (e) {}

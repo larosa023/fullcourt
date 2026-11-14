@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import { newVapidKeys, sendPush } from './webpush.mjs';
 import { LEAGUES, scoreboardUrl, dayET, slim, step, messageFor, idleFor } from './alerts.mjs';
-import { cleanPlayers, cleanBets, playerAlerts, betAlerts, gamesToRead } from './extras.mjs';
+import { cleanPlayers, cleanBets, playerAlerts, betAlerts, gamesToRead, injuryAlerts, injuryLeagues, injuryMap } from './extras.mjs';
 
 export const SUBJECT = 'https://nbafullcourty.netlify.app'; // who's sending, as push services ask
 const MAX_SUBS = 500;
@@ -78,7 +78,14 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
   const prevGames = state.games || {}, finals = new Set(games.filter(g => g.state === 'post' && prevGames[g.id] && prevGames[g.id].s !== 'post').map(g => g.id));
   const quiet = new Set(games.filter(g => !prevGames[g.id]).map(g => g.id)), read = gamesToRead(subs, games, finals), sums = {};
   const per = state.day === ymd ? state.per || {} : {}; // what each subscriber has already been told today
-  if (read.size) {
+  // injury news for players on tracked bets: the league report, at most every 3 minutes, while such a game is ahead or on
+  const injAt = { ...(state.day === ymd ? state.injAt || {} : {}) }, inj = {};
+  for (const lg of injuryLeagues(subs, games)) {
+    if (now - (injAt[lg] || 0) < 3 * 60e3) continue;
+    try { const r = await fetchImpl(`https://site.api.espn.com/apis/site/v2/sports/basketball/${lg}/injuries`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) }); if (r.ok) { inj[lg] = injuryMap(await r.json()); injAt[lg] = now; } } catch (e) {}
+  }
+  if (Object.keys(inj).length) out.injuries = Object.keys(inj).join(',');
+  if (read.size || Object.keys(inj).length) {
     const list = [...read];
     for (let k = 0; k < list.length; k += 6) await Promise.all(list.slice(k, k + 6).map(async gid => {
       const g = games.find(x => x.id === gid);
@@ -87,7 +94,7 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
     out.boxes = Object.keys(sums).length;
     for (const s of subs) {
       const me = s.key.slice(4, 16), mine = per[me] || { seen: [], last: {} }, seen = new Set(mine.seen);
-      const msgs = [...(s.want?.players !== false ? playerAlerts(s, games, sums, seen, quiet, finals) : []), ...(s.want?.bets !== false ? betAlerts(s, sums, seen, mine.last, quiet) : [])];
+      const msgs = [...(s.want?.players !== false ? playerAlerts(s, games, sums, seen, quiet, finals) : []), ...(s.want?.bets !== false ? [...betAlerts(s, sums, seen, mine.last, quiet), ...injuryAlerts(s, games, inj, seen, now)] : [])];
       for (const m of msgs) sends.push([s, m]);
       per[me] = { seen: [...seen].slice(-400), last: mine.last };
     }
@@ -102,7 +109,7 @@ export async function check(store, { fetchImpl = fetch, now = Date.now(), force 
     }));
   }
   // when nothing has been read (feed down), keep the old records so nothing is announced twice
-  await store.setJSON('state', { games: recs, day: ymd, per, lastRun: now, idleUntil: failed.size ? now : now + idleFor(games, now), last: out });
+  await store.setJSON('state', { games: recs, day: ymd, per, lastRun: now, idleUntil: failed.size ? now : now + Math.min(idleFor(games, now), injuryLeagues(subs, games).size ? 3 * 60e3 : Infinity), injAt, last: out });
   await remember(store, log);
   return out;
 }

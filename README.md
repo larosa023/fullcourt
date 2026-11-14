@@ -83,7 +83,7 @@ Games come back live first, then upcoming, then finals, each with a `url` that o
 
 ### Phone alerts
 
-Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish. Starred players (30/40/50 points, triple-doubles, final line) and tracked bets (legs hit or missed, close calls late, unders in danger, parlay cashed) too, each with its own switch; the device sends its starred players and open bets with its sign-up and updates them when they change.
+Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish. Starred players (30/40/50 points, triple-doubles, final line) and tracked bets (legs hit or missed, close calls late, unders in danger, parlay cashed) too, each with its own switch. Bet alerts also cover injury news: a player on a tracked bet listed questionable, doubtful or out before tip-off (from the league injury report, read every 3 minutes while such a game is ahead), or leaving the game; the device sends its starred players and open bets with its sign-up and updates them when they change.
 
 - `netlify/functions/push-api.mjs` `/api/push/key`, `/status`, `/subscribe`, `/unsubscribe`, `/test`
 - `netlify/functions/push-check.mjs` runs every minute on Netlify, reads the NBA/WNBA scoreboard and sends what's due; it sleeps between games
