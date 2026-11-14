@@ -250,21 +250,6 @@ function betCard(b, res) {
   </div>`;
 }
 // what a live parlay still needs, in one line
-function needLine(b, res) {
-  const last = l => (l.name || '').split(' ').slice(-1)[0];
-  const parts = b.legs.map((l, i) => {
-    const r = res[i] || {};
-    if (r.st === 'pending') return `${legName(l)} (not started)`;
-    if (r.st !== 'live') return null;
-    if (l.k === 'prop') return l.side === 'u' ? `${last(l)} stays under ${l.line}` : `${last(l)} ${Math.max(1, Math.floor(l.line) + 1 - (r.now || 0))} more ${l.stats.map(k => BSTAT[k]).join('+')}`;
-    if (l.k === 'dd' || l.k === 'td') return `${last(l)} ${l.side === 'u' ? 'no ' : ''}${l.k === 'dd' ? 'double' : 'triple'}-double`;
-    if (l.k === 'spread') return r.now > 0 ? `${l.abbr} keeps covering` : `${l.abbr} ${-r.now + 1} more to cover`;
-    if (l.k === 'ml') return r.now > 0 ? `${l.abbr} holds on` : `${l.abbr} ${-r.now + 1} to lead`;
-    if (l.k === 'total' || l.k === 'ttotal') return l.side === 'u' ? `${l.k === 'total' ? 'game' : l.abbr} stays under ${l.line}` : `${Math.max(1, Math.floor(l.line) + 1 - (r.now || 0))} more points${l.k === 'ttotal' ? ` from ${l.abbr}` : ''}`;
-    return legName(l);
-  }).filter(Boolean);
-  return parts.length ? `<div class="bt-need"><b>Needs ${parts.length}</b> ${esc(parts.join(' · '))}</div>` : '';
-}
 function recordLine(list) {
   const w = list.filter(b => b.result === 'won').length, l = list.filter(b => b.result === 'lost').length;
   if (!w && !l) return '';

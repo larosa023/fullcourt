@@ -202,14 +202,6 @@
 .rc-card { margin-bottom: 14px; overflow: hidden; }
 .rc-t { width: 100%; }
 .rc-t td.nm { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-size: 17px; }
-.rc-list { list-style: none; margin: 0; padding: 0; }
-.rc-list li:first-child { border-top: 0; }
-.rc-list li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid var(--line); }
-.rc-what { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-list small { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.rc-r { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; font-family: var(--mono); font-size: 11px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
-.rc-r.w { background: color-mix(in oklab, var(--win) 18%, transparent); color: var(--win); }
-.rc-r.l { background: color-mix(in oklab, var(--loss) 15%, transparent); color: var(--loss); }
 .rc-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .rc-pair .bt-card { margin: 0; width: auto; max-width: none; }
 .rc-card .bt-ask { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }

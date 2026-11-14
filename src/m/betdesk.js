@@ -332,19 +332,19 @@ async function renderBetDesk() {
 function bdShell() {
   return `<div class="bd-top">
     <div class="seg bd-seg" data-bdtab><span class="knob"></span><button data-bdt="props" aria-pressed="${BD.tab === 'props'}">Props</button><button data-bdt="games" aria-pressed="${BD.tab === 'games'}">Game lines</button><button data-bdt="mine" aria-pressed="${BD.tab === 'mine'}">My bets</button></div>
-    <button class="chip sm bd-priv" data-bdpriv ${BD.tab === 'mine' || BD.tab === 'record' ? '' : 'hidden'}></button>
+    <button class="chip sm bd-priv" data-bdpriv ${BD.tab === 'mine' ? '' : 'hidden'}></button>
     <div class="bd-days"><button class="chip sm" data-bdday="0" aria-pressed="${BD.day === 0}">Next up</button><button class="chip sm" data-bdday="1" aria-pressed="${BD.day === 1}">Tomorrow</button></div>
   </div>`;
 }
 // hide your numbers for screen sharing: blurs My bets and Record until you show them again
 const privOn = () => lsGet('fc-bd-priv') === '1';
 function privApply() {
-  const on = privOn(), b = $('[data-bdpriv]'), tab = BD.tab === 'mine' || BD.tab === 'record';
+  const on = privOn(), b = $('[data-bdpriv]'), tab = BD.tab === 'mine';
   if (b) { b.hidden = !tab; b.setAttribute('aria-pressed', on); b.innerHTML = `${on ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.9M6.4 6.4C3.9 8.1 2.5 12 2.5 12s3.5 7 9.5 7a9.7 9.7 0 0 0 5.6-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'}<span>${on ? 'Show' : 'Hide'}</span>`; b.title = on ? 'Show your numbers' : 'Blur your numbers (for screen sharing)'; }
   $('#bdMain')?.classList.toggle('bd-blur', on && tab);
 }
 function tabChrome(slate) {
-  const hist = BD.tab === 'mine' || BD.tab === 'record';
+  const hist = BD.tab === 'mine';
   $('#bdEyebrow').textContent = `${{ props: 'Player props', games: 'Game lines', mine: 'Your bets', record: "Fullcourt's record" }[BD.tab]} · ${hist ? 'All time' : slate.date === S.today ? 'Today' : fmtDay(slate.date, { weekday: 'long', month: 'short', day: 'numeric' })}`;
   $('.bd-days')?.toggleAttribute('hidden', hist);
   // label the second day by what it really is (it's not "tomorrow" once tonight's slate is done)
@@ -364,7 +364,6 @@ async function bdDraw() {
   tabChrome(slate);
 
   if (BD.tab === 'mine') { const sk = setTimeout(() => { if (n === drawN) main.innerHTML = '<div class="sk" style="height:300px"></div>'; }, 150); const m = await lazy('bets'); const html = await m.historyHTML(); clearTimeout(sk); if (n === drawN) main.innerHTML = html; return; }
-  if (BD.tab === 'record') return drawRecord(main, n);
   if (!games.length) { main.innerHTML = `<div class="empty"><b>No games left on this slate</b>Try tomorrow.</div>`; return; }
   if (BD.tab === 'games') return drawGames(main, games);
   // props: show the last build for this day at once; rebuild quietly if it's more than 4 minutes old
@@ -691,90 +690,8 @@ function leanOf(g, std) {
   return { proj, margin, hs, tl, sl, tot: tl != null && Math.abs(tl) >= 3 ? { side: tl > 0 ? 'o' : 'u', line: +o.ou } : null, spr: sl != null && Math.abs(sl) >= 2.5 ? { home: sl > 0, line: sl > 0 ? hs : -hs } : null };
 }
 
-/* ---------- Fullcourt's record: the strongest props and leans, saved before tip and graded after ---------- */
-const SIG = 'fc-bd-signals';
-const readSig = () => { try { return JSON.parse(lsGet(SIG) || '{}') || {}; } catch (e) { return {}; } };
-function writeSig(o) { const days = Object.keys(o).sort(); while (days.length > 45) delete o[days.shift()]; lsSet(SIG, JSON.stringify(o)); }
-function snapProps(date, list) {
-  if (IS_W) return;
-  const o = readSig(), d = o[date] || (o[date] = {}), P = d.props || (d.props = {});
-  let changed = false;
-  for (const x of list) {
-    if (x.est || Q1.has(x.k) || x.g.state !== 'pre' || !x.log?.length) continue;
-    for (const side of ['o', 'u']) {
-      const st = rowStats(x, side); if (!st || st.edge == null || st.edge < 0.8 || st.vals.length < 5) continue;
-      const key = x.pid + '|' + x.k; if (P[key]?.side && P[key].side !== side) continue;
-      P[key] = { pid: String(x.pid), k: x.k, side, line: x.line, gid: x.g.id, name: x.p.name, abbr: x.p.abbr, edge: +st.edge.toFixed(2) }; changed = true;
-    }
-  }
-  const keep = Object.entries(P).sort((a, b) => b[1].edge - a[1].edge);
-  if (keep.length > 12) { for (const [k] of keep.slice(12)) delete P[k]; changed = true; }
-  if (changed) writeSig(o);
-}
-function snapLeans(date, games) {
-  if (IS_W) return;
-  const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
-  const o = readSig(), d = o[date] || (o[date] = {}), L = d.leans || (d.leans = {});
-  let changed = false;
-  for (const g of games) {
-    if (g.state !== 'pre') continue;
-    const l = leanOf(g, std);
-    if (l.tot) { L[g.id + '|t'] = { gid: g.id, t: 't', side: l.tot.side, line: l.tot.line, game: `${g.away.abbr} @ ${g.home.abbr}` }; changed = true; }
-    if (l.spr) { L[g.id + '|s'] = { gid: g.id, t: 's', home: l.spr.home, line: l.spr.line, team: l.spr.home ? g.home.abbr : g.away.abbr, game: `${g.away.abbr} @ ${g.home.abbr}` }; changed = true; }
-  }
-  if (changed) writeSig(o);
-}
-// grade everything that's final: props against his game log, leans against the final score
-async function gradeSignals() {
-  const o = readSig(); let changed = false;
-  for (const date of Object.keys(o).sort()) {
-    if (date > S.today) continue;
-    const d = o[date];
-    const open = [...Object.values(d.props || {}), ...Object.values(d.leans || {})].filter(x => !x.res);
-    if (!open.length) continue;
-    const games = await scoreboardOn(date).catch(() => []);
-    const byG = new Map(games.map(g => [g.id, g]));
-    for (const x of Object.values(d.leans || {})) {
-      if (x.res) continue; const g = byG.get(x.gid); if (!g || g.state !== 'post') continue;
-      const h = +g.home.score, a = +g.away.score; if (!Number.isFinite(h + a)) continue;
-      if (x.t === 't') { const t = h + a; x.res = t === x.line ? 'p' : (t > x.line) === (x.side === 'o') ? 'w' : 'l'; x.act = t; }
-      else { const m = (x.home ? h - a : a - h) + x.line; x.res = m === 0 ? 'p' : m > 0 ? 'w' : 'l'; x.act = x.home ? h - a : a - h; }
-      changed = true;
-    }
-    await poolRun(Object.values(d.props || {}).filter(x => !x.res && byG.get(x.gid)?.state === 'post'), 4, async x => {
-      const lg = (await logOf(x.pid)).find(g => String(g.id) === String(x.gid));
-      if (!lg) { if (date < addDays(S.today, -2)) { x.res = 'v'; changed = true; } return; } // didn't play: void
-      const v = bdVal(lg, x.k); if (v == null) return;
-      x.act = v; x.res = v === x.line ? 'p' : (v > x.line) === (x.side === 'o') ? 'w' : 'l'; changed = true;
-    });
-  }
-  if (changed) writeSig(o);
-  return o;
-}
-async function drawRecord(main, n) {
-  const sk = setTimeout(() => { if (n === drawN) main.innerHTML = '<div class="sk" style="height:300px"></div>'; }, 150);
-  const o = await gradeSignals(); clearTimeout(sk); if (n !== drawN) return;
-  const props = Object.entries(o).flatMap(([date, d]) => Object.values(d.props || {}).map(x => ({ ...x, date })));
-  const leans = Object.entries(o).flatMap(([date, d]) => Object.values(d.leans || {}).map(x => ({ ...x, date })));
-  const rec = a => { const w = a.filter(x => x.res === 'w').length, l = a.filter(x => x.res === 'l').length, p = a.filter(x => x.res === 'p').length; return { w, l, p, pct: w + l ? w / (w + l) : null }; };
-  const recTxt = r => `${r.w}–${r.l}${r.p ? `–${r.p}` : ''}`;
-  const pctCell = r => r.pct == null ? '<span class="bd-pill na">–</span>' : `<span class="bd-pill ${r.pct >= 0.58 ? 'hot' : r.pct >= 0.5 ? 'warm' : 'cold'}">${Math.round(r.pct * 100)}%</span>`;
-  const graded = props.filter(x => x.res && x.res !== 'v'), all = rec(graded), pend = props.filter(x => !x.res).length;
-  if (!props.length && !leans.length) { main.innerHTML = `<div class="empty"><b>Nothing graded yet</b>Fullcourt saves each day's top sportsbook props by Score and its game-line leans before tip-off whenever you open the Bet desk, then grades them here once the games are final. Check back tomorrow.</div>`; return; }
-  const byMk = MARKETS.filter(m => !EST.has(m[0])).map(m => [m, rec(graded.filter(x => x.k === m[0]))]).filter(([, r]) => r.w + r.l + r.p);
-  const lt = rec(leans.filter(x => x.t === 't' && x.res)), ls = rec(leans.filter(x => x.t === 's' && x.res));
-  const recent = [...props.filter(x => x.res && x.res !== 'v'), ...leans.filter(x => x.res)].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30);
-  const mkS = k => MARKETS.find(m => m[0] === k)?.[2] || k;
-  const itemTxt = x => x.k ? `${esc(x.name)} ${x.side === 'u' ? 'U' : 'O'} ${x.line} ${mkS(x.k)}` : x.t === 't' ? `${esc(x.game)} ${x.side === 'u' ? 'Under' : 'Over'} ${x.line}` : `${esc(x.team)} ${x.line > 0 ? '+' : ''}${x.line} (${esc(x.game)})`;
-  main.innerHTML = `<div class="rc-top">
-      <div class="rc-big"><small>Top props</small><b>${recTxt(all)}</b><span>${all.pct != null ? Math.round(all.pct * 100) + '% hit' : 'no results yet'}${pend ? ` · ${pend} pending` : ''}</span></div>
-      <div class="rc-big"><small>Total leans</small><b>${recTxt(lt)}</b><span>${lt.pct != null ? Math.round(lt.pct * 100) + '%' : '–'}</span></div>
-      <div class="rc-big"><small>Spread leans</small><b>${recTxt(ls)}</b><span>${ls.pct != null ? Math.round(ls.pct * 100) + '%' : '–'}</span></div>
-    </div>
-    ${byMk.length ? `<div class="card rc-card"><div class="card-h"><h4>By market</h4></div><table class="bd-t rc-t"><thead><tr><th class="pl">Market</th><th>Record</th><th>Hit</th></tr></thead><tbody>${byMk.map(([m, r]) => `<tr><td class="pl">${esc(m[1])}</td><td class="nm">${recTxt(r)}</td><td>${pctCell(r)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-    ${recent.length ? `<div class="card rc-card"><div class="card-h"><h4>Recent results</h4></div><ul class="rc-list">${recent.map(x => `<li><span class="rc-r ${x.res}">${{ w: 'W', l: 'L', p: 'P' }[x.res]}</span><span class="rc-what">${itemTxt(x)}</span><small>${esc(fmtDay(x.date, { month: 'short', day: 'numeric' }))}${x.act != null ? ` · ${x.t === 's' ? (x.act > 0 ? 'won by ' + x.act : x.act < 0 ? 'lost by ' + -x.act : 'tied') : 'had ' + x.act}` : ''}</small></li>`).join('')}</ul></div>` : ''}
-    <p class="bd-note">Saved on this device whenever the Bet desk is open before tip-off: each day's top 12 sportsbook props by Score (80 and up), and every game-line lean. Players who sit are voided. A record of how the numbers have done, not betting advice.</p>`;
-}
+// (the old Record tab's saved picks lived under this key; it was removed, so clear what it left behind)
+lsSet('fc-bd-signals', null);
 
 /* ---------- starred props: alert when the line moves a point, the odds swing, or the book posts it ---------- */
 async function checkStars(list) {

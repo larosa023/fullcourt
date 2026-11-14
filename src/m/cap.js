@@ -38,7 +38,6 @@ function capIndex(d) {
 const capStatus = (pay, c) => pay > c.apron2 ? ['a2', 'Over 2nd apron'] : pay > c.apron1 ? ['a1', 'Over 1st apron'] : pay > c.tax ? ['tax', 'Taxpayer'] : pay > c.cap ? ['over', 'Over the cap'] : ['room', 'Under the cap'];
 const money = (v, dp) => v == null ? '–' : !v ? '$0' : Math.abs(v) >= 1e6 ? `$${(v / 1e6).toFixed(dp ?? (Math.abs(v) >= 1e7 ? 1 : 2))}M` : `$${Math.round(v / 1e3)}K`;
 const moneyFull = v => v == null ? '' : '$' + Math.round(v).toLocaleString('en-US');
-const signedMoney = v => (v >= 0 ? '+' : '−') + money(Math.abs(v));
 const shortSeason = s => s ? `’${s.slice(2, 4)}–${s.slice(5)}` : '';
 const optLabel = { P: 'Player option', T: 'Team option' };
 function capCell(p, i) {

@@ -204,15 +204,16 @@ async function fillLineups(box, tid, evs, sheet) {
   const done = evs.filter(e => e.state === 'post');
   if (!done.length) { box.hidden = true; return; }
   let n = lsGet('fc-lu-n') === '10' ? 10 : 5, drawN = 0;
+  const knob = () => { const sg = $('[data-luseg]', box); if (sg) placeKnob(sg); }; // no 5/10 switch until a team has played 6
   const head = () => `<div class="card-h"><h4>Lineups &amp; minutes</h4>${done.length > 5 ? `<div class="seg lu-seg" data-luseg><span class="knob"></span>${[5, 10].map(k => `<button data-lun="${k}" aria-pressed="${n === k}">Last ${k}</button>`).join('')}</div>` : `<span class="eyebrow">Last ${plural(done.length, 'game')}</span>`}</div>`;
   const draw = async () => {
     const my = ++drawN, list = done.slice(-n);
-    box.innerHTML = head() + '<div class="sk" style="height:220px;border-radius:12px"></div>'; placeKnob($('[data-luseg]', box));
+    box.innerHTML = head() + '<div class="sk" style="height:220px;border-radius:12px"></div>'; knob();
     const got = new Array(list.length); let i = 0;
     await Promise.all([0, 1, 2].map(async () => { while (i < list.length) { const j = i++; try { got[j] = await luGame(list[j].id, tid); } catch (e) { got[j] = null; } } }));
     if (my !== drawN || !sheet.alive) return;
     const G = list.map((e, j) => ({ e, v: got[j] })).filter(x => x.v);
-    if (!G.length) { box.innerHTML = head() + '<p class="lu-none">These games didn\'t load. Try again in a minute.</p>'; placeKnob($('[data-luseg]', box)); return; }
+    if (!G.length) { box.innerHTML = head() + '<p class="lu-none">These games didn\'t load. Try again in a minute.</p>'; knob(); return; }
     const names = Object.assign({}, ...G.map(x => x.v.names)), nameOf = id => (names[id] || '?').replace(/^\w+\. /, '');
     // minutes: everyone who played, most minutes first; trend = last 3 games against the ones before
     const ids = [...new Set(G.flatMap(x => Object.keys(x.v.mins)))];
@@ -233,11 +234,11 @@ async function fillLineups(box, tid, evs, sheet) {
     const units = [...U.values()].sort((a, b) => b.secs - a.secs);
     const shifts = rows.filter(r => Math.abs(r.d) >= 5);
     box.innerHTML = `${head()}
-      <p class="lu-sub">${shifts.length ? `Role changes: ${shifts.slice(0, 3).map(r => `<b>${esc(nameOf(r.id))}</b> ${r.d > 0 ? 'up' : 'down'} ${Math.abs(r.d).toFixed(0)} min a game`).join(', ')} over the last 3.` : 'No big minutes swings over the last 3 games.'}</p>
+      <p class="lu-sub">${shifts.length ? `Role changes: ${shifts.slice(0, 3).map(r => `<b>${esc(nameOf(r.id))}</b> ${r.d > 0 ? 'up' : 'down'} ${Math.abs(r.d).toFixed(0)} min a game`).join(', ')} over the last 3.` : G.length < 5 ? `Role changes show once there are 5 games to compare.` : 'No big minutes swings over the last 3 games.'}</p>
       <h5 class="lu-h">Minutes by game</h5>${minutes}
       <h5 class="lu-h">Most-used lineups</h5>${lineupTable(units, nameOf, { max: 8, games: true })}
       <p class="rot-note">From each game's play-by-play. Plus/minus is the score while those five were on the floor together.</p>`;
-    placeKnob($('[data-luseg]', box)); wireDrag(box);
+    knob(); wireDrag(box);
     box._lu = { G, nameOf };
   };
   // hover (or tap, on a phone) a game's minutes: how they split by quarter

@@ -19,6 +19,7 @@ async function openToday() {
     finally { busy = false; }
   };
   sheet.el.addEventListener('click', async e => {
+    if (e.target.closest('[data-tdscores]')) { e.stopPropagation(); closeAll(); go('scores'); if (S.date !== S.today) pickDate(S.today); return; }
     if (!e.target.closest('[data-tdmine]')) return;
     e.stopPropagation(); closeAll();
     const m = await lazy('betdesk'); m.BD.tab = 'mine';
@@ -44,7 +45,7 @@ async function tdHTML() {
   const fav = favId ? String(favId) : null, fg = fav ? games.find(g => String(g.home.id) === fav || String(g.away.id) === fav) : null;
   const favT = fav ? Object.values(S.teams || {}).find(t => String(t.id) === fav) : null;
   const teamBlock = !fav ? '' : fg ? `<div class="td-games">${gameCard(fg, 0)}</div>`
-    : `<button class="td-none" data-team="${esc(fav)}">${favT ? logo(favT.abbr, 40) : ''}<span><b>No ${esc(favT?.name || 'team')} game today</b><small>Open the team page for the schedule</small></span></button>`;
+    : `<button class="td-none" data-team="${esc(fav)}">${favT ? logo(favT.abbr, 40) : ''}<span><b>No ${esc(favT?.name || 'team')} game today</b><small>${await tdNext(fav)}</small></span></button>`;
   // open bets that have a leg tonight (or still live from last night)
   // every bet with a leg tonight, settled ones included (a parlay that cashed an hour ago is still tonight's news)
   const bets = (B.readBets() || []).filter(b => b.legs?.some(l => ids.has(String(l.gid))));
@@ -69,16 +70,35 @@ async function tdHTML() {
   const playerBlock = lines.length ? `<div class="td-ps-list">${lines.join('')}</div>` : '';
   const sec = (title, sub, body, more) => `<section class="td-sec"><div class="td-h"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}${more || ''}</div>${body}</section>`;
   const live = games.filter(g => g.state === 'in').length;
-  const empty = !fav && !graded.length && !lines.length;
+  const empty = !fav && !graded.length && !lines.length && !(Array.isArray(watch) && watch.length);
   return `<div class="td">
     <p class="td-top">${esc(fmtDay(S.today, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${plural(games.length, 'game')}${live ? ` · <em class="td-live"><i class="dot on"></i>${live} live</em>` : ''}</p>
     ${fav ? sec('Your team', '', teamBlock) : ''}
     ${graded.length ? sec('Your bets', counts.map(([k, n]) => `${n} ${{ live: 'live', pending: 'upcoming', won: 'won', lost: 'lost' }[k]}`).join(' · '), betBlock, '<button class="td-more" data-tdmine>All bets</button>') : ''}
-    ${lines.length ? sec('Your players', `${stars.length} playing today`, playerBlock) : ''}
+    ${lines.length ? sec('Your players', `${stars.length} playing today`, playerBlock) : Array.isArray(watch) && watch.length ? sec('Your players', '', `<p class="td-hint" style="margin:0">${watch.length === 1 ? `${esc(watch[0].name || 'Your starred player')} doesn't play today.` : `None of your ${watch.length} starred players play today.`}</p>`) : ''}
     ${empty ? `<div class="empty td-empty"><b>Nothing to follow yet</b>Pick your team in Settings, star players with ☆ on their pages, and track bets from the Bet Desk. They'll all show up here, live.</div>` : ''}
-    ${!empty && (!fav || !graded.length || !lines.length) ? `<p class="td-hint">${[!fav && 'Pick your team in Settings', !lines.length && 'star players with ☆', !graded.length && 'track bets from the Bet Desk'].filter(Boolean).join(', ').replace(/^./, c => c.toUpperCase())} to see them here too.</p>` : ''}
-    <div class="td-games-all">${sec('All games', '', `<div class="td-games">${games.map((g, i) => gameCard(g, i)).join('') || '<div class="empty" style="border:0">No games today</div>'}</div>`)}</div>
+    ${(() => { const anyStars = Array.isArray(watch) && watch.length, anyBets = (B.readBets() || []).length, todo = [!fav && 'Pick your team in Settings', !anyStars && 'star players with ☆', !anyBets && 'track bets from the Bet Desk'].filter(Boolean);
+      return !empty && todo.length ? `<p class="td-hint">${todo.join(', ').replace(/^./, c => c.toUpperCase())} to see them here too.</p>` : ''; })()}
+    ${allGames(games)}
   </div>`;
+}
+
+// when your team plays next ("Next: Mon, Nov 16 vs BOS · 7:30 PM")
+async function tdNext(fav) {
+  try {
+    const ev = ((await scheduleCached(fav))?.events || []).find(e => e.competitions?.[0]?.status?.type?.state === 'pre' && Date.parse(e.date) > Date.now());
+    if (!ev) return 'Open the team page for the schedule';
+    const c = ev.competitions[0].competitors, me = c.find(x => String(x.team.id) === fav), op = c.find(x => String(x.team.id) !== fav);
+    return `Next: ${dfmt('en-US', { timeZone: UTZ, weekday: 'short', month: 'short', day: 'numeric' }, new Date(ev.date))} ${me?.homeAway === 'home' ? 'vs' : '@'} ${esc(op?.team?.abbreviation || '')} · ${fmtTime(ev.date)}`;
+  } catch (e) { return 'Open the team page for the schedule'; }
+}
+
+// the rest of the slate: live games first, then the next to start; a college Saturday (70+ games) stays to a dozen
+function allGames(games) {
+  const rank = g => g.state === 'in' ? 0 : g.state === 'pre' ? 1 : 2;
+  const list = [...games].sort((a, b) => rank(a) - rank(b) || Date.parse(a.date) - Date.parse(b.date)), top = list.slice(0, 12);
+  const body = top.length ? `<div class="td-games">${top.map((g, i) => gameCard(g, i)).join('')}</div>${list.length > top.length ? `<button class="td-all" data-tdscores>All ${list.length} games on Scores</button>` : ''}` : '<div class="empty" style="border:0">No games today</div>';
+  return `<div class="td-games-all">${`<section class="td-sec"><div class="td-h"><b>${list.length > top.length ? 'Live and next up' : 'All games'}</b></div>${body}</section>`}</div>`;
 }
 
 // update `a` to match `b`, keeping every element that didn't change (no flashing photos on refresh)

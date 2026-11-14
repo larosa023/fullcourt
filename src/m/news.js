@@ -1,6 +1,12 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-14d', date: 'Nov 14', items: [
+    ['Bet Desk opens much faster the second time', 'The Bet Desk reads a couple of hundred players\' game logs for its hit rates, about 25 MB each time it opened in a new window or after restarting the app. They\'re now kept on your device (under 1 MB) and only fetched again once a game finishes or the day turns over, so reopening it downloads next to nothing and the table is ready in about half the time.'],
+    ['College lineups', 'The Lineups & minutes card didn\'t show for teams with 5 or fewer games, which was every college team so far. Fixed; role changes appear once there are 5 games to compare.'],
+    ['Today, tidier', 'When your team isn\'t playing, Today shows its next game. On big college days the games list keeps to the live and next dozen, with a button to the full slate.'],
+    ['Your team\'s score in the tab', 'While your team is playing, the browser tab shows the score and clock.'],
+  ] },
   { id: '2026-11-14c', date: 'Nov 14', items: [
     ['More on Game lines', 'Each game now shows what the odds imply: each team\'s implied score (from the spread and total together), the win chance from the moneylines with the bookmaker\'s cut removed, and Fullcourt\'s own projected score beside them. Under that, a matchup panel: home and road records, the last 5 results (hover for scores), last 10 and streak, points scored and allowed with league ranks, pace, rest (back-to-backs and 3-in-4s in red), who\'s out or questionable, and the last time the two teams met. Cards are wider so full team names fit.'],
   ] },

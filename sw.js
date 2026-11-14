@@ -3,6 +3,7 @@
 const SHELL = 'fc-shell-v2';
 const DATA = 'fc-data-v1';
 const ASSETS = 'fc-assets-v1';
+// caches named fc-keep-* belong to the page (player game logs kept between visits) and are left alone here
 const BASE = new URL(self.registration.scope).pathname; // '/' on Netlify and Cloudflare, '/fullcourt/' on GitHub Pages
 const SHELL_FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png'];
 
@@ -10,7 +11,7 @@ self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).catch(() => {}).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => ![SHELL, DATA, ASSETS].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => ![SHELL, DATA, ASSETS].includes(k) && !k.startsWith('fc-keep-')).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // scores and standings: network first, fall back to the last saved copy

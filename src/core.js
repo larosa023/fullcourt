@@ -683,7 +683,7 @@ async function loadScores({ silent = false } = {}) {
     const wasIn = new Set((S.games || []).filter(g => g.state === 'in').map(g => g.id));
     S.games = (d.events || []).map(parseGame);
     if (S.games.some(g => g.state === 'post' && wasIn.has(g.id))) S.leadFinalAt = S.stdDue = Date.now(); // a game just ended: leaders' season stats and the standings move
-    if (S.date === S.today) { S.liveNow = S.games.some(g => g.state === 'in'); todayDot(); }
+    if (S.date === S.today) { S.liveNow = S.games.some(g => g.state === 'in'); todayDot(); liveTitle(); }
     const cal = d.leagues?.[0]?.calendar;
     if (Array.isArray(cal) && cal.length && typeof cal[0] === 'string') S.calendar = cal.map(x => x.slice(0, 10).replace(/-/g, ''));
     // remember each live game's line the first time we see it, so we can tell if the book is moving it in-game
@@ -1916,7 +1916,7 @@ async function openTeam(id) {
   { const lu = $(`#lu-${id}`, sheet.body);
     if (lu && evs.some(e => e.state === 'post')) {
       lu.hidden = false; lu.innerHTML = '<div class="card-h"><h4>Lineups &amp; minutes</h4></div><div class="sk" style="height:220px;border-radius:12px"></div>';
-      const io = new IntersectionObserver(es => { if (!sheet.alive || !lu.isConnected) { io.disconnect(); return; } if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('rotation').then(m => m.fillLineups(lu, String(id), evs, sheet)).catch(() => { lu.hidden = true; }); }, { rootMargin: '400px' });
+      const io = new IntersectionObserver(es => { if (!sheet.alive || !lu.isConnected) { io.disconnect(); return; } if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('rotation').then(m => m.fillLineups(lu, String(id), evs, sheet)).catch(e => { console.warn('lineups', e); lu.hidden = true; }); }, { rootMargin: '400px' });
       io.observe(lu); // a closed panel's card leaves the page, which wakes the observer to let go
     } }
   injP.then(({ list }) => {
@@ -2633,7 +2633,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-14c'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-14d'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2704,6 +2704,15 @@ const renderMoves = stub('moves', 'renderMoves');
 const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
 const openToday = stub('today', 'openToday');
+// the browser tab shows your team's score while it's playing ("NY 98–95 BOS · Q4 2:31 · Fullcourt")
+const BASE_TITLE = document.title || 'Fullcourt';
+function liveTitle() {
+  try {
+    const f = favId ? String(favId) : null, g = f && S.games.find(x => x.state === 'in' && (String(x.home.id) === f || String(x.away.id) === f));
+    const t = g ? `${g.away.abbr} ${g.away.score ?? 0}–${g.home.score ?? 0} ${g.home.abbr} · ${statusText(g)} · ${BASE_TITLE}` : BASE_TITLE;
+    if (document.title !== t) document.title = t;
+  } catch (e) {}
+}
 // a dot on the header's Today button while something you follow is playing: your team, a starred player, a tracked bet
 function todayDot() {
   try {
@@ -2793,13 +2802,22 @@ function paceOf(P, a, b) { const x = P?.pace?.[pbpAbbr(a)], y = P?.pace?.[pbpAbb
 // game logs are the heaviest thing the Bet desk loads (one per player), so keep them for the session:
 // in memory, and in sessionStorage for 2 hours (last season's for a day) so a reload doesn't refetch them all
 const glMemo = new Map();
+// Game logs, boiled down, are kept in the browser between visits (the Bet Desk reads a couple of hundred of them:
+// about 28 MB fresh, under 1 MB kept). A kept log stays good until a game on today's slate finishes (it might be his),
+// or the day turns over; past seasons keep a week. Before today's scores have loaded, the old 2-hour rule applies.
+const GL_STORE = 'fc-keep-gl-v1';
+const glSig = () => S.date === S.today && S.games?.length ? `${S.today}:${S.games.filter(g => g.state === 'post').length}` : null;
+const glFresh = (c, season) => { const age = Date.now() - c.t; if (season) return age < 7 * 864e5; if (age < 2 * 3600e3) return true; const sig = glSig(); return !!sig && c.sig === sig && age < 20 * 3600e3; };
+const glUrl = k => `${location.origin}/__fc-gl/${encodeURIComponent(k)}`;
+async function glStoreGet(k) { try { if (!self.caches) return null; const r = await (await caches.open(GL_STORE)).match(glUrl(k)); return r ? await r.json() : null; } catch (e) { return null; } }
+function glStorePut(k, v) { try { self.caches?.open(GL_STORE).then(c => c.put(glUrl(k), new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } }))).catch(() => {}); } catch (e) {} }
 function gameLog(pid, season) {
   const k = `fc-gl3:${LG}:${pid}:${season || ''}`, ttl = season ? 864e5 : 2 * 3600e3;
-  const m = glMemo.get(k); if (m && Date.now() - m.t < ttl) return m.p;
-  try { const c = JSON.parse(sessionStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < ttl) { const p = Promise.resolve(c.d); glMemo.set(k, { t: c.t, p }); return p; } } catch (e) {}
-  const p = gameLogFetch(pid, season).then(d => { try { sessionStorage.setItem(k, JSON.stringify({ t: Date.now(), d })); } catch (e) {} return d; });
+  const m = glMemo.get(k); if (m && Date.now() - m.t < ttl && (season || !m.sig || m.sig === glSig() || !glSig())) return m.p;
+  const sig = glSig();
+  const p = glStoreGet(k).then(c => c && glFresh(c, season) ? c.d : gameLogFetch(pid, season).then(d => { glStorePut(k, { t: Date.now(), sig: glSig(), d }); return d; }));
   p.catch(() => glMemo.delete(k));
-  glMemo.set(k, { t: Date.now(), p });
+  glMemo.set(k, { t: Date.now(), sig, p });
   return p;
 }
 async function gameLogFetch(pid, season) {

@@ -1879,20 +1879,6 @@ async function aProps(opts = {}) {
 ASK.pctx = ASK.pctx || {};
 const hitLine = (vals, m) => vals.length ? `${vals.filter(v => v >= m).length}/${vals.length}` : '–';
 const hitPct = (vals, m) => vals.length ? Math.round(vals.filter(v => v >= m).length / vals.length * 100) : null;
-function propChart(log, k, m) {
-  const L = log.slice(0, 15).reverse(), n = L.length;
-  if (!n) return '';
-  const vals = L.map(g => propVal(g, k)), top = Math.max(m * 1.5, ...vals) * 1.08;
-  const W = 640, H = 200, padB = 34, padT = 18, bw = Math.min(34, (W - 10) / n - 6), gap = (W - n * bw) / (n + 1);
-  const y = v => padT + (H - padT - padB) * (1 - v / top), lineY = y(m - 0.5);
-  return `<svg class="pd-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Last ${n} games against the ${m}+ mark">
-    ${L.map((g, i) => { const v = vals[i], x = gap + i * (bw + gap), hit = v >= m; return `<g><rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2, H - padB - y(v)).toFixed(1)}" rx="4" class="${hit ? 'y' : 'n'}"/>
-      <text x="${(x + bw / 2).toFixed(1)}" y="${(y(v) - 5).toFixed(1)}" class="v">${v}</text>
-      <text x="${(x + bw / 2).toFixed(1)}" y="${H - 18}" class="o">${esc(g.opp)}</text>
-      <text x="${(x + bw / 2).toFixed(1)}" y="${H - 5}" class="d">${esc(g.date ? fmtET(g.date, { month: 'numeric', day: 'numeric' }) : '')}</text></g>`; }).join('')}
-    <line x1="0" x2="${W}" y1="${lineY.toFixed(1)}" y2="${lineY.toFixed(1)}" class="ln"/><text x="${W - 4}" y="${(lineY - 5).toFixed(1)}" class="lt">${m}+</text>
-  </svg>`;
-}
 /* PBPStats (free, public): offensive/defensive rebound split, rebounds available while he's on the floor,
    and assist detail, matched to ESPN's games by date. NBA only. */
 const PBP = 'https://api.pbpstats.com';

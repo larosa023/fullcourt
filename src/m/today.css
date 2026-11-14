@@ -33,3 +33,5 @@
   .td { gap: 18px; }
   .td-games, .td-bets { grid-template-columns: 1fr; }
 }
+.td-all { justify-self: start; margin-top: 2px; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; }
+.td-all:hover { border-color: var(--hl); }
