@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-14b', date: 'Nov 14', items: [
+    ['Minutes by quarter', 'On a team page\'s Lineups & minutes card, hover any game\'s minutes (tap on a phone) to see how they split by quarter, with overtime when there was one.'],
+  ] },
   { id: '2026-11-14a', date: 'Nov 14', items: [
     ['Injury news on your bets', 'With bet alerts on, your phone tells you when a player on one of your tracked bets is listed questionable, doubtful or ruled out before tip-off (once for each step), or leaves the game and won\'t return. It reads the league injury report every few minutes while those games are ahead, so there\'s time to cancel or hedge.'],
     ['Today', 'One page for everything you follow tonight: your team\'s game, every bet with a leg tonight (live, with each leg\'s progress), and your starred players\' lines, refreshing every 20 seconds. It\'s the ☆ button at the top, first in the phone menu, the D key, or a long-press on the home-screen icon (Android). The button shows a dot while something of yours is live.'],

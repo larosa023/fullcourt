@@ -193,7 +193,10 @@ async function luGame(gid, tid) {
   const k = gid + '|' + tid; if (LU_GAMES.has(k)) return LU_GAMES.get(k);
   const d = await getJSON(`${API}/summary?event=${gid}`, { timeout: 15000 });
   const R = rtStints(d), L = R ? rtLineups(d, R) : null, ps = (R?.roster || rtPlayers(d))[tid] || [];
-  const v = { mins: Object.fromEntries(ps.filter(p => p.min > 0).map(p => [p.id, p.min])), names: Object.fromEntries(ps.map(p => [p.id, p.short || p.name])), units: (L?.[tid] || []).map(({ ids, secs, pf, pa }) => ({ ids, secs, pf, pa })) };
+  // seconds on the floor in each period, from the stints (cut at the period breaks)
+  const per = R ? Math.max(R.lastP, RT_REG) : 0, q = {};
+  if (R) for (const p of ps) { const st = R.stints[p.id]; if (!st?.length) continue; q[p.id] = Array.from({ length: per }, (_, i) => { const a0 = rtPerStart(i + 1), b0 = a0 + rtPerLen(i + 1); return Math.round(st.reduce((t, [a, b]) => t + Math.max(0, Math.min(b, b0) - Math.max(a, a0)), 0)); }); }
+  const v = { q, mins: Object.fromEntries(ps.filter(p => p.min > 0).map(p => [p.id, p.min])), names: Object.fromEntries(ps.map(p => [p.id, p.short || p.name])), units: (L?.[tid] || []).map(({ ids, secs, pf, pa }) => ({ ids, secs, pf, pa })) };
   LU_GAMES.set(k, v); if (LU_GAMES.size > 80) LU_GAMES.delete(LU_GAMES.keys().next().value);
   return v;
 }
@@ -220,10 +223,10 @@ async function fillLineups(box, tid, evs, sheet) {
       const late = m.slice(-3).filter(v => v > 0), early = m.slice(0, -3).filter(v => v > 0), d = G.length >= 5 && early.length && late.length ? avg(late) - avg(early) : 0;
       return { id, m, avg: avg(played), tot: m.reduce((s, v) => s + v, 0), gp: played.length, d };
     }).sort((a, b) => b.tot - a.tot);
-    const cell = v => `<td class="lu-c" style="--h:${Math.min(1, v / 40).toFixed(2)}">${v || '<i>–</i>'}</td>`;
+    const cell = (v, j, id) => { const qs = G[j].v.q?.[id]; return `<td class="lu-c" style="--h:${Math.min(1, v / 40).toFixed(2)}"${v ? ` tabindex="0" data-luq="${esc(id)}|${j}"` : ''}${qs ? '' : v ? ' data-noq' : ''}>${v || '<i>–</i>'}</td>`; };
     const tag = r => Math.abs(r.d) >= 5 ? `<em class="lu-tr ${r.d > 0 ? 'up' : 'dn'}" title="Minutes a game over his last 3, against the ${G.length - 3} before (games he played)">${r.d > 0 ? '▲' : '▼'} ${Math.abs(r.d).toFixed(0)} min</em>` : '';
     const minutes = `<div class="lu-mw drag-x" data-drag><table class="lu-mt"><thead><tr><th class="lu-pn">Player</th>${G.map(x => `<th title="${esc(fmtShortDate(x.e.date))}"><button data-game="${esc(x.e.id)}">${x.e.home ? '' : '@'}${esc(x.e.op.abbreviation)}</button></th>`).join('')}<th>Avg</th><th class="lu-trh">Role</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><th class="lu-pn"><button data-player="${esc(r.id)}">${esc(nameOf(r.id))}</button></th>${r.m.map(cell).join('')}<td class="lu-avg">${r.avg.toFixed(1)}</td><td class="lu-trc">${tag(r)}</td></tr>`).join('')}</tbody></table></div>`;
+      <tbody>${rows.map(r => `<tr><th class="lu-pn"><button data-player="${esc(r.id)}">${esc(nameOf(r.id))}</button></th>${r.m.map((v, j) => cell(v, j, r.id)).join('')}<td class="lu-avg">${r.avg.toFixed(1)}</td><td class="lu-trc">${tag(r)}</td></tr>`).join('')}</tbody></table></div>`;
     // lineups across the games
     const U = new Map();
     for (const x of G) for (const u of x.v.units) { const k = [...u.ids].sort().join('-'), a = U.get(k) || { ids: u.ids, secs: 0, pf: 0, pa: 0, games: 0 }; a.secs += u.secs; a.pf += u.pf; a.pa += u.pa; a.games++; U.set(k, a); }
@@ -235,7 +238,37 @@ async function fillLineups(box, tid, evs, sheet) {
       <h5 class="lu-h">Most-used lineups</h5>${lineupTable(units, nameOf, { max: 8, games: true })}
       <p class="rot-note">From each game's play-by-play. Plus/minus is the score while those five were on the floor together.</p>`;
     placeKnob($('[data-luseg]', box)); wireDrag(box);
+    box._lu = { G, nameOf };
   };
+  // hover (or tap, on a phone) a game's minutes: how they split by quarter
+  const tip = document.createElement('div'); tip.className = 'lu-qtip'; tip.hidden = true; tip.setAttribute('role', 'tooltip');
+  const perLab = i => i < RT_REG ? (RT_REG === 2 ? `H${i + 1}` : `Q${i + 1}`) : `OT${i - RT_REG > 0 ? i - RT_REG + 1 : ''}`;
+  const show = td => {
+    const L = box._lu, [id, j] = (td.dataset.luq || '').split('|'), g = L?.G[+j]; if (!g) return;
+    const qs = g.v.q?.[id], tot = qs ? qs.reduce((a, b) => a + b, 0) : 0;
+    tip.innerHTML = `<div class="lu-qh"><b>${esc(L.nameOf(id))}</b><span>${g.e.home ? 'vs' : '@'} ${esc(g.e.op.abbreviation)} · ${esc(fmtShortDate(g.e.date))}</span></div>
+      ${qs ? `<div class="lu-qg">${qs.map((s, i) => `<div class="lu-qr"><span>${perLab(i)}</span><i><u style="width:${Math.min(100, s / rtPerLen(i + 1) * 100).toFixed(1)}%"></u></i><b>${s ? rtMS(s) : '–'}</b></div>`).join('')}</div>
+      <div class="lu-qf"><span>Total</span><b>${rtMS(tot)}</b></div>` : '<p class="lu-qn">No play-by-play for this game, so no quarter split.</p>'}`;
+    if (!tip.isConnected) document.body.append(tip);
+    tip.hidden = false;
+    const r = td.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2, y = r.top - h - 8;
+    x = Math.max(8, Math.min(innerWidth - w - 8, x)); if (y < 8) y = r.bottom + 8;
+    tip.style.left = `${Math.round(x)}px`; tip.style.top = `${Math.round(y)}px`;
+    $$('.lu-c.on', box).forEach(c => c.classList.remove('on')); td.classList.add('on');
+  };
+  const hide = () => { tip.hidden = true; $$('.lu-c.on', box).forEach(c => c.classList.remove('on')); };
+  box.addEventListener('pointerover', e => { const td = e.target.closest('[data-luq]'); if (td && e.pointerType === 'mouse') show(td); });
+  box.addEventListener('pointerout', e => { const td = e.target.closest('[data-luq]'); if (td && e.pointerType === 'mouse' && !td.contains(e.relatedTarget)) hide(); });
+  box.addEventListener('click', e => { const td = e.target.closest('[data-luq]'); if (!td) return; e.stopPropagation(); td.classList.contains('on') && !tip.hidden ? hide() : show(td); });
+  let ptrAt = 0; box.addEventListener('pointerdown', () => { ptrAt = Date.now(); });
+  box.addEventListener('focusin', e => { const td = e.target.closest('[data-luq]'); if (td && Date.now() - ptrAt > 600) show(td); }); // keyboard only; a tap is handled by its click
+  box.addEventListener('focusout', e => { if (e.target.closest('[data-luq]') && !box.contains(e.relatedTarget)) hide(); });
+  // scrolling anything (the panel, the grid) or tapping elsewhere puts it away; closing the panel removes it
+  addEventListener('scroll', hide, { capture: true, passive: true });
+  const away = e => { if (!e.target.closest?.('[data-luq]')) hide(); };
+  document.addEventListener('pointerdown', away, true);
+  const gone = setInterval(() => { if (!sheet.alive || !box.isConnected) { clearInterval(gone); tip.remove(); removeEventListener('scroll', hide, { capture: true }); document.removeEventListener('pointerdown', away, true); } }, 2000);
   box.addEventListener('click', e => { const b = e.target.closest('[data-lun]'); if (!b) return; e.stopPropagation(); const k = +b.dataset.lun; if (k === n) return; n = k; lsSet('fc-lu-n', k === 10 ? '10' : null); draw(); });
   await draw();
 }

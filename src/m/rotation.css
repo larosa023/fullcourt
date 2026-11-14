@@ -87,3 +87,19 @@ button.rot-row:hover { background: var(--surface-2); }
   .lu-m { justify-items: start; } .lu-m s { justify-self: start; }
   .lu-hd span:not(:first-child) { text-align: left; }
 }
+
+/* quarter split of one game's minutes */
+.lu-c[data-luq] { cursor: default; outline-offset: 1px; transition: box-shadow .15s; }
+.lu-c.on, .lu-c[data-luq]:hover { box-shadow: 0 0 0 2px var(--accent); }
+.lu-qtip { position: fixed; z-index: 400; width: 220px; padding: 10px 12px 11px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow, 0 12px 32px rgb(0 0 0 / .35)); pointer-events: none; font-size: 12.5px; }
+.lu-qh { display: grid; gap: 1px; margin-bottom: 8px; }
+.lu-qh b { font-weight: 700; font-size: 13.5px; }
+.lu-qh span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.lu-qg { display: grid; gap: 5px; }
+.lu-qr { display: grid; grid-template-columns: 30px 1fr 42px; align-items: center; gap: 8px; }
+.lu-qr span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.lu-qr i { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.lu-qr u { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.lu-qr b, .lu-qf b { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.lu-qf { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line); font-weight: 600; }
+.lu-qn { margin: 0; color: var(--muted); }
