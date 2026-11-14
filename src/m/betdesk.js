@@ -843,22 +843,93 @@ async function fillFirstBasket(el, g) {
   } catch (e) { box.innerHTML = '<p class="bd-note">Couldn\'t load the play-by-play. Try again in a bit.</p>'; el._done = false; }
 }
 
+/* ---------- Game lines: what the odds imply, and a matchup panel per game ---------- */
+const amToP = v => { const n = parseInt(String(v).replace(/[^\d+-]/g, ''), 10); return !Number.isFinite(n) || Math.abs(n) < 100 ? null : n < 0 ? -n / (-n + 100) : 100 / (n + 100); };
+// the market's own read: each team's implied score (total and spread together) and win chance (moneylines, vig removed)
+function marketRow(g, std) {
+  const o = g.odds, hs = parseFloat(o?.home?.spread), ou = parseFloat(o?.ou), { proj, margin } = leanOf(g, std);
+  const pa = amToP(o?.away?.ml), ph = amToP(o?.home?.ml), fair = pa != null && ph != null ? { a: pa / (pa + ph), h: ph / (pa + ph) } : null;
+  const imp = Number.isFinite(hs) && Number.isFinite(ou) ? { h: (ou - hs) / 2, a: (ou + hs) / 2 } : null;
+  const mdl = proj != null && margin != null ? { h: proj / 2 + margin / 2, a: proj / 2 - margin / 2 } : null;
+  if (!imp && !fair && !mdl) return '';
+  const f1 = v => (Math.round(v * 2) / 2).toFixed(1).replace(/\.0$/, '');
+  const pct = v => `${Math.round(v * 100)}%`;
+  return `<div class="bg-mk">
+    ${imp ? `<div><span>Implied score</span><b>${esc(g.away.abbr)} ${f1(imp.a)} · ${esc(g.home.abbr)} ${f1(imp.h)}</b></div>` : ''}
+    ${mdl ? `<div><span>Fullcourt model</span><b>${esc(g.away.abbr)} ${Math.round(mdl.a)} · ${esc(g.home.abbr)} ${Math.round(mdl.h)}</b></div>` : ''}
+    ${fair ? `<div class="bg-wp"><span>Win chance</span><i style="--a:${(fair.a * 100).toFixed(1)}%"><u></u></i><b>${esc(g.away.abbr)} ${pct(fair.a)} · ${esc(g.home.abbr)} ${pct(fair.h)}</b></div>` : ''}
+  </div>`;
+}
+let muDraw = 0;
+async function fillMatchups(main, games, std, my) {
+  const rows = [...std.values()], rank = (k, v, low) => { const xs = rows.map(r => parseFloat(r[k])).filter(Number.isFinite).sort((a, b) => low ? a - b : b - a); const i = xs.indexOf(parseFloat(v)); return i >= 0 ? i + 1 : null; };
+  const injP = leagueInjuries().catch(() => null), paceP = pbpTeams().catch(() => null), tblP = leagueTable().catch(() => []);
+  const ids = [...new Set(games.flatMap(g => [String(g.home.id), String(g.away.id)]))];
+  const sched = new Map(await Promise.all(ids.map(async t => [t, await scheduleCached(t).catch(() => null)])));
+  const [inj, P, tbl] = await Promise.all([injP, paceP, tblP]);
+  if (my !== muDraw || !main.isConnected) return;
+  const ppgOf = new Map((tbl || []).map(r => [String(r.id), r.pts || 0]));
+  const outs = new Map();
+  for (const e of inj?.injuries || []) for (const x of (e.injuries || []).map(normInjury)) {
+    const st = /^out/i.test(x.status) ? 'out' : /doubt/i.test(x.status) ? 'd' : /quest|day-to-day/i.test(x.status) ? 'q' : null; if (!st) continue;
+    const t = String(e.id); if (!outs.has(t)) outs.set(t, []); outs.get(t).push({ ...x, st, ppg: ppgOf.get(String(x.id)) || 0 });
+  }
+  const paceRank = P?.pace ? Object.entries(P.pace).sort((a, b) => b[1] - a[1]).map(([k]) => k) : null;
+  const done = t => (sched.get(t)?.events || []).filter(e => e.competitions?.[0]?.status?.type?.completed);
+  const side = (e, t) => { const c = e.competitions[0].competitors, me = c.find(x => String(x.team.id) === t), op = c.find(x => String(x.team.id) !== t); return { me, op, w: !!me?.winner, ms: +(me?.score?.value ?? me?.score ?? 0), os: +(op?.score?.value ?? op?.score ?? 0) }; };
+  for (const g of games) {
+    const box = $(`[data-mu="${g.id}"]`, main); if (!box) continue;
+    const T = s => {
+      const t = String(s.id), r = std.get(s.id) || std.get(t) || {}, past = done(t).filter(e => Date.parse(e.date) < Date.parse(g.date));
+      const last = past.at(-1), restD = last ? Math.max(0, Math.floor((Date.parse(g.date) - Date.parse(last.date)) / 864e5 - 0.25)) : null;
+      const n4 = past.filter(e => Date.parse(g.date) - Date.parse(e.date) < 3.6 * 864e5).length;
+      const form = past.slice(-5).map(e => { const x = side(e, t); return `<i class="${x.w ? 'w' : 'l'}" title="${esc(fmtShortDate(e.date))}: ${x.w ? 'W' : 'L'} ${x.ms}-${x.os} ${x.me?.homeAway === 'home' ? 'vs' : '@'} ${esc(x.op?.team?.abbreviation || '')}">${x.w ? 'W' : 'L'}</i>`; }).join('');
+      const o = (outs.get(t) || []).sort((a, b) => b.ppg - a.ppg), key = o.filter(x => x.ppg >= 8 || o.length <= 2).slice(0, 3);
+      const pace = P?.pace?.[pbpAbbr(s.abbr)];
+      return { r, restD, b2b: restD === 0, three4: n4 >= 2, form, key, more: o.length - key.length, pace, paceR: paceRank ? paceRank.indexOf(pbpAbbr(s.abbr)) + 1 : null, n: past.length };
+    };
+    const A = T(g.away), H = T(g.home);
+    const rest = x => x.restD == null ? '–' : x.b2b ? '<em class="bad">Back-to-back</em>' : x.three4 ? `<em class="bad">3rd game in 4 nights</em>` : `${x.restD} day${x.restD === 1 ? '' : 's'} rest`;
+    const pts = (x, k, low) => { const v = parseFloat(x.r[k]); if (!Number.isFinite(v)) return '–'; const rk = rank(k, v, low); return `${v.toFixed(1)}${rk ? ` <small>${ordN(rk)}</small>` : ''}`; };
+    const outC = x => x.key.length ? x.key.map(p => `<button data-player="${esc(p.id)}" class="mu-o ${p.st}" title="${esc(`${p.status}: ${p.what}`)}">${esc(p.short.replace(/^\w+\. /, ''))}${p.st === 'out' ? '' : p.st === 'd' ? ' <small>D</small>' : ' <small>Q</small>'}</button>`).join('') + (x.more > 0 ? `<small>+${x.more}</small>` : '') : '<span class="mu-ok">None listed</span>';
+    const line = (lab, a, h, cls = '') => `<div class="mu-r ${cls}"><span class="mu-a">${a}</span><span class="mu-l">${lab}</span><span class="mu-h">${h}</span></div>`;
+    // the last time these two met this season
+    const meet = done(String(g.home.id)).filter(e => e.competitions[0].competitors.some(c => String(c.team.id) === String(g.away.id))).at(-1);
+    const mt = meet ? (() => { const x = side(meet, String(g.home.id)), win = x.w ? g.home.abbr : g.away.abbr, hi = Math.max(x.ms, x.os), lo = Math.min(x.ms, x.os); return `<button class="mu-meet" data-game="${esc(meet.id)}"><span>Last meeting</span><b>${esc(fmtShortDate(meet.date))}: ${esc(win)} won ${hi}-${lo}</b></button>`; })() : '';
+    box.innerHTML = `<div class="mu">
+      ${line('', `${logo(g.away.abbr, 32)}<b>${esc(g.away.abbr)}</b>`, `<b>${esc(g.home.abbr)}</b>${logo(g.home.abbr, 32)}`, 'mu-hd')}
+      ${line('Record', `${esc(A.r.road || '–')} <small>road</small>`, `${esc(H.r.home || '–')} <small>home</small>`)}
+      ${line('Last 5', `<span class="mu-f">${A.form || '–'}</span>`, `<span class="mu-f">${H.form || '–'}</span>`)}
+      ${line('Last 10', `${esc(A.r.l10 || '–')}${A.r.strk ? ` <small>${esc(A.r.strk)}</small>` : ''}`, `${esc(H.r.l10 || '–')}${H.r.strk ? ` <small>${esc(H.r.strk)}</small>` : ''}`)}
+      ${line('Scores', pts(A, 'ppg'), pts(H, 'ppg'))}
+      ${line('Allows', pts(A, 'opp', true), pts(H, 'opp', true))}
+      ${A.pace && H.pace ? line('Pace', `${A.pace.toFixed(1)} <small>${ordN(A.paceR)}</small>`, `${H.pace.toFixed(1)} <small>${ordN(H.paceR)}</small>`) : ''}
+      ${line('Rest', rest(A), rest(H))}
+      ${line('Injuries', outC(A), outC(H), 'mu-outs')}
+      ${mt}
+    </div>`;
+  }
+}
+
 function drawGames(main, games) {
   const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
   const card = g => {
     const o = g.odds, { proj, margin, hs, tl, sl } = leanOf(g, std);
-    const team = (s, side) => `<div class="bg-tm"><span>${logo(s.abbr, 48)}<b>${esc(s.name)}</b><small>${esc(s.rec || '')}</small></span>
+    const team = (s, side) => `<div class="bg-tm"><span>${logo(s.abbr, 48)}<b${String(s.name).length > 10 ? ' class="long"' : ''} title="${esc(s.name)}">${esc(s.name)}</b><small>${esc(s.rec || '')}</small></span>
       <span class="bg-c"><small>Spread</small><b>${esc(o?.[side]?.spread || '–')}</b><small>${esc(o?.[side]?.spreadOdds || '')}</small></span>
-      <span class="bg-c"><small>Money</small><b>${esc(o?.[side]?.ml || '–')}</b>${o?.[side]?.mlOpen && o[side].mlOpen !== o[side].ml ? `<small>opened ${esc(o[side].mlOpen)}</small>` : '<small>&nbsp;</small>'}</span>
+      <span class="bg-c"><small>Money</small><b>${esc(o?.[side]?.ml || '–')}</b>${o?.[side]?.mlOpen && o[side].mlOpen !== o[side].ml ? `<small title="Opening line">open ${esc(o[side].mlOpen)}</small>` : '<small>&nbsp;</small>'}</span>
       <span class="bg-c"><small>${side === 'away' ? 'Over' : 'Under'}</small><b>${o?.ou != null ? esc(String(o.ou)) : '–'}</b><small>${esc(o?.[side === 'away' ? 'over' : 'under']?.odds || '')}</small></span></div>`;
     return `<div class="bg-card">
       <button class="bg-h" data-game="${g.id}"><span>${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</span><span>${esc(g.tv || '')}</span></button>
       ${team(g.away, 'away')}${team(g.home, 'home')}
+      ${marketRow(g, std)}
+      <div class="bg-mu" data-mu="${g.id}"><div class="sk" style="height:168px;border-radius:10px"></div></div>
       <details class="bg-fb" data-fbgame="${g.id}"><summary>First basket <small>first possession, first score, first scorers</small></summary><div class="bg-fbb"><div class="sk" style="height:120px"></div></div></details>
       <div class="bg-lean">${proj != null ? `<span>Teams project <b>${Math.round(proj)}</b> total${tl != null ? ` · ${Math.abs(tl) >= 3 ? `<b class="on">lean ${tl > 0 ? 'Over' : 'Under'}</b>` : 'no lean'}` : ''}</span><span>Project <b>${margin >= 0 ? esc(g.home.abbr) : esc(g.away.abbr)} by ${Math.abs(margin).toFixed(1)}</b>${sl != null ? ` · ${Math.abs(sl) >= 2.5 ? `<b class="on">lean ${sl > 0 ? `${esc(g.home.abbr)} ${hs > 0 ? '+' : ''}${hs}` : `${esc(g.away.abbr)} ${-hs > 0 ? '+' : ''}${-hs}`}</b>` : 'no lean'}` : ''}</span>` : '<span>Not enough games for a projection yet.</span>'}</div>
     </div>`;
   };
   BD.gmap = new Map(games.map(g => [g.id, g]));
+  const my = ++muDraw; setTimeout(() => fillMatchups(main, games, std, my), 0);
   main.innerHTML = `<div class="bg-grid">${games.map(card).join('')}</div><p class="bd-note">Lines from ${esc(games.find(g => g.odds?.provider)?.odds.provider || 'the sportsbook')} via ESPN. Projections use each team's points scored and allowed this season with about 1.5 points for home court. A lean shows when the line is 3+ points off on a total or 2.5+ on a spread. Not betting advice.</p>`;
 }
 

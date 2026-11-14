@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-14c', date: 'Nov 14', items: [
+    ['More on Game lines', 'Each game now shows what the odds imply: each team\'s implied score (from the spread and total together), the win chance from the moneylines with the bookmaker\'s cut removed, and Fullcourt\'s own projected score beside them. Under that, a matchup panel: home and road records, the last 5 results (hover for scores), last 10 and streak, points scored and allowed with league ranks, pace, rest (back-to-backs and 3-in-4s in red), who\'s out or questionable, and the last time the two teams met. Cards are wider so full team names fit.'],
+  ] },
   { id: '2026-11-14b', date: 'Nov 14', items: [
     ['Minutes by quarter', 'On a team page\'s Lineups & minutes card, hover any game\'s minutes (tap on a phone) to see how they split by quarter, with overtime when there was one.'],
   ] },
