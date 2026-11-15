@@ -138,7 +138,10 @@ function gameFromSummary(lg, id, s) {
       reb: v('totalRebounds'), oreb: v('offensiveRebounds'), ast: v('assists'), stl: v('steals'), blk: v('blocks'), to: v('totalTurnovers') ?? v('turnovers'), paint: v('pointsInPaint'), fast: v('fastBreakPoints'), lead: v('largestLead') };
   }
   // home win probability, thinned to at most 160 points
-  const wp = (s.winprobability || []).map(x => x.homeWinPercentage).filter(x => typeof x === 'number');
+  // in game order: ESPN sometimes appends a late-entered play (a block, a sub) to the end of the list
+  const at = new Map((s.plays || []).map(p => { const [m, sec] = String(p.clock?.displayValue || '0').split(':'); const left = sec == null ? +m : +m * 60 + +sec; return [String(p.id), (p.period?.number || 1) * 1e4 - (left || 0)]; }));
+  const wp = (s.winprobability || []).map((x, i) => ({ h: x.homeWinPercentage, t: at.get(String(x.playId)), i })).filter(x => typeof x.h === 'number')
+    .map((x, i, a) => ({ ...x, t: x.t ?? a[i - 1]?.t ?? 0 })).sort((a, b) => a.t - b.t || a.i - b.i).map(x => x.h);
   if (wp.length > 8) {
     const step = Math.max(1, wp.length / 160); g.wp = []; for (let k = 0; k < wp.length; k += step) g.wp.push(Math.round(wp[Math.floor(k)] * 1000) / 1000);
     // the feed's last entry is sometimes a stray value; a finished game ends on its result

@@ -2633,7 +2633,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-14d'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-15a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2910,14 +2910,15 @@ function wpChart(d, sides) {
   let maxPer = REG_PERIODS;
   for (const p of d.plays || []) maxPer = Math.max(maxPer, p.period?.number || 1);
   const end = maxPer <= 4 ? REG : REG + (maxPer - 4) * OTP;
+  // each point goes at its own play's game time; ESPN sometimes adds a late-entered play (a block, a sub) to the end of
+  // the list, so the points are put back in game order instead of trusting the list's order
   let lastT = 0, lastP = null;
-  const pts = wp.map(w => {
-    const p = byId.get(String(w.playId)) || lastP;
-    let t = p ? elapsedAt(p.period?.number || 1, p.clock?.displayValue) : lastT;
-    if (t < lastT) t = lastT;
+  const pts = wp.map((w, i) => {
+    const own = byId.get(String(w.playId)), p = own || lastP;
+    const t = own ? elapsedAt(own.period?.number || 1, own.clock?.displayValue) : lastT;
     lastT = t; lastP = p;
-    return { t, h: Math.max(0, Math.min(1, +w.homeWinPercentage || 0)), p };
-  });
+    return { t, i, h: Math.max(0, Math.min(1, +w.homeWinPercentage || 0)), p };
+  }).sort((a, b) => a.t - b.t || a.i - b.i);
   const W = 600, H = 176, L = 10, R = 10, T = 16, B = 28;
   const x = t => L + (t / end) * (W - L - R), y = h => T + (1 - h) * (H - T - B), mid = y(0.5);
   let path = '';
@@ -2942,7 +2943,17 @@ function wpChart(d, sides) {
   const qs = []; for (let p = 1; p < maxPer; p++) qs.push(p <= REG_PERIODS ? p * QP : REG + (p - REG_PERIODS) * OTP);
   const qLabels = Array.from({ length: maxPer }, (_, i) => { const a = i < REG_PERIODS ? i * QP : REG + (i - REG_PERIODS) * OTP, b = i < REG_PERIODS ? (i + 1) * QP : a + OTP; return `<text x="${x((a + b) / 2)}" y="${H - 8}" text-anchor="middle" class="ax">${perLabel(i + 1)}</text>`; }).join('');
   const swingTeam = s => s.d > 0 ? sides[1] : sides[0];
-  const swingText = s => { const p = pts[s.i].p; return p ? `${perLabel(p.period?.number || 1)} ${p.clock?.displayValue || ''}` : ''; };
+  // a swing is a stretch (up to ~90 seconds), not one play: say when it ran, the scoring in it, and its biggest play
+  const swingText = s => {
+    const a = pts[s.from].p, b = pts[s.i].p; if (!b) return '';
+    const when = a && (a.period?.number !== b.period?.number || a.clock?.displayValue !== b.clock?.displayValue)
+      ? `${perLabel(a.period?.number || 1)} ${a.clock?.displayValue || ''}–${a.period?.number !== b.period?.number ? perLabel(b.period?.number || 1) + ' ' : ''}${b.clock?.displayValue || ''}`
+      : `${perLabel(b.period?.number || 1)} ${b.clock?.displayValue || ''}`;
+    const ha = +a?.homeScore || 0, aa = +a?.awayScore || 0, hb = +b.homeScore || 0, ab = +b.awayScore || 0;
+    const run = a && (hb - ha || ab - aa) ? ` · ${s.d > 0 ? `${hb - ha}-${ab - aa}` : `${ab - aa}-${hb - ha}`} run` : '';
+    let big = null; for (let m = s.from + 1; m <= s.i; m++) { const dd = (pts[m].h - pts[m - 1].h) * Math.sign(s.d); if (pts[m].p?.text && (!big || dd > big.dd)) big = { dd, p: pts[m].p }; }
+    return `${when}${run}${big && big.dd > 0.01 ? ` · biggest: ${big.p.text}` : ''}`;
+  };
   return `<div class="card wp" data-wp="${n}"><div class="card-h"><h4>Win probability</h4><span class="eyebrow wp-read">${esc(wpReadout(n, pts.length - 1))}</span></div>
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Win probability over the game">
       <defs>
@@ -2962,7 +2973,7 @@ function wpChart(d, sides) {
       <text x="${L + 4}" y="${H - B - 5}" class="ax">${esc(sides[0].abbr)} 100%</text>
       ${qLabels}
     </svg>
-    ${swings.length ? `<div class="runs">${swings.map(s => `<div class="run"><i style="background:${s.d > 0 ? 'var(--sideB)' : 'var(--sideA)'}"></i><b>${esc(swingTeam(s).abbr)} +${Math.round(Math.abs(s.d) * 100)}%</b><span>${esc(swingText(s))}${pts[s.i].p?.text ? ' · ' + esc(pts[s.i].p.text) : ''}</span></div>`).join('')}</div>` : ''}
+    ${swings.length ? `<div class="runs">${swings.map(s => `<div class="run"><i style="background:${s.d > 0 ? 'var(--sideB)' : 'var(--sideA)'}"></i><b>${esc(swingTeam(s).abbr)} +${Math.round(Math.abs(s.d) * 100)}%</b><span>${esc(swingText(s))}</span></div>`).join('')}</div>` : ''}
   </div>`;
 }
 function wpReadout(n, i) {
