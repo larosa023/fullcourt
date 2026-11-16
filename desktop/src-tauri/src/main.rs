@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 // Where each window sits is written to disk shortly after it's moved or resized, and when it goes to the tray, so the
 // app reopens on the same monitor even if Windows shuts down while it's in the tray (the plugin on its own only saves
@@ -35,7 +35,13 @@ fn save_soon(app: &AppHandle) {
             }
         }
         SAVER.store(false, Ordering::Release);
-        let _ = app.save_window_state(keep_flags());
+        // saved on the main thread: the plugin holds its lock while it asks each window where it is, and from this
+        // thread those questions wait on the main thread, which may itself be waiting on that lock (a move or resize
+        // arriving mid-save), and then both windows freeze
+        let a = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let _ = a.save_window_state(keep_flags());
+        });
     });
 }
 
@@ -152,7 +158,10 @@ fn open_mini_window(app: &AppHandle) {
         let _ = w.set_focus();
         return;
     }
-    // built hidden, moved to where it was last time, then shown (no flash in the default spot first)
+    // built hidden, then shown once the window-state plugin has moved it to where it was last time (no flash in the
+    // default spot first). The plugin does that move itself, on the main thread, right after the window is made.
+    // Calling restore_state from here as well froze the app (Game night, mini scoreboard): this thread held the
+    // plugin's lock while waiting on the main thread, and the main thread was waiting on that lock for its own restore.
     let built = WebviewWindowBuilder::new(app, "mini", WebviewUrl::App("mini.html".into()))
         .visible(false)
         .title("Fullcourt mini")
@@ -163,10 +172,21 @@ fn open_mini_window(app: &AppHandle) {
         .background_color(tauri::window::Color(12, 14, 18, 255))
         .build();
     if let Ok(w) = built {
-        let _ = w.restore_state(keep_flags());
-        let _ = w.show();
-        let _ = w.set_focus();
+        show_after_restore(w);
     }
+}
+
+/// Shows a window that was made hidden, after the plugin's restore (queued on the main thread when the window was
+/// made) has run: main-thread tasks run in order, and this queues twice so it lands behind that one.
+fn show_after_restore(w: tauri::WebviewWindow) {
+    let w2 = w.clone();
+    let _ = w.run_on_main_thread(move || {
+        let w3 = w2.clone();
+        let _ = w2.run_on_main_thread(move || {
+            let _ = w3.show();
+            let _ = w3.set_focus();
+        });
+    });
 }
 
 // async on purpose: building a window inside a synchronous command deadlocks on Windows (both windows freeze)
@@ -255,15 +275,13 @@ fn main() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
-            // the main window starts hidden (tauri.conf.json): put it back where it was, then show it, so it doesn't
-            // flash on the main monitor first. Waits briefly in case the window isn't made yet.
+            // the main window starts hidden (tauri.conf.json): the plugin puts it back where it was, then it's shown,
+            // so it doesn't flash on the main monitor first. Waits briefly in case the window isn't made yet.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 for _ in 0..100 {
                     if let Some(w) = handle.get_webview_window("main") {
-                        let _ = w.restore_state(keep_flags());
-                        let _ = w.show();
-                        let _ = w.set_focus();
+                        show_after_restore(w);
                         return;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
