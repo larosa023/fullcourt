@@ -1,6 +1,15 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-16a', date: 'Nov 16', items: [
+    ['Live lines on Game lines', 'Once a game tips off, its card shows DraftKings\' live spread, moneyline and total (with the score in place of the record) instead of blanks, plus how the line moved: open, pregame close and live now, and a small chart of the live spread and total as it moves (noted every 30 seconds while you\'re watching). Finished games show the closing line and whether it covered and went over.'],
+    ['Without him', 'On the Bet Desk, when a key teammate is out tonight, the "out" tag now says how this player\'s stat has changed in games that teammate missed this season ("Wilson out · +6.8"). Hover it for the numbers with and without him.'],
+    ['Shot chart zones and clutch', 'The game Shot chart has a Zones view (ten areas of the floor, sized by attempts and coloured by how the percentage compares with a typical rate) and a Clutch filter: just the last 5 minutes of the 4th and overtime, within 5 points.'],
+    ['Win probability moments', 'Timeouts, technicals and flagrants, ejections and coach\'s challenges are marked along the win-probability chart (hover for what happened), and finished games say what flipped it: the moment the winner went ahead for good in the win chance.'],
+    ['Shot profile', 'Player pages have a Shot profile card: his last 5 or 10 games by zone, with his percentage against a typical rate, his shot mix, and whether each zone is trending up or down. It loads when you open it.'],
+    ['Game night', 'One tap (or G) on Scores: alerts for every close finish and overtime tonight, whoever is playing, multi-view with the live games first, and the mini scoreboard in the Windows app. It switches itself off when the day ends.'],
+    ['Search everywhere', 'Search finds games now: type a matchup like "NYK BOS" or "knicks raptors" (or just one team) for today\'s game, the next one and the last few meetings. Players from the other leagues show up too and open there, and a question still goes to Ask.'],
+  ] },
   { id: '2026-11-15e', date: 'Nov 15', items: [
     ['Windows app 1.3.4: no flash on the main screen', 'Opening the app (or the mini scoreboard) no longer shows it on the main monitor for a moment before it jumps to where you left it: it now starts hidden, moves to its spot, then appears.'],
     ['Windows app 1.3.3: opens where you left it', 'The app remembered its spot only when you quit it from the tray menu, so after Windows restarted (or the app was closed any other way) it came back centred on the main monitor. It now saves its position and size a moment after you move or resize it, and again when it goes to the tray, so it reopens on the same monitor, same size. Update from the prompt in the app.'],

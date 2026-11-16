@@ -1647,3 +1647,32 @@ select option { background: var(--surface); color: var(--ink); }
 .dd-o svg { flex: none; }
 .dd-o[disabled] { opacity: .4; cursor: default; }
 .dd-g { padding: 9px 10px 3px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+
+/* shot chart: zones view and clutch */
+.shot-x { display: flex; align-items: center; gap: 8px; order: 4; flex: 1 1 100%; }
+.shot-x .chip.on { border-color: var(--accent); color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.zones .zn circle { stroke-width: 2; }
+.zones .zn text { text-anchor: middle; font-family: var(--mono); font-size: 12px; font-weight: 700; fill: var(--ink); paint-order: stroke; stroke: var(--court); stroke-width: 3px; }
+.zones .zn text.zp { font-size: 10.5px; font-weight: 500; }
+.zones .z-hot circle { fill: color-mix(in oklab, var(--win) 42%, transparent); stroke: var(--win); }
+.zones .z-cold circle { fill: color-mix(in oklab, var(--loss) 38%, transparent); stroke: var(--loss); }
+.zones .z-avg circle { fill: color-mix(in oklab, var(--ink) 16%, transparent); stroke: color-mix(in oklab, var(--ink) 45%, transparent); }
+.zones .z-few circle { fill: color-mix(in oklab, var(--ink) 8%, transparent); stroke: color-mix(in oklab, var(--ink) 25%, transparent); stroke-dasharray: 4 3; }
+
+/* win probability: moments and the turning point */
+.wp-ev { cursor: default; }
+.wp-evt { font-family: var(--mono); font-size: 11px; font-weight: 800; fill: var(--warn, #e0a030); }
+.wp-evt.x { fill: var(--loss); } .wp-evt.c { fill: var(--muted); }
+.wp-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.wp-key span { display: inline-flex; align-items: center; gap: 5px; }
+.wp-key i.sq { width: 7px; height: 7px; border-radius: 1.5px; background: var(--muted); }
+.wp-key b { color: var(--warn, #e0a030); font-weight: 800; }
+.wp-keyh { margin-left: auto; }
+.wp-flip { margin: 10px 0 0; padding: 9px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; line-height: 1.45; }
+.wp-flip span { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+.wp-key b.x { color: var(--loss); } .wp-key b.c { color: var(--muted); }
+.sp-gl { display: flex; flex: none; } .sp-gl .lg + .lg { margin-left: -8px; }
+.sp-game small em { font-style: normal; color: var(--accent); font-weight: 600; }
+.gn-btn span { margin-left: 2px; }
+.gn-btn.on { color: var(--accent); border-color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); }
+@media (max-width: 760px) { .gn-btn span { display: none; } }

@@ -490,3 +490,21 @@ a.ss-leg:hover { border-color: var(--accent); } a.ss-leg em { color: var(--accen
 }
 .bg-tm > span:first-child b.long { font-family: var(--display); font-stretch: 76%; font-weight: 750; }
 @media (max-width: 600px) { .bg-tm > span:first-child b.long { font-size: 14.5px; font-stretch: 66%; } }
+/* Game lines after tip-off: live line, movement, closing result */
+.bg-sc { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 18px !important; color: var(--ink) !important; letter-spacing: .01em; }
+.lv-tag { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); }
+.lv-mv { display: grid; gap: 2px; padding: 8px 11px 9px; border-radius: 10px; background: var(--surface-2); font-size: 12.5px; }
+.lv-r { display: grid; grid-template-columns: 92px 1fr 1fr 1.1fr; align-items: baseline; gap: 6px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.lv-r > span:not(.lv-l) { text-align: right; font-weight: 600; white-space: nowrap; }
+.lv-r small { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted); margin-right: 2px; }
+.lv-l { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-n b { color: var(--accent); font-weight: 750; }
+.lv-wait { color: var(--muted); }
+.lv-sp { display: grid; gap: 3px; margin-top: 6px; }
+.lv-sp svg { width: 100%; height: 46px; display: block; }
+.lv-sp polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.lv-sp polyline.s, .lv-sp i.s { stroke: var(--accent); background: var(--accent); }
+.lv-sp polyline.o, .lv-sp i.o { stroke: color-mix(in oklab, var(--ink) 55%, transparent); background: color-mix(in oklab, var(--ink) 55%, transparent); }
+.lv-sp span { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.lv-sp span i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; }
+.lv-res { margin: 6px 0 0; font-weight: 650; font-size: 12.5px; }

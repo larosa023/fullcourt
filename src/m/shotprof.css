@@ -1,0 +1,15 @@
+.sp-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.sp-sum { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.sp-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+.sp-court { width: 100%; height: auto; display: block; border-radius: 10px; }
+.sp-marks .sp-m { fill: var(--accent); stroke: var(--court); stroke-width: 1.5; }
+.sp-marks .sp-x { stroke: color-mix(in oklab, var(--ink) 55%, transparent); stroke-width: 2; stroke-linecap: round; fill: none; }
+.sp-t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sp-t th, .sp-t td { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.sp-t th:first-child { text-align: left; font-weight: 600; }
+.sp-t thead th { font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.sp-t .hot { color: var(--win); font-weight: 700; }
+.sp-t .cold { color: var(--loss); font-weight: 700; }
+.sp-t td b { font-weight: 650; margin-left: 3px; }
+.sp-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+@media (max-width: 760px) { .sp-body { grid-template-columns: 1fr; } .sp-sum { margin-left: 0; flex: 1 1 100%; } }

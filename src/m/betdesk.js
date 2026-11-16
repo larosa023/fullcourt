@@ -267,13 +267,35 @@ function dvpTable(k) {
   BD.dvpC.set(key, agg);
   return agg;
 }
+// games a teammate missed this season (from his own game log: every team game he isn't in), loaded for tonight's outs
+BD.outPlayed = new Map();
+async function loadOutLogs() {
+  const ids = [...new Set([...(BD.outByTeam?.values() || [])].flat().map(o => o.id))].filter(id => !BD.outPlayed.has(id));
+  if (!ids.length) return false;
+  await Promise.all(ids.map(async id => { try { const L = await gameLog(id); BD.outPlayed.set(id, new Set(L.map(g => String(g.id)))); } catch (e) {} }));
+  return true;
+}
+function withoutOf(x, o) {
+  const played = BD.outPlayed.get(o.id), L = x.log || []; if (!played || L.length < 4) return null;
+  const vals = (arr) => arr.map(g => bdVal(g, x.k)).filter(v => v != null);
+  const wo = vals(L.filter(g => !played.has(String(g.id)))), wi = vals(L.filter(g => played.has(String(g.id))));
+  if (wo.length < 2 || wi.length < 2) return null;
+  const avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+  return { wo: avg(wo), wi: avg(wi), d: avg(wo) - avg(wi), n: wo.length, m: wi.length };
+}
+const MK_SHORT = k => ({ pts: 'pts', reb: 'reb', ast: 'ast', tpm: 'threes', stl: 'stl', blk: 'blk', pra: 'pts+reb+ast', pr: 'pts+reb', pa: 'pts+ast', ra: 'reb+ast', sb: 'stl+blk', fga: 'FGA', tpa: '3PA', fg2: '2PM', fg2a: '2PA' })[k] || k;
 const dvpOf = x => { const a = dvpTable(x.k).get(x.opp.abbr + '|' + posGroup(x.p.pos)); return a && a.n >= 3 ? { v: a.s / a.n, n: a.n } : null; };
 function flagsOf(x) {
   const f = [];
   const L = x.log || [];
   if (L.length >= 5) { const m3 = (L[0].min + L[1].min + L[2].min) / 3, ms = L.reduce((a, g) => a + g.min, 0) / L.length; if (m3 - ms >= 4) f.push(['up', `MIN ↑ ${Math.round(m3)}`]); else if (ms - m3 >= 4) f.push(['dn', `MIN ↓ ${Math.round(m3)}`]); }
   const out = (BD.outByTeam?.get(String(x.p.teamId)) || []).filter(n => n.id !== String(x.p.id));
-  if (out.length) f.push(['out', `${out[0].last} out${out.length > 1 ? ` +${out.length - 1}` : ''}`]);
+  if (out.length) {
+    // how he's done this season in games the missing teammate sat out, against games they played together
+    const w = withoutOf(x, out[0]);
+    f.push(['out', `${out[0].last} out${out.length > 1 ? ` +${out.length - 1}` : ''}${w && Math.abs(w.d) >= 0.5 ? ` · ${w.d > 0 ? '+' : ''}${w.d.toFixed(1)}` : ''}`,
+      w ? `Without ${out[0].last} (${w.n} game${w.n === 1 ? '' : 's'}): ${w.wo.toFixed(1)} ${MK_SHORT(x.k)} a game · with him: ${w.wi.toFixed(1)} (${w.m} games)` : `${out[0].last} is out tonight`]);
+  }
   const rs = BD.rest?.get(String(x.p.teamId));
   if (rs?.b2b) f.push(['dn', 'B2B']); else if (rs?.three4) f.push(['dn', '3 in 4']);
   const pc = paceOf(BD.pbpT, x.g.home.abbr, x.g.away.abbr);
@@ -435,7 +457,7 @@ async function bdDraw() {
   bdTable(main, !!dc);
   // injuries, rest and pace flags fill in when they land; they don't hold up the table
   let late = null; const lateDraw = () => { clearTimeout(late); late = setTimeout(() => { if (n === drawN && BD.tab === 'props' && BD.all === list) bdTable(main, true, false, true); }, 150); };
-  injP.then(inj => { if (inj) { applyInj(inj); lateDraw(); } });
+  injP.then(async inj => { if (inj) { applyInj(inj); lateDraw(); if (await loadOutLogs().catch(() => false)) lateDraw(); } });
   // rest flags need every team's schedule (30 requests), so they start only after the table is up
   const restP = Promise.all([poolAll(games.flatMap(g => [g.home.id, g.away.id]), 6, async t => [String(t), await restOf(t, slate.date)]), pbpTeams()]).catch(() => null);
   restP.then(r => { if (r) { BD.rest = new Map(r[0]); BD.pbpT = r[1]; lateDraw(); } });
@@ -577,7 +599,7 @@ function bdTable(main, keepScroll, final, soft) {
         else if (lv?.none && !lv.fin) fl.unshift(['live', 'Live · not in yet']);
         const rd = BD.radar && x.log ? radarOf(x) : null; if (rd) { const i = fl.findIndex(f => f[0] === 'up'); if (i >= 0) fl.splice(i, 1); fl.push(['up', `MIN +${rd.toFixed(1)}`]); }
         return `<tr class="${st ? 'starred' : ''}" data-bdrow="${x.pid}|${x.k}|${x.line}" ${Q1.has(x.k) ? `data-player="${x.p.id}"` : ''}>
-          <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t]) => `<i class="${c}">${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
+          <td class="pl"><span class="bd-pl"><button class="bd-star${st ? ' on' : ''}" data-bdstar="${x.pid}|${x.k}" aria-pressed="${st}" title="${st ? 'Unstar' : 'Star: pin to the top and get an alert if the line moves'}" aria-label="${st ? 'Unstar' : 'Star'} ${esc(x.p.name)}">${st ? '★' : '☆'}</button>${face(x.p.id, x.p.name, 'bd-face', 120)}<span><b>${esc(x.p.name)}</b>${fl.length ? `<span class="bd-flags">${fl.map(([c, t, ti]) => `<i class="${c}"${ti ? ` title="${esc(ti)}"` : ''}>${esc(t)}</i>`).join('')}</span>` : ''}<small>${logo(x.p.abbr, 32)}${esc(x.p.abbr)} ${x.at} ${esc(x.opp.abbr)} · ${esc(lv ? lv.label : x.g.state === 'pre' ? fmtTime(x.g.date) : statusText(x.g))}</small><small class="bd-mob">${amer(BD.side === 'u' ? x.under : x.over)}${s?.avg != null ? ` · avg ${s.avg.toFixed(1)}` : ''}${s?.hs != null ? ` · season ${Math.round(s.hs * 100)}%` : ''}${dr ? ` · ${ordN(dr)} D` : ''}</small></span></span></td>
           ${ALL ? `<td class="mk dk"><span class="bd-mkt">${esc(MARKETS.find(q => q[0] === x.k)[2])}</span></td>` : ''}
           <td class="ln">${ALL ? `<small class="bd-mkm">${esc(MARKETS.find(q => q[0] === x.k)[2])}</small>` : ''}${x.line != null ? `<b>${x.line}</b>${x.est && Number.isFinite(x.mkt) ? '<em class="est mk" title="Market line: the consensus line from the pick\'em apps that set this market. No sportsbook on our feed prices it.">mkt</em>' : x.est ? '<em class="est" title="Fullcourt line: set at his average over the last 10 games. No sportsbook line in the feed.">est</em>' : x.alt ? '<em class="est alt" title="DraftKings alt line">alt</em>' : x.fromBook ? `<em class="est bk" title="${esc(bookName(x.fromBook))} line: DraftKings hasn't posted this one">${esc(bookAb(x.fromBook))}</em>` : x.g.state === 'in' || BD.live.get(x.g.id)?.g.state === 'in' ? '<em class="est livel" title="In-game line: DraftKings moves this during the game">live</em>' : mv}` : '<span class="bd-ld st"></span>'}${(() => { const q = x.log && x.line != null ? pjSide(x) : null; if (!q) return ''; const lean = BD.side === 'u' ? x.line - q.mean : q.mean - x.line; return `<small class="bd-mob bd-pjm ${lean > 0.3 ? 'pos' : lean < -0.3 ? 'neg' : ''}" title="Fullcourt's projection">proj ${q.mean.toFixed(1)}</small>`; })()}</td>
           <td class="od dk">${x.est ? (x.st?.fair != null ? `<span class="bd-fair" title="Fair price from his hit rate at this line over his last 20 games. No sportsbook prices this market, so it's an estimate, not odds you can bet.">${amer(x.st.fair)}<i>fair</i></span>` : '<span class="bd-pill na">–</span>') : amer(BD.side === 'u' ? x.under : x.over)}</td>
@@ -767,12 +789,12 @@ function marketRow(g, std) {
   const o = g.odds, hs = parseFloat(o?.home?.spread), ou = parseFloat(o?.ou), { proj, margin } = leanOf(g, std);
   const pa = amToP(o?.away?.ml), ph = amToP(o?.home?.ml), fair = pa != null && ph != null ? { a: pa / (pa + ph), h: ph / (pa + ph) } : null;
   const imp = Number.isFinite(hs) && Number.isFinite(ou) ? { h: (ou - hs) / 2, a: (ou + hs) / 2 } : null;
-  const mdl = proj != null && margin != null ? { h: proj / 2 + margin / 2, a: proj / 2 - margin / 2 } : null;
+  const mdl = g.state === 'pre' && proj != null && margin != null ? { h: proj / 2 + margin / 2, a: proj / 2 - margin / 2 } : null;
   if (!imp && !fair && !mdl) return '';
   const f1 = v => (Math.round(v * 2) / 2).toFixed(1).replace(/\.0$/, '');
   const pct = v => `${Math.round(v * 100)}%`;
   return `<div class="bg-mk">
-    ${imp ? `<div><span>Implied score</span><b>${esc(g.away.abbr)} ${f1(imp.a)} · ${esc(g.home.abbr)} ${f1(imp.h)}</b></div>` : ''}
+    ${imp ? `<div><span>${g.state === 'in' ? 'Live line says' : 'Implied score'}</span><b>${esc(g.away.abbr)} ${f1(imp.a)} · ${esc(g.home.abbr)} ${f1(imp.h)}</b></div>` : ''}
     ${mdl ? `<div><span>Fullcourt model</span><b>${esc(g.away.abbr)} ${Math.round(mdl.a)} · ${esc(g.home.abbr)} ${Math.round(mdl.h)}</b></div>` : ''}
     ${fair ? `<div class="bg-wp"><span>Win chance</span><i style="--a:${(fair.a * 100).toFixed(1)}%"><u></u></i><b>${esc(g.away.abbr)} ${pct(fair.a)} · ${esc(g.home.abbr)} ${pct(fair.h)}</b></div>` : ''}
   </div>`;
@@ -828,24 +850,100 @@ async function fillMatchups(main, games, std, my) {
   }
 }
 
+/* ---------- Game lines once a game starts: DraftKings' live line, and how it moved ----------
+   ESPN's odds feed has the pregame line (open and close) and, while a game is on, a separate "Live Odds" entry with the
+   line right now. It keeps no history of the live line, so the page notes it every 30 seconds while it's open (kept for
+   the day on this device) and draws that. */
+const bgTeam = (g, o, s, side) => `<div class="bg-tm"><span>${logo(s.abbr, 48)}<b${String(s.name).length > 10 ? ' class="long"' : ''} title="${esc(s.name)}">${esc(s.name)}</b>${g.state === 'pre' ? `<small>${esc(s.rec || '')}</small>` : `<small class="bg-sc">${esc(String(s.score ?? ''))}</small>`}</span>
+      <span class="bg-c"><small>Spread</small><b>${esc(o?.[side]?.spread || '–')}</b><small>${esc(o?.[side]?.spreadOdds || '')}</small></span>
+      <span class="bg-c"><small>Money</small><b>${esc(o?.[side]?.ml || '–')}</b>${o?.[side]?.mlOpen && o[side].mlOpen !== o[side].ml ? `<small title="Opening line">open ${esc(o[side].mlOpen)}</small>` : '<small>&nbsp;</small>'}</span>
+      <span class="bg-c"><small>${side === 'away' ? 'Over' : 'Under'}</small><b>${o?.ou != null ? esc(String(o.ou)) : '–'}</b><small>${esc(o?.[side === 'away' ? 'over' : 'under']?.odds || '')}</small></span></div>`;
+const amS = v => v == null || v === "" ? null : String(v);
+function parseLines(it, when) {
+  if (!it) return null;
+  const sd = t => { const x = it[t]?.[when]; return x ? { spread: amS(x.pointSpread?.american), spreadOdds: amS(x.spread?.american), ml: amS(x.moneyLine?.american) } : null; };
+  const t = it[when]; if (!sd('homeTeamOdds') && !t) return null;
+  return { home: sd('homeTeamOdds') || {}, away: sd('awayTeamOdds') || {}, ou: t?.total?.american != null ? +t.total.american : null, over: { odds: amS(t?.over?.american) }, under: { odds: amS(t?.under?.american) } };
+}
+BD.lv = new Map(); // game id → { now, open, close, at }
+const LVH_KEY = () => lsKey('fc-lvh');
+function lvHist() { try { const h = JSON.parse(localStorage.getItem(LVH_KEY()) || '{}'); return h && typeof h === 'object' ? h : {}; } catch (e) { return {}; } }
+function lvNote(g, now) {
+  const hs = parseFloat(now?.home?.spread), ou = now?.ou; if (!Number.isFinite(hs) && !Number.isFinite(ou)) return;
+  const h = lvHist(), a = (h[g.id] ||= []), last = a.at(-1), t = Date.now();
+  if (last && last.s === (Number.isFinite(hs) ? hs : null) && last.o === (Number.isFinite(ou) ? ou : null) && t - last.t < 5 * 60e3) return;
+  a.push({ t, s: Number.isFinite(hs) ? hs : null, o: Number.isFinite(ou) ? ou : null, c: statusText(g) });
+  if (a.length > 240) a.splice(0, a.length - 240);
+  for (const k of Object.keys(h)) if (h[k].at(-1)?.t < t - 2 * 864e5) delete h[k];
+  try { localStorage.setItem(LVH_KEY(), JSON.stringify(h)); } catch (e) {}
+}
+async function liveLines(g) {
+  const o = await getJSON(`${CORE}/events/${g.id}/competitions/${g.id}/odds?lang=en&region=us`, { retries: 0, timeout: 10000 });
+  const items = o?.items || [], live = items.find(i => /live/i.test(i.provider?.name || '')), pre = items.find(i => i !== live);
+  const v = { now: g.state === 'in' ? parseLines(live, 'current') : null, open: parseLines(pre, 'open'), close: parseLines(pre, 'close') || parseLines(pre, 'current'), at: Date.now() };
+  BD.lv.set(g.id, v); if (v.now) lvNote(g, v.now);
+  return v;
+}
+// the spread (home side) and total as they moved during the game, from the notes above
+function lvSpark(g) {
+  const a = (lvHist()[g.id] || []).filter(x => x.s != null || x.o != null); if (a.length < 2) return '';
+  const W = 300, H = 46, line = (key, cls) => {
+    const pts = a.map((x, i) => [i, x[key]]).filter(([, v]) => v != null); if (pts.length < 2) return '';
+    const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), r = hi - lo || 1;
+    return `<polyline class="${cls}" points="${pts.map(([i, v]) => `${(i / (a.length - 1) * W).toFixed(1)},${(H - 4 - (v - lo) / r * (H - 8)).toFixed(1)}`).join(' ')}"/>`;
+  };
+  return `<div class="lv-sp"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${line('s', 's')}${line('o', 'o')}</svg>
+    <span><i class="s"></i>Spread ${esc(g.home.abbr)} <i class="o"></i>Total · ${esc(a[0].c || '')} → ${esc(a.at(-1).c || '')}</span></div>`;
+}
+const sgn = v => v == null || v === '' ? '–' : String(v);
+function lvMoves(g, v) {
+  if (!v) return g.state === 'pre' ? '' : '<div class="lv-mv"><span class="lv-l">Line</span><span class="lv-wait">Getting the live line…</span></div>';
+  const row = (lab, f) => { const o = f(v.open), c = f(v.close), n = f(v.now); if (o == null && c == null && n == null) return ''; return `<div class="lv-r"><span class="lv-l">${lab}</span><span>${o != null ? `<small>open</small> ${esc(sgn(o))}` : ''}</span><span>${c != null ? `<small>pre</small> ${esc(sgn(c))}` : ''}</span><span class="lv-n">${n != null ? `<small>live</small> <b>${esc(sgn(n))}</b>` : g.state === 'post' ? '<small>final</small>' : ''}</span></div>`; };
+  let res = '';
+  if (g.state === 'post' && v.close) {
+    // how the closing line did
+    const hs = parseFloat(v.close.home?.spread), ou = v.close.ou, hm = (+g.home.score || 0) - (+g.away.score || 0), tot = (+g.home.score || 0) + (+g.away.score || 0);
+    const cov = Number.isFinite(hs) ? (hm + hs === 0 ? 'push' : hm + hs > 0 ? `${g.home.abbr} covered ${sgn(v.close.home.spread)}` : `${g.away.abbr} covered ${sgn(v.close.away?.spread)}`) : '';
+    const ovr = Number.isFinite(ou) ? (tot === ou ? 'total pushed' : tot > ou ? `over ${ou} hit (${tot})` : `under ${ou} hit (${tot})`) : '';
+    res = cov || ovr ? `<p class="lv-res">${esc([cov, ovr].filter(Boolean).join(' · '))}</p>` : '';
+  }
+  return `<div class="lv-mv">${row(`Spread ${esc(g.home.abbr)}`, x => x?.home?.spread)}${row('Total', x => x?.ou)}${row(`Money ${esc(g.home.abbr)}`, x => x?.home?.ml)}${lvSpark(g)}${res}</div>`;
+}
+function lvBox(g, std) {
+  const v = BD.lv.get(g.id), o = g.state === 'pre' ? g.odds : v?.now || (g.state === 'post' ? v?.close : null) || g.odds;
+  const gg = o === g.odds ? g : { ...g, odds: { ...(g.odds || {}), ...o } };
+  return `${bgTeam(g, o, g.away, 'away')}${bgTeam(g, o, g.home, 'home')}${g.state === 'in' && v?.now ? '<p class="lv-tag"><i class="dot on"></i>Live line · DraftKings</p>' : g.state === 'post' && v?.close ? '<p class="lv-tag">Closing line</p>' : ''}${g.state === 'post' ? '' : marketRow(gg, std)}${g.state === 'pre' ? '' : lvMoves(g, v)}`;
+}
+// fetch live lines for started games now and every 30 seconds while Game lines is on screen
+function liveLinesTick(main, games) {
+  clearTimeout(BD.lvT);
+  const started = games.filter(g => g.state !== 'pre'); if (!started.length) return;
+  const run = async () => {
+    if (!main.isConnected || BD.tab !== 'games' || S.view !== 'bets') return;
+    if (!document.hidden) await Promise.all(started.map(async g => {
+      const fresh = BD.lv.get(g.id); if (g.state === 'post' && fresh) return;
+      try { await liveLines(g); } catch (e) {}
+      const box = $(`[data-lvbox="${g.id}"]`, main); if (box) box.innerHTML = lvBox(g, BD.lvStd);
+    }));
+    if (started.some(g => g.state === 'in')) BD.lvT = setTimeout(run, 30000);
+  };
+  run();
+}
+
 function drawGames(main, games) {
   const std = new Map((S.standings?.confs || []).flatMap(c => c.rows).map(r => [r.id, r]));
   const card = g => {
     const o = g.odds, { proj, margin, hs, tl, sl } = leanOf(g, std);
-    const team = (s, side) => `<div class="bg-tm"><span>${logo(s.abbr, 48)}<b${String(s.name).length > 10 ? ' class="long"' : ''} title="${esc(s.name)}">${esc(s.name)}</b><small>${esc(s.rec || '')}</small></span>
-      <span class="bg-c"><small>Spread</small><b>${esc(o?.[side]?.spread || '–')}</b><small>${esc(o?.[side]?.spreadOdds || '')}</small></span>
-      <span class="bg-c"><small>Money</small><b>${esc(o?.[side]?.ml || '–')}</b>${o?.[side]?.mlOpen && o[side].mlOpen !== o[side].ml ? `<small title="Opening line">open ${esc(o[side].mlOpen)}</small>` : '<small>&nbsp;</small>'}</span>
-      <span class="bg-c"><small>${side === 'away' ? 'Over' : 'Under'}</small><b>${o?.ou != null ? esc(String(o.ou)) : '–'}</b><small>${esc(o?.[side === 'away' ? 'over' : 'under']?.odds || '')}</small></span></div>`;
     return `<div class="bg-card">
       <button class="bg-h" data-game="${g.id}"><span>${esc(g.state === 'pre' ? fmtTime(g.date) : statusText(g))}</span><span>${esc(g.tv || '')}</span></button>
-      ${team(g.away, 'away')}${team(g.home, 'home')}
-      ${marketRow(g, std)}
+      <div data-lvbox="${g.id}">${lvBox(g, std)}</div>
       <div class="bg-mu" data-mu="${g.id}"><div class="sk" style="height:168px;border-radius:10px"></div></div>
       <details class="bg-fb" data-fbgame="${g.id}"><summary>First basket <small>first possession, first score, first scorers</small></summary><div class="bg-fbb"><div class="sk" style="height:120px"></div></div></details>
-      <div class="bg-lean">${proj != null ? `<span>Teams project <b>${Math.round(proj)}</b> total${tl != null ? ` · ${Math.abs(tl) >= 3 ? `<b class="on">lean ${tl > 0 ? 'Over' : 'Under'}</b>` : 'no lean'}` : ''}</span><span>Project <b>${margin >= 0 ? esc(g.home.abbr) : esc(g.away.abbr)} by ${Math.abs(margin).toFixed(1)}</b>${sl != null ? ` · ${Math.abs(sl) >= 2.5 ? `<b class="on">lean ${sl > 0 ? `${esc(g.home.abbr)} ${hs > 0 ? '+' : ''}${hs}` : `${esc(g.away.abbr)} ${-hs > 0 ? '+' : ''}${-hs}`}</b>` : 'no lean'}` : ''}</span>` : '<span>Not enough games for a projection yet.</span>'}</div>
+      <div class="bg-lean"${g.state !== 'pre' ? ' hidden' : ''}>${proj != null ? `<span>Teams project <b>${Math.round(proj)}</b> total${tl != null ? ` · ${Math.abs(tl) >= 3 ? `<b class="on">lean ${tl > 0 ? 'Over' : 'Under'}</b>` : 'no lean'}` : ''}</span><span>Project <b>${margin >= 0 ? esc(g.home.abbr) : esc(g.away.abbr)} by ${Math.abs(margin).toFixed(1)}</b>${sl != null ? ` · ${Math.abs(sl) >= 2.5 ? `<b class="on">lean ${sl > 0 ? `${esc(g.home.abbr)} ${hs > 0 ? '+' : ''}${hs}` : `${esc(g.away.abbr)} ${-hs > 0 ? '+' : ''}${-hs}`}</b>` : 'no lean'}` : ''}</span>` : '<span>Not enough games for a projection yet.</span>'}</div>
     </div>`;
   };
   BD.gmap = new Map(games.map(g => [g.id, g]));
+  BD.lvStd = std; liveLinesTick(main, games);
   const my = ++muDraw; setTimeout(() => fillMatchups(main, games, std, my), 0);
   main.innerHTML = `<div class="bg-grid">${games.map(card).join('')}</div><p class="bd-note">Lines from ${esc(games.find(g => g.odds?.provider)?.odds.provider || 'the sportsbook')} via ESPN. Projections use each team's points scored and allowed this season with about 1.5 points for home court. A lean shows when the line is 3+ points off on a total or 2.5+ on a spread. Not betting advice.</p>`;
 }
