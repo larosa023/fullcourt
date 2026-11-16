@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-15d', date: 'Nov 15', items: [
+    ['Windows app 1.3.3: opens where you left it', 'The app remembered its spot only when you quit it from the tray menu, so after Windows restarted (or the app was closed any other way) it came back centred on the main monitor. It now saves its position and size a moment after you move or resize it, and again when it goes to the tray, so it reopens on the same monitor, same size. Update from the prompt in the app.'],
+  ] },
   { id: '2026-11-15c', date: 'Nov 15', items: [
     ['Cleaner dropdowns', 'Every dropdown (players on the shot chart, games on the Bet Desk, teams, seasons, conferences) now opens Fullcourt\'s own list instead of the plain system one: matching colours, a check on the current choice, and a search box on long lists. Arrow keys, Enter, Esc and typing a letter all work. The closed boxes share one look with a matching arrow. Phones keep their own picker, which is easier with a thumb.'],
   ] },
