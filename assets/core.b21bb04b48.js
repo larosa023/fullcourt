@@ -153,7 +153,7 @@ var El=Object.defineProperty;var Al=(t,e,s)=>e in t?El(t,e,{enumerable:!0,config
         <div class="pl-who">
         <h2 class="h-display">${d(r.firstName||i.split(" ")[0])}<br>${d(r.lastName||i.split(" ").slice(1).join(" "))}</h2>
         <p class="pl-nick" hidden></p>
-        <p>${l.abbr?V(l.abbr,44):""}${d(l.name||"")}${r.jersey||e.jersey?` \xB7 #${d(r.jersey||e.jersey)}`:""}${r.position?.displayName||r.position?.abbreviation||e.pos?` \xB7 ${d(r.position?.displayName||r.position?.abbreviation||e.pos)}`:""}</p>
+        <p>${o&&l.name?`<button class="pl-team" data-team="${d(o)}" title="Open the ${d(l.name)} page">${l.abbr?V(l.abbr,44):""}${d(l.name)}</button>`:`${l.abbr?V(l.abbr,44):""}${d(l.name||"")}`}${r.jersey||e.jersey?` \xB7 #${d(r.jersey||e.jersey)}`:""}${r.position?.displayName||r.position?.abbreviation||e.pos?` \xB7 ${d(r.position?.displayName||r.position?.abbreviation||e.pos)}`:""}</p>
         </div>
         ${f.length?`<dl class="pl-facts">${f.map(([L,M])=>`<div${/College|Born|Draft/.test(L)?' class="w"':""}><dt>${d(L)}</dt><dd title="${d(M)}">${d(M)}</dd></div>`).join("")}</dl>`:""}
       </div>

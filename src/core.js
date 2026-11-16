@@ -2007,7 +2007,7 @@ async function openPlayer(id) {
         <div class="pl-who">
         <h2 class="h-display">${esc(bio.firstName || name.split(' ')[0])}<br>${esc(bio.lastName || name.split(' ').slice(1).join(' '))}</h2>
         <p class="pl-nick" hidden></p>
-        <p>${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
+        <p>${teamId && tm.name ? `<button class="pl-team" data-team="${esc(teamId)}" title="Open the ${esc(tm.name)} page">${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name)}</button>` : `${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}`}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
         </div>
         ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       </div>

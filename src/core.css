@@ -1686,3 +1686,8 @@ html.mt3 .mast .pulse-chip strong { display: none !important; }
 html.mt3 .mast .pulse-chip { min-width: 0 !important; padding: 6px 10px !important; }
 html.mt3 .mast .mast-right { gap: 6px !important; }
 html.mt4 .mast .today-btn { display: none !important; }
+/* the team line flows as one line of text (wrapping like it did before it became a link) */
+.pl-hero p:has(.pl-team) { display: block; line-height: 1.6; }
+.pl-hero .pl-team { display: inline; color: inherit; font: inherit; line-height: inherit; padding: 2px 2px; margin: 0 0 0 -2px; border-radius: 6px; transition: background .15s; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.pl-hero .pl-team .lg { display: inline-block; vertical-align: -6px; margin-right: 6px; }
+.pl-hero .pl-team:hover, .pl-hero .pl-team:focus-visible { background: rgb(255 255 255 / .14); text-decoration: underline; text-underline-offset: 3px; }
