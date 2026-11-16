@@ -2251,6 +2251,83 @@ function renderTicker() {
   start();
 })();
 
+/* ---------------- dropdowns ----------------
+   With a mouse, a dropdown's open list is Fullcourt's own instead of the system's (which ignores the theme and draws
+   a plain white-on-grey list). The real <select> stays in charge of the value and still sends its change event, so
+   every dropdown on the site gets this without changes of its own. Touch screens keep the phone's own picker. */
+(() => {
+  let pop = null, cur = null, lastPtr = 'mouse';
+  const fine = () => lastPtr === 'mouse' && matchMedia('(pointer: fine)').matches;
+  const CHECK = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const rows = () => pop ? [...pop.querySelectorAll('.dd-o:not([hidden]):not([disabled])')] : [];
+  const close = (focus = true) => {
+    if (!pop) return;
+    pop.remove(); pop = null;
+    document.removeEventListener('pointerdown', outside, true); removeEventListener('resize', away); removeEventListener('scroll', onScroll, true);
+    const s = cur; cur = null; if (focus && s?.isConnected) s.focus({ preventScroll: true });
+  };
+  const outside = e => { if (pop && !pop.contains(e.target) && e.target !== cur) close(false); };
+  const away = () => close(false);
+  // only a scroll that moves the dropdown itself (the page, or a panel it sits in) puts the list away
+  const onScroll = e => { if (!pop || pop.contains(e.target)) return; const t = e.target; if (!cur?.isConnected || t === document || t === document.scrollingElement || t.contains?.(cur)) close(false); };
+  const choose = i => {
+    const s = cur; close();
+    if (!s || s.selectedIndex === i) return;
+    s.selectedIndex = i;
+    s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const opt = o => `<button type="button" class="dd-o" role="option" data-i="${o.index}" aria-selected="${o.selected}"${o.disabled ? ' disabled' : ''}><span>${esc(o.textContent.trim())}</span>${o.selected ? CHECK : ''}</button>`;
+  function open(sel) {
+    close(false); cur = sel;
+    const body = [...sel.children].map(c => c.tagName === 'OPTGROUP' ? `<div class="dd-g">${esc(c.label)}</div>${[...c.children].map(opt).join('')}` : c.tagName === 'OPTION' ? opt(c) : '').join('');
+    const long = sel.options.length > 12;
+    pop = document.createElement('div'); pop.className = 'dd-pop';
+    pop.innerHTML = `${long ? '<input class="dd-q" type="search" placeholder="Search" aria-label="Search the list" autocomplete="off">' : ''}<div class="dd-list" role="listbox" aria-label="${esc(sel.getAttribute('aria-label') || 'Options')}">${body}</div>`;
+    document.body.append(pop);
+    // under the dropdown when there's room, otherwise above; at least as wide as the dropdown
+    const r = sel.getBoundingClientRect(), below = innerHeight - r.bottom - 12, above = r.top - 12, up = below < 240 && above > below;
+    pop.style.minWidth = `${Math.max(180, r.width)}px`;
+    pop.style.maxHeight = `${Math.min(380, up ? above : below)}px`;
+    const w = pop.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left));
+    pop.style.left = `${Math.round(x)}px`;
+    if (up) pop.style.bottom = `${Math.round(innerHeight - r.top + 6)}px`; else pop.style.top = `${Math.round(r.bottom + 6)}px`;
+    pop.classList.toggle('up', up);
+    const on = pop.querySelector('.dd-o[aria-selected="true"]') || rows()[0];
+    on?.scrollIntoView({ block: 'center' });
+    (long ? pop.querySelector('.dd-q') : on)?.focus({ preventScroll: true });
+    pop.addEventListener('click', e => { const b = e.target.closest('.dd-o'); if (b && !b.disabled) choose(+b.dataset.i); });
+    pop.addEventListener('pointermove', e => { const b = e.target.closest('.dd-o'); if (b && document.activeElement !== b && !pop.querySelector('.dd-q:focus')) b.focus({ preventScroll: true }); });
+    pop.addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      pop.querySelectorAll('.dd-o').forEach(b => { b.hidden = !!q && !b.textContent.toLowerCase().includes(q); });
+      pop.querySelectorAll('.dd-g').forEach(g => { let n = g.nextElementSibling, any = false; while (n && !n.classList.contains('dd-g')) { if (!n.hidden) any = true; n = n.nextElementSibling; } g.hidden = !any; });
+    });
+    pop.addEventListener('keydown', e => {
+      const list = rows(), i = list.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+      if (e.key === 'Tab') { close(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = list[e.key === 'ArrowDown' ? Math.min(list.length - 1, i + 1) : Math.max(0, i - 1)] || list[0]; n?.focus(); n?.scrollIntoView({ block: 'nearest' }); return; }
+      if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); const n = e.key === 'Home' ? list[0] : list.at(-1); n?.focus(); n?.scrollIntoView({ block: 'nearest' }); return; }
+      if (e.key === 'Enter') { e.preventDefault(); const b = i >= 0 ? list[i] : list[0]; if (b) choose(+b.dataset.i); return; }
+      // type a letter to jump (when there's no search box)
+      if (!pop.querySelector('.dd-q') && e.key.length === 1 && /\S/.test(e.key)) { const k = e.key.toLowerCase(), n = list.slice(i + 1).concat(list.slice(0, i + 1)).find(b => b.textContent.trim().toLowerCase().startsWith(k)); n?.focus(); n?.scrollIntoView({ block: 'nearest' }); }
+    });
+    document.addEventListener('pointerdown', outside, true); addEventListener('resize', away); addEventListener('scroll', onScroll, true);
+  }
+  document.addEventListener('pointerdown', e => { lastPtr = e.pointerType || 'mouse'; }, true);
+  document.addEventListener('mousedown', e => {
+    const sel = e.target.closest?.('select');
+    if (!sel || sel.multiple || sel.disabled || e.button !== 0 || !fine()) return;
+    e.preventDefault(); sel.focus({ preventScroll: true });
+    if (cur === sel && pop) close(); else open(sel);
+  }, true);
+  document.addEventListener('keydown', e => {
+    const sel = e.target;
+    if (sel?.tagName !== 'SELECT' || sel.multiple || !matchMedia('(pointer: fine)').matches) return;
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'F4' || (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp'))) { e.preventDefault(); open(sel); }
+  }, true);
+})();
+
 /* ---------------- shot chart ---------------- */
 const COURT = `<rect x="0" y="0" width="500" height="470" rx="6" fill="var(--court)"/>
 <g fill="none" stroke="var(--court-line)" stroke-width="2">
@@ -2643,7 +2720,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-15b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-15c'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

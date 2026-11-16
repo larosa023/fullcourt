@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-15c', date: 'Nov 15', items: [
+    ['Cleaner dropdowns', 'Every dropdown (players on the shot chart, games on the Bet Desk, teams, seasons, conferences) now opens Fullcourt\'s own list instead of the plain system one: matching colours, a check on the current choice, and a search box on long lists. Arrow keys, Enter, Esc and typing a letter all work. The closed boxes share one look with a matching arrow. Phones keep their own picker, which is easier with a thumb.'],
+  ] },
   { id: '2026-11-15b', date: 'Nov 15', items: [
     ['Shot chart by quarter', 'The Shot chart tab has a quarter picker (All, Q1 to Q4, OT, or halves in men\'s college): pick one to see only that quarter\'s shots, with the made/attempted numbers for just that stretch. It works with the team and player filters.'],
   ] },
