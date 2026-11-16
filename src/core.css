@@ -728,6 +728,7 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 /* the header has no room for the 'updated 12s ago' text next to everything else; it lives in the chip's tooltip */
 .pulse-chip .txt-long { display: none; }
 @media (max-width: 1340px) { .search-btn .lbl, .search-btn kbd { display: none; } .search-btn { width: 38px; justify-content: center; padding: 0; } .fav-link .lbl { display: none; } }
+
 @media (min-width: 761px) and (max-width: 1200px) { .nav button { padding: 8px 8px; } .mast-in { gap: 12px; } .mast-right { gap: 8px; } .pulse-chip { min-width: 0; padding: 6px 10px; } .pulse-chip strong { display: none; } }
 /* small laptops / tablets: drop the wordmark (the icon stays), then the Ask and Search labels, so the header always fits inside the page edges */
 @media (min-width: 761px) and (max-width: 1180px) { .mast .brand b, .mast .brand .lg-badge { display: none; } }
@@ -1676,3 +1677,12 @@ select option { background: var(--surface); color: var(--ink); }
 .gn-btn span { margin-left: 2px; }
 .gn-btn.on { color: var(--accent); border-color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); }
 @media (max-width: 760px) { .gn-btn span { display: none; } }
+
+/* the header fits itself (fitMast in core.js): when its buttons run past the page column, it tightens a step at a time */
+html.mt1 .mast .nav button { padding-left: 6px !important; padding-right: 6px !important; }
+html.mt2 .mast .fav-link .lbl { display: none !important; }
+html.mt2 .mast .fav-link { width: 54px !important; min-width: 0 !important; padding: 0 8px !important; justify-content: center; }
+html.mt3 .mast .pulse-chip strong { display: none !important; }
+html.mt3 .mast .pulse-chip { min-width: 0 !important; padding: 6px 10px !important; }
+html.mt3 .mast .mast-right { gap: 6px !important; }
+html.mt4 .mast .today-btn { display: none !important; }

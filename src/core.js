@@ -4254,6 +4254,20 @@ Promise.resolve(loadScores()).finally(() => {
 markNews();
 setTimeout(settleOldPicks, 4000);
 alertTick(); gnPaint();
+// The header fits itself: on a desktop-width window, if its buttons run past the page column (your team's button, the
+// Live count and Today all change its length), it tightens a step at a time until they fit. Rechecked when the window
+// or the button group changes size.
+function fitMast() {
+  const m = $('.mast-in'), root = document.documentElement, steps = ['mt1', 'mt2', 'mt3', 'mt4'];
+  if (!m) return;
+  root.classList.remove(...steps);
+  if (innerWidth <= 760) return;
+  const over = () => { const r = m.getBoundingClientRect(), edge = r.right - (parseFloat(getComputedStyle(m).paddingRight) || 0); return Math.max(...[...m.children].filter(e => e.offsetParent).map(e => e.getBoundingClientRect().right)) - edge > 0.5; };
+  for (const c of steps) { if (!over()) break; root.classList.add(c); }
+}
+{ let q = 0; const soon = () => { cancelAnimationFrame(q); q = requestAnimationFrame(fitMast); };
+  addEventListener('resize', soon); document.fonts?.ready?.then(soon); soon();
+  const mr = $('.mast-right'); if (mr && self.ResizeObserver) { let lastW = 0; new ResizeObserver(([e]) => { const w = Math.round(e.contentRect.width); if (w !== lastW) { lastW = w; soon(); } }).observe(mr); } }
 // the home-screen icon's badge counts alerts that came in while Fullcourt was closed; seeing the app clears it
 const clearBadge = () => { if (!document.hidden) try { navigator.clearAppBadge?.()?.catch?.(() => {}); } catch (e) {} };
 clearBadge(); document.addEventListener('visibilitychange', clearBadge);
