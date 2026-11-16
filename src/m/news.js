@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-15b', date: 'Nov 15', items: [
+    ['Shot chart by quarter', 'The Shot chart tab has a quarter picker (All, Q1 to Q4, OT, or halves in men\'s college): pick one to see only that quarter\'s shots, with the made/attempted numbers for just that stretch. It works with the team and player filters.'],
+  ] },
   { id: '2026-11-15a', date: 'Nov 15', items: [
     ['Win probability, clearer', 'The two biggest swings under the chart are stretches of up to 90 seconds, not single plays, but they read as if the last play did it all (a free throw "worth" 17%). They now show the stretch, the run in it and its biggest play: "SC +17% · Q1 1:47–0:25 · 9-0 run · biggest: Agot Makeer three". ESPN sometimes adds a late-entered play to the end of its list, which made the chart\'s header show an older moment and score; points now go in game order. The Discord bot\'s chart has the same fix.'],
   ] },

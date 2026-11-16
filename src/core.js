@@ -1471,7 +1471,7 @@ async function openGame(id, opts = {}) {
   // opened from a bet leg: start on that player's team in the box score, scroll to his row and keep it highlighted
   const focusPid = opts.focus ? String(opts.focus) : null; let focusDone = false;
   let tab = opts.tab || 'box', boxSide = 1, boxSort = null, lastPlayId = null, first = true, clipCard = null, cur = null;
-  const shotF = { team: 'all', pid: '' };
+  const shotF = { team: 'all', pid: '', per: 'all' };
   const plF = { kind: 'all', team: 'all', per: 'all', n: 120 };
   addShareBtn(sheet, () => cur ? shareGame(cur.d, cur.sides) : null);
   addIsleBtn(sheet, id);
@@ -1615,6 +1615,8 @@ async function openGame(id, opts = {}) {
       if (bs) { boxSort = boxSort === bs.dataset.bsort ? null : bs.dataset.bsort; renderPane(); return; }
       const sh = e.target.closest('[data-shteam]');
       if (sh) { shotF.team = sh.dataset.shteam; shotF.pid = ''; renderPane(); }
+      const sp = e.target.closest('[data-shper]');
+      if (sp) { shotF.per = sp.dataset.shper; renderPane(); }
       if (e.target.closest('[data-close-retry]')) closeTop();
     };
     sheet.body.onchange = e => { const sel = e.target.closest('[data-shplayer]'); if (sel) { shotF.pid = sel.value; renderPane(); } };
@@ -2281,6 +2283,12 @@ function shotChart(d, sides, f) {
   const players = [...new Map(shots.filter(s => s.pid && s.name).map(s => [s.pid, s.name])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
   if (f.pid && !players.some(([id]) => id === f.pid)) f.pid = '';
   if (f.pid) shots = shots.filter(s => s.pid === f.pid);
+  // one quarter (or half, or all overtime together) at a time, when picked
+  const perKey = n => n > REG_PERIODS ? 'ot' : String(n);
+  const pers = [...new Set(all.map(s => perKey(s.per || 1)))].sort((a, b) => (a === 'ot' ? 99 : +a) - (b === 'ot' ? 99 : +b));
+  if (f.per !== 'all' && !pers.includes(f.per)) f.per = 'all';
+  if (f.per !== 'all') shots = shots.filter(s => perKey(s.per || 1) === f.per);
+  const perName = k => k === 'ot' ? 'OT' : perLabel(+k);
   const colorOf = tid => tid === sides[0].id ? 'var(--sideA)' : 'var(--sideB)';
   const zone = s => s.three ? 'three' : (Math.abs(s.x - 25) <= 8 && s.y + 4.25 <= 19 ? 'paint' : 'mid');
   const line = arr => { const m = arr.filter(s => s.made).length; return { m, a: arr.length, p: arr.length ? (m / arr.length * 100).toFixed(1) + '%' : '–' }; };
@@ -2300,10 +2308,12 @@ function shotChart(d, sides, f) {
       <label class="shot-sel"><span class="sr">Player</span><select id="shotPlayer" data-shplayer>
         <option value="">All players</option>${players.map(([id, n]) => `<option value="${id}"${f.pid === id ? ' selected' : ''}>${esc(n)}</option>`).join('')}
       </select></label>
+      ${pers.length > 1 ? `<div class="seg shot-per" role="group" aria-label="Quarter"><span class="knob"></span>${[['all', 'All'], ...pers.map(k => [k, perName(k)])].map(([k, t]) => `<button data-shper="${k}" aria-pressed="${f.per === k}">${esc(t)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="shot-wrap">
-      <svg class="court" viewBox="0 0 500 470" role="img" aria-label="Shot chart, ${shots.length} shots">${COURT}<g class="marks">${sorted.map(mark).join('')}</g></svg>
+      <svg class="court" viewBox="0 0 500 470" role="img" aria-label="Shot chart, ${shots.length} shots${f.per !== 'all' ? `, ${perName(f.per)} only` : ''}">${COURT}<g class="marks">${sorted.map(mark).join('')}</g></svg>
       <div class="shot-side">
+        ${f.per !== 'all' ? `<p class="shot-only">${esc(perName(f.per))} only · <button data-shper="all">Show the whole game</button></p>` : ''}
         <table class="shot-tbl"><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td><b>${v.m}/${v.a}</b></td><td>${v.p}</td></tr>`).join('')}</tbody></table>
         <div class="shot-legend">
           <span><svg viewBox="-8 -8 16 16" width="14" height="14"><circle r="6" fill="var(--ink-2)"/></svg> Made</span>
@@ -2633,7 +2643,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-15a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-15b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 

@@ -788,6 +788,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 
 /* shot chart */
 .shot-ctl { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.shot-per { order: 3; flex: 1 1 100%; display: flex; width: 100%; }
+.shot-per button { flex: 1; }
+.shot-only { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.shot-only b, .shot-only button { color: var(--accent); font-weight: 600; }
 .shot-sel select { font: inherit; font-size: 13px; padding: 7px 30px 7px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); max-width: 220px; }
 .shot-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .court { width: 100%; max-width: 560px; height: auto; display: block; margin: 0 auto; border-radius: 10px; }
