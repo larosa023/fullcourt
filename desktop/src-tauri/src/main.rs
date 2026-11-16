@@ -2,11 +2,42 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use sha2::{Digest, Sha256};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+
+// Where each window sits is written to disk shortly after it's moved or resized, and when it goes to the tray, so the
+// app reopens on the same monitor even if Windows shuts down while it's in the tray (the plugin on its own only saves
+// when the app quits through Quit). Whether it was hidden isn't kept: the app always opens showing.
+fn keep_flags() -> StateFlags {
+    StateFlags::all() & !StateFlags::VISIBLE
+}
+static LAST_MOVE: AtomicU64 = AtomicU64::new(0);
+static SAVER: AtomicBool = AtomicBool::new(false);
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+/// Save once things have been still for about a second (one waiting thread at most, however many move events come in).
+fn save_soon(app: &AppHandle) {
+    LAST_MOVE.store(now_ms(), Ordering::Relaxed);
+    if SAVER.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            if now_ms().saturating_sub(LAST_MOVE.load(Ordering::Relaxed)) >= 900 {
+                break;
+            }
+        }
+        SAVER.store(false, Ordering::Release);
+        let _ = app.save_window_state(keep_flags());
+    });
+}
 
 // closing the main window hides it to the tray (on by default; Settings can turn it off)
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
@@ -178,7 +209,7 @@ fn main() {
                 let _ = app.emit_to("main", "fc-open", serde_json::json!({ "league": league, "game": game }));
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build()) // remembers size and position
+        .plugin(tauri_plugin_window_state::Builder::default().with_state_flags(keep_flags()).build()) // remembers size, position, monitor
         .plugin(tauri_plugin_opener::init()) // outside links open in the normal browser
         .plugin(tauri_plugin_notification::init()) // alerts as Windows notifications
         .invoke_handler(tauri::generate_handler![install_update, open_mini, focus_main, set_mini_on_top, set_close_to_tray, save_export, launch_target])
@@ -219,14 +250,18 @@ fn main() {
             tray.build(app)?;
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => save_soon(window.app_handle()),
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
                     api.prevent_close();
+                    // remember where it was before it goes to the tray
+                    let _ = window.app_handle().save_window_state(keep_flags());
                     let _ = window.hide();
                     let _ = window.emit("fc-to-tray", ());
                 }
             }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running Fullcourt");
