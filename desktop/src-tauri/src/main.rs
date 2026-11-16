@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags, WindowExt};
 
 // Where each window sits is written to disk shortly after it's moved or resized, and when it goes to the tray, so the
 // app reopens on the same monitor even if Windows shuts down while it's in the tray (the plugin on its own only saves
@@ -152,7 +152,9 @@ fn open_mini_window(app: &AppHandle) {
         let _ = w.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, "mini", WebviewUrl::App("mini.html".into()))
+    // built hidden, moved to where it was last time, then shown (no flash in the default spot first)
+    let built = WebviewWindowBuilder::new(app, "mini", WebviewUrl::App("mini.html".into()))
+        .visible(false)
         .title("Fullcourt mini")
         .inner_size(380.0, 640.0)
         .min_inner_size(300.0, 260.0)
@@ -160,6 +162,11 @@ fn open_mini_window(app: &AppHandle) {
         .use_https_scheme(true)
         .background_color(tauri::window::Color(12, 14, 18, 255))
         .build();
+    if let Ok(w) = built {
+        let _ = w.restore_state(keep_flags());
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
 }
 
 // async on purpose: building a window inside a synchronous command deadlocks on Windows (both windows freeze)
@@ -248,6 +255,20 @@ fn main() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
+            // the main window starts hidden (tauri.conf.json): put it back where it was, then show it, so it doesn't
+            // flash on the main monitor first. Waits briefly in case the window isn't made yet.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                for _ in 0..100 {
+                    if let Some(w) = handle.get_webview_window("main") {
+                        let _ = w.restore_state(keep_flags());
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| match event {

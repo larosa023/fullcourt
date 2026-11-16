@@ -15,6 +15,7 @@
         "minWidth": 380,
         "minHeight": 600,
         "center": true,
+        "visible": false,
         "useHttpsScheme": true,
         "dragDropEnabled": false,
         "backgroundColor": "#0c0e12"
