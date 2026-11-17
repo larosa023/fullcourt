@@ -86,7 +86,7 @@ for (const y of YEARS) {
     const a = p.athlete || {}, link = a.proLink || a.link || '';
     let b = br[p.overall]; if (!b || fold(b.name) !== fold(a.displayName)) b = brByName[fold(a.displayName)] || b;
     const t = b?.br ? tags[b.br] : null;
-    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: String(a.displayName || b?.name || '').replace(/\s+/g, ' ').trim(), pid: (b?.br && espnOf[b.br]) || '', alt: [link.match(/\/id\/(\d+)/)?.[1], a.alternativeId].filter(Boolean), tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
+    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: String(a.displayName || b?.name || '').replace(/\s+/g, ' ').trim(), pid: (b?.br && espnOf[b.br]) || '', bn: b?.name || '', alt: [link.match(/\/id\/(\d+)/)?.[1], a.alternativeId].filter(Boolean), tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
   }
   // the feed's other id is only an ESPN player id some of the time (Dwyane Wade's is 6510; his ESPN id is 1987):
   // keep it when ESPN's record under that id has the same name
@@ -108,12 +108,17 @@ for (const y of YEARS) {
     await sleep(250);
   }
   // retired players: the player search above only knows current ones, ESPN's general search knows them all (NBA = l:46)
+  // (G League = l:69 uses the same ids); Basketball-Reference's spelling is tried too ("Mo Williams" for "Maurice Williams")
   for (const p of picks.filter(p => !p.pid && p.name)) {
-    const r = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(p.name)}&limit=5`, true).catch(() => null);
-    const hit = (r?.results || []).flatMap(b => b.contents || []).find(c => /~l:46~a:\d+/.test(c.uid || '') && fold(c.displayName) === fold(p.name));
-    if (hit) p.pid = hit.uid.match(/~a:(\d+)/)[1];
-    await sleep(250);
+    for (const nm of [...new Set([p.name, p.bn].filter(Boolean))]) {
+      const r = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(nm)}&limit=5`, true).catch(() => null);
+      const cs = (r?.results || []).flatMap(b => b.contents || []).filter(c => fold(c.displayName) === fold(nm));
+      const hit = cs.find(c => /~l:46~a:\d+/.test(c.uid || '')) || cs.find(c => /~l:69~a:\d+/.test(c.uid || ''));
+      await sleep(250);
+      if (hit) { p.pid = hit.uid.match(/~a:(\d+)/)[1]; break; }
+    }
   }
+  for (const p of picks) delete p.bn;
   years[y] = picks;
   console.log(y, picks.length, 'picks,', picks.filter(p => p.c).length, 'with careers,', picks.filter(p => p.t).length, 'with honours');
 }
