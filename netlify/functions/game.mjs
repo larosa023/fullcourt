@@ -21,8 +21,10 @@ const TEAM_STATS = [
   ['threePointFieldGoalsMade-threePointFieldGoalsAttempted', '3PT', 'made'],
   ['threePointFieldGoalPct', '3P%', 'pct'],
   ['freeThrowsMade-freeThrowsAttempted', 'FT', 'made'],
+  ['freeThrowPct', 'FT%', 'pct'],
   ['totalRebounds', 'Rebounds', 'n'],
   ['offensiveRebounds', 'Off. rebounds', 'n'],
+  ['defensiveRebounds', 'Def. rebounds', 'n'],
   ['assists', 'Assists', 'n'],
   ['turnovers', 'Turnovers', 'n'],
   ['steals', 'Steals', 'n'],
@@ -31,7 +33,18 @@ const TEAM_STATS = [
   ['fastBreakPoints', 'Fast break', 'n'],
   ['turnoverPoints', 'Points off TOs', 'n'],
   ['largestLead', 'Largest lead', 'n'],
+  ['fouls', 'Fouls', 'n'],
+  ['technicalFouls', 'Technicals', 'n'],
 ];
+
+// Seconds in each period, for placing plays on a game clock.
+const PERIODS = {
+  nba: { len: 720, count: 4 },
+  wnba: { len: 600, count: 4 },
+  ncaam: { len: 1200, count: 2 },
+  ncaaw: { len: 600, count: 4 },
+};
+const OT = 300;
 
 export default async (req) => {
   const url = new URL(req.url);
@@ -114,6 +127,9 @@ export default async (req) => {
           stl: Number(at(v, 'STL')) || 0,
           blk: Number(at(v, 'BLK')) || 0,
           to: Number(at(v, 'TO')) || 0,
+          oreb: Number(at(v, 'OREB')) || 0,
+          dreb: Number(at(v, 'DREB')) || 0,
+          pf: Number(at(v, 'PF')) || 0,
           fg: at(v, 'FG') || '0-0',
           three: at(v, '3PT') || '0-0',
           ft: at(v, 'FT') || '0-0',
@@ -123,21 +139,108 @@ export default async (req) => {
       .sort((x, y) => (y.starter - x.starter) || (y.min - x.min) || (y.pts - x.pts));
   };
 
-  // Latest plays, newest first.
+  // Plays: the latest 60, newest first (the widget filters to scoring plays itself).
   const teamAbbr = {};
   for (const c of competitors) teamAbbr[c.team?.id || c.id] = c.team?.abbreviation;
-  const plays = (d.plays || []).slice(-15).reverse().map(p => ({
+  const allPlays = d.plays || [];
+  const plays = allPlays.slice(-60).reverse().map(p => ({
     period: p.period?.number || 0,
     clock: p.clock?.displayValue || '',
     text: p.text || '',
     team: teamAbbr[p.team?.id] || null,
     scoring: !!p.scoringPlay,
+    points: p.scoringPlay ? Number(p.scoreValue) || 0 : 0,
     away: p.awayScore ?? null,
     home: p.homeScore ?? null,
   }));
 
+  // Game flow: the margin (home minus away) through the game, with win probability where ESPN has it.
+  const per = PERIODS[league];
+  const elapsed = (period, clock) => {
+    const left = clockSeconds(clock);
+    if (period <= per.count) return (period - 1) * per.len + (per.len - left);
+    return per.count * per.len + (period - per.count - 1) * OT + (OT - left);
+  };
+  const wpByPlay = {};
+  for (const w of d.winprobability || []) if (w.playId) wpByPlay[w.playId] = w.homeWinPercentage;
+  const raw = [];
+  for (const p of allPlays) {
+    if (p.homeScore == null || p.awayScore == null || !p.period?.number) continue;
+    const wp = wpByPlay[p.id];
+    raw.push({ t: Math.round(elapsed(p.period.number, p.clock?.displayValue)), m: p.homeScore - p.awayScore, ...(typeof wp === 'number' ? { wp: Math.round(wp * 1000) / 10 } : {}) });
+  }
+  const flow = downsample(raw, 160);
+  const lastPeriod = Math.max(st.period || 0, allPlays.at(-1)?.period?.number || 0);
+  const periods = Math.max(per.count, lastPeriod);
+  const length = per.count * per.len + Math.max(0, periods - per.count) * OT;
+
+  // Lead changes, ties and the current run, worked out from the scoring plays.
+  let leadChanges = 0, timesTied = 0, leader = 0, run = null;
+  const awayAbbr = away.team?.abbreviation, homeAbbr = home.team?.abbreviation;
+  let biggest = { home: 0, away: 0 };
+  for (const p of allPlays) {
+    if (!p.scoringPlay || p.homeScore == null) continue;
+    const m = p.homeScore - p.awayScore;
+    const now = Math.sign(m);
+    if (now === 0 && leader !== 0) timesTied++;
+    if (now !== 0 && leader !== 0 && now !== leader) leadChanges++;
+    if (now !== 0) leader = now;
+    biggest.home = Math.max(biggest.home, m);
+    biggest.away = Math.max(biggest.away, -m);
+  }
+  {
+    // Points scored by one team since the other last scored.
+    const scoring = allPlays.filter(p => p.scoringPlay && p.team?.id);
+    const last = scoring.at(-1);
+    if (last) {
+      let pts = 0, i = scoring.length - 1;
+      while (i >= 0 && scoring[i].team.id === last.team.id) { pts += Number(scoring[i].scoreValue) || 0; i--; }
+      // Unanswered points, as in "BOS on a 10-0 run". Only worth showing from 6 up.
+      if (pts >= 6) run = { team: teamAbbr[last.team.id] || '', points: pts };
+    }
+  }
+
+  // Before the game: the matchup.
+  const ids = { [away.team?.id]: 'away', [home.team?.id]: 'home' };
+  const odds = (d.pickcenter || [])[0];
+  const pre = {
+    odds: odds ? {
+      provider: odds.provider?.name || '',
+      details: odds.details || '',
+      overUnder: odds.overUnder ?? null,
+      awayMoneyline: odds.awayTeamOdds?.moneyLine ?? null,
+      homeMoneyline: odds.homeTeamOdds?.moneyLine ?? null,
+    } : null,
+    projection: d.predictor ? {
+      away: num(d.predictor.awayTeam?.gameProjection),
+      home: num(d.predictor.homeTeam?.gameProjection),
+    } : null,
+    // Season leaders (points, rebounds, assists) for each team, as ESPN lists them before tip-off.
+    leaders: Object.fromEntries((d.leaders || []).map(t => [ids[t.team?.id] || t.team?.abbreviation, (t.leaders || [])
+      .filter(l => ['points', 'rebounds', 'assists', 'pointsPerGame', 'reboundsPerGame', 'assistsPerGame'].includes(l.name))
+      .slice(0, 3)
+      .map(l => ({ stat: l.shortDisplayName || l.displayName || l.name, name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', value: l.leaders?.[0]?.displayValue || '' }))])),
+  };
+
+  const form = Object.fromEntries((d.lastFiveGames || []).map(t => [ids[t.team?.id] || t.team?.abbreviation, (t.events || []).slice(0, 5).map(e => ({
+    result: e.gameResult || '',
+    score: e.score || '',
+    opp: e.opponent?.abbreviation || '',
+    at: e.atVs || '',
+    date: e.gameDate || null,
+  }))]));
+
+  const injuries = Object.fromEntries((d.injuries || []).map(t => [ids[t.team?.id] || t.team?.abbreviation, (t.injuries || []).slice(0, 8).map(i => ({
+    name: i.athlete?.shortName || i.athlete?.displayName || '',
+    pos: i.athlete?.position?.abbreviation || '',
+    status: i.status || i.type?.description || '',
+    detail: [i.details?.type, i.details?.detail].filter(Boolean).join(' · '),
+  }))]));
+
+  const series = (d.seasonseries || [])[0];
   const wp = d.winprobability?.length ? d.winprobability[d.winprobability.length - 1]?.homeWinPercentage : null;
   const live = t.state === 'in';
+  const venue = d.gameInfo?.venue;
 
   return json({
     ok: true,
@@ -145,22 +248,59 @@ export default async (req) => {
     league,
     state: t.state || 'pre',
     status: t.shortDetail || t.detail || '',
+    detail: t.detail || '',
     period: st.period || 0,
     clock: st.displayClock || '',
-    start: comp.date || d.header?.competitions?.[0]?.date || null,
-    venue: d.gameInfo?.venue?.fullName || '',
+    start: comp.date || null,
+    venue: venue?.fullName || '',
+    city: [venue?.address?.city, venue?.address?.state].filter(Boolean).join(', '),
+    attendance: d.gameInfo?.attendance || null,
+    officials: (d.gameInfo?.officials || []).map(o => o.displayName || o.fullName).filter(Boolean),
     tv: [...new Set((comp.broadcasts || []).map(b => b.media?.shortName).filter(Boolean))].join(' · '),
     away: team(away),
     home: team(home),
     stats,
     players: { away: playersFor(away.team?.id || away.id), home: playersFor(home.team?.id || home.id) },
     plays,
+    flow,
+    length,
+    periodLength: per.len,
+    periodCount: per.count,
+    summary: { leadChanges, timesTied, largestLead: { [homeAbbr]: biggest.home, [awayAbbr]: biggest.away }, run },
+    pre,
+    form,
+    injuries,
+    series: series ? { summary: series.summary || series.description || '', title: series.title || '' } : null,
     homeWinPct: typeof wp === 'number' ? Math.round(wp * 1000) / 10 : null,
     updated: new Date().toISOString(),
     refresh: live ? 15 : t.state === 'pre' ? 300 : 0,
     url: `${SITE}/?league=${league}&game=${id}`,
   }, 200, live ? 10 : t.state === 'pre' ? 120 : 600);
 };
+
+function clockSeconds(text) {
+  if (!text) return 0;
+  const parts = String(text).split(':').map(Number);
+  return parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0] || 0;
+}
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : null;
+}
+
+// Keep at most n points, always keeping the first and last and the biggest swings.
+function downsample(points, n) {
+  if (points.length <= n) return points;
+  const out = [];
+  const step = points.length / n;
+  for (let i = 0; i < n; i++) {
+    const chunk = points.slice(Math.floor(i * step), Math.floor((i + 1) * step));
+    out.push(chunk.reduce((a, b) => (Math.abs(b.m) > Math.abs(a.m) ? b : a)));
+  }
+  out[out.length - 1] = points[points.length - 1];
+  return out;
+}
 
 function json(body, status, maxAge) {
   return new Response(JSON.stringify(body), {

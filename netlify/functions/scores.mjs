@@ -1,4 +1,7 @@
-// GET /api/scores?league=nba|wnba|ncaam|ncaaw[&date=YYYYMMDD][&scope=top25|all][&teams=BOS,NY]
+// GET /api/scores?league=nba|wnba|ncaam|ncaaw[&date=YYYYMMDD | &offset=-1|1|…][&scope=top25|all][&teams=BOS,NY]
+//
+// offset picks a day relative to "today" (-1 is last night, 1 is tomorrow), using the same
+// 4 AM ET rollover, so clients don't need to know New York's date.
 //
 // A small, trimmed scoreboard for Mantel's desktop widget (and anything else that wants it).
 // Same rules as the site: "today" is New York time and doesn't roll over until 4 AM, so late
@@ -24,7 +27,8 @@ export default async (req) => {
   const league = (url.searchParams.get('league') || 'nba').toLowerCase();
   if (!LEAGUES[league]) return json({ ok: false, error: 'Unknown league. Use nba, wnba, ncaam or ncaaw.' }, 400, 3600);
 
-  const date = /^\d{8}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : todayET();
+  const offset = Math.max(-30, Math.min(30, parseInt(url.searchParams.get('offset') || '0', 10) || 0));
+  const date = /^\d{8}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : todayET(offset);
   const college = league === 'ncaam' || league === 'ncaaw';
   const scope = url.searchParams.get('scope') === 'all' ? 'all' : 'top25';
   const teams = (url.searchParams.get('teams') || '')
@@ -58,6 +62,7 @@ export default async (req) => {
     ok: true,
     league,
     date,
+    offset,
     updated: new Date().toISOString(),
     live,
     // How often a client should poll, so widgets don't have to guess.
@@ -126,9 +131,9 @@ function parseGame(e, league) {
   };
 }
 
-function todayET() {
+function todayET(offsetDays = 0) {
   // Shift back by the rollover so 1 AM ET still counts as "last night".
-  const shifted = new Date(Date.now() - ROLLOVER_HOUR * 3600 * 1000);
+  const shifted = new Date(Date.now() - ROLLOVER_HOUR * 3600 * 1000 + offsetDays * 86400 * 1000);
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
     .formatToParts(shifted);
   const get = type => parts.find(p => p.type === type).value;

@@ -76,12 +76,13 @@ https://nbafullcourty.netlify.app/api/scores?league=nba
 
 - `league`: `nba`, `wnba`, `ncaam` or `ncaaw`
 - `date`: `YYYYMMDD` (default: today in ET, rolling over at 4 AM)
+- `offset`: a day relative to today instead, e.g. `-1` (last night) or `1` (tomorrow)
 - `teams`: only these teams, e.g. `BOS,NY`
 - `scope`: college only; `top25` (default, games with a ranked team) or `all`
 
 Games come back live first, then upcoming, then finals, each with a `url` that opens it on the site in the right league (`?league=…&game=…`). Responses are cached at Netlify's edge for 15 seconds during games and longer otherwise, so it barely uses function runs.
 
-`/api/game?league=nba&id=<game id>` returns one game for small screens: score and status, line score by period, team stats side by side, every player's box score line, the latest 15 plays and the home win probability. Mantel's Scores widget uses it for its live game view.
+`/api/game?league=nba&id=<game id>` returns one game for small screens: score and status, line score by period, team stats side by side, every player's box score line, the latest 60 plays, the game flow (margin through the game, with win probability), lead changes, ties and the current run, officials and attendance. Before tip-off it also has the odds, ESPN's projection, season leaders, each team's last five games, injuries and the season series. Mantel's Scores widget uses it for its live game view.
 
 ### Phone alerts
 
