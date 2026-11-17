@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-17b', date: 'Nov 17', items: [
+    ['Past drafts in the Draft tab', 'The Draft tab now has three views: Mock draft, Past classes and Team history. Past classes lets you pick any NBA draft from 2001 on and shows how every pick turned out: career points, rebounds and assists per game, seasons and games played, Win Shares, and tags for All-Star games, MVPs, Rookie of the Year, All-NBA and other awards. Players who never reached the NBA are marked.'],
+    ['Redraft', 'In Past classes, switch to Redraft to re-rank the class by career value (Win Shares), with how far each player moved from where he was actually picked.'],
+    ['Team draft history', 'Team history shows every pick a team has made since 2001, newest first or best careers first, with totals for first-rounders, All-Stars and the best pick. It opens on your favorite team.'],
+  ] },
   { id: '2026-11-17a', date: 'Nov 17', items: [
     ['Draft classes', 'On an NBA player\'s page, the Draft line ("2018: Rd 1, Pk 10") opens that whole draft class: every pick in order with team, school, position and trade notes, starting at his pick. Switch rounds, step to the year before or after, and tap anyone for their page. The team name on a player\'s page opens the team too.'],
   ] },

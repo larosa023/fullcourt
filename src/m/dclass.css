@@ -21,3 +21,32 @@
 .dc-t .lg { width: 22px; height: 22px; }
 .dc-note { grid-column: 2 / -1; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 @media (max-width: 600px) { .dc-r { grid-template-columns: 42px minmax(0, 1fr) auto; column-gap: 8px; } .dc-n b { font-size: 19px; } .dc-t span { display: none; } }
+/* Draft tab: past classes and team history */
+.dr-mode { margin-bottom: 16px; }
+.dh { display: grid; gap: 14px; }
+.dh-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.dh-yr { display: flex; align-items: center; gap: 6px; }
+.dh-yr select, .dh-team select { height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 650; }
+.dh-team { display: flex; align-items: center; gap: 10px; }
+.dh-team .lg { width: 30px; height: 30px; }
+.dh-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.dh-sum > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.dh-sum b { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 26px; line-height: 1; }
+.dh-sum small { font-size: 12.5px; color: var(--muted); }
+.dh-note { margin: 0; font-size: 13px; color: var(--muted); }
+.dh-r { grid-template-columns: 58px minmax(0, 1.2fr) auto minmax(0, 1.3fr); }
+.dh-r .dc-n small.up { color: var(--win); } .dh-r .dc-n small.dn { color: var(--loss); }
+.dh-x { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; justify-content: flex-end; min-width: 0; }
+.dh-car { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 3px; font-variant-numeric: tabular-nums; justify-content: flex-end; }
+.dh-car b { font-weight: 700; } .dh-car small { color: var(--muted); font-size: 11px; margin-right: 4px; }
+.dh-car em { flex-basis: 100%; text-align: right; font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.dh-none { font-size: 12.5px; color: var(--muted); }
+.dh-tag { font-style: normal; font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.dh-tag.as { background: color-mix(in oklab, var(--accent) 18%, transparent); color: var(--accent); }
+.dh-tag.mvp { background: color-mix(in oklab, #d4a017 26%, transparent); color: #e2b23a; }
+.dh-r .dc-note { grid-column: 2 / -1; }
+@media (max-width: 760px) {
+  .dh-r { grid-template-columns: 46px minmax(0, 1fr) auto; }
+  .dh-x { grid-column: 2 / -1; justify-content: flex-start; }
+  .dh-car { justify-content: flex-start; } .dh-car em { text-align: left; }
+}

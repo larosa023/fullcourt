@@ -134,11 +134,17 @@ function runLottery(L) {
   return drawn;
 }
 
+// the Draft tab has three modes: this year's mock draft, past classes (with how careers turned out), team draft history
+DS.mode = (() => { try { return localStorage.getItem('fc-dr-mode') || 'mock'; } catch (e) { return 'mock'; } })();
+const draftModes = () => `<div class="seg dr-mode" role="tablist" aria-label="Draft"><span class="knob"></span>${[['mock', 'Mock draft'], ['past', 'Past classes'], ['team', 'Team history']].map(([k, t]) => `<button data-drmode="${k}" aria-pressed="${DS.mode === k}">${t}</button>`).join('')}</div>`;
 async function renderDraft() {
   const root = $('#draftBody'); if (!root) return;
   if (!root._wired) { root._wired = true; wireDraft(root); }
+  { const v = $('#v-draft'), T = { mock: ['Mock Draft', 'Mock draft · lottery · big board'], past: ['Past Drafts', 'Every class since 2001 · where are they now · redraft'], team: ['Draft History', 'Every pick a team has made since 2001'] }[DS.mode] || [];
+    if (v && T[0]) { $('.page-title', v).textContent = T[0]; $('.eyebrow', v).textContent = T[1]; } }
+  if (DS.mode !== 'mock') { const m = await lazy('dclass'); return DS.mode === 'team' ? m.renderTeamDrafts(root, draftModes()) : m.renderPastDrafts(root, draftModes()); }
   const lg = LGK === 'wnba' ? 'wnba' : LGK === 'nba' ? 'nba' : null;
-  if (!lg) { root.innerHTML = `<div class="empty"><b>Mock drafts are for the NBA and WNBA</b><span>College players are the prospects. Pick a league to see its mock draft.</span><div class="dr-pick2"><button class="btn" data-lg="nba">NBA mock draft</button><button class="btn ghost" data-lg="wnba">WNBA mock draft</button></div></div>`; return; }
+  if (!lg) { root.innerHTML = `${draftModes()}<div class="empty"><b>Mock drafts are for the NBA and WNBA</b><span>College players are the prospects. Pick a league to see its mock draft.</span><div class="dr-pick2"><button class="btn" data-lg="nba">NBA mock draft</button><button class="btn ghost" data-lg="wnba">WNBA mock draft</button></div></div>`; return; }
   if (!root.querySelector('.dr-wrap')) root.innerHTML = '<div class="sk" style="height:520px;border-radius:16px"></div>';
   let D, L; try { ({ D, L } = await dGet(lg)); } catch (e) { root.innerHTML = `<div class="empty"><b>The mock draft didn't load</b><button class="btn" data-dretry>Try again</button></div>`; return; } if (!L) { root.innerHTML = '<div class="empty"><b>No mock draft yet</b></div>'; return; }
   const st = dSaved(L._k || lg, L.year), picks = dFill(L, st);
@@ -161,7 +167,7 @@ async function renderDraft() {
     </div>`;
   };
   const board = L.prospects.filter(p => (DS.pos === 'all' || String(p.pos).includes(DS.pos)) && (!DS.q || p.name.toLowerCase().includes(DS.q.toLowerCase()) || String(p.school).toLowerCase().includes(DS.q.toLowerCase())));
-  root.innerHTML = `<div class="dr-wrap">
+  root.innerHTML = `${draftModes()}<div class="dr-wrap">
     <div class="dr-head">
       <div class="seg dr-lg"><span class="knob"></span><button data-lg="nba" aria-pressed="${lg === 'nba'}">NBA</button><button data-lg="wnba" aria-pressed="${lg === 'wnba'}">WNBA</button></div>
       ${lg === 'nba' ? `<div class="seg dr-pj" title="Draft order"><span class="knob"></span><button data-dproj="0" aria-pressed="${!L.proj}">Today</button><button data-dproj="1" aria-pressed="${!!L.proj}">Projected</button></div>` : ''}
@@ -258,6 +264,7 @@ function wireDraft(root) {
   const ctx = async () => { const lg = LGK === 'wnba' ? 'wnba' : 'nba'; return { lg, L: (await dGet(lg)).L }; };
   root.addEventListener('click', async e => {
     const t = e.target;
+    const md = t.closest('[data-drmode]'); if (md) { DS.mode = md.dataset.drmode; try { localStorage.setItem('fc-dr-mode', DS.mode); } catch (e2) {} renderDraft(); return; }
     const pj = t.closest('[data-dproj]'); if (pj) { DPROJ = pj.dataset.dproj === '1'; try { localStorage.setItem('fc-draftproj', DPROJ ? '1' : '0'); } catch (e2) {} renderDraft(); return; }
     if (t.closest('[data-dretry]')) { draftP = null; renderDraft(); return; }
     const rd = t.closest('[data-dround]'); if (rd) { DS.round = +rd.dataset.dround; renderDraft(); return; }
