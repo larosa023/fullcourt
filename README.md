@@ -81,6 +81,8 @@ https://nbafullcourty.netlify.app/api/scores?league=nba
 
 Games come back live first, then upcoming, then finals, each with a `url` that opens it on the site in the right league (`?league=…&game=…`). Responses are cached at Netlify's edge for 15 seconds during games and longer otherwise, so it barely uses function runs.
 
+`/api/game?league=nba&id=<game id>` returns one game for small screens: score and status, line score by period, team stats side by side, every player's box score line, the latest 15 plays and the home win probability. Mantel's Scores widget uses it for its live game view.
+
 ### Phone alerts
 
 Game alerts that arrive with the site closed (Web Push): tip-off, overtime, close finishes and the final for the team whose bell is on, plus an optional heads-up for any close finish. Starred players (30/40/50 points, triple-doubles, final line) and tracked bets (legs hit or missed, close calls late, unders in danger, parlay cashed) too, each with its own switch. Bet alerts also cover injury news: a player on a tracked bet listed questionable, doubtful or out before tip-off (from the league injury report, read every 3 minutes while such a game is ahead), or leaving the game; the device sends its starred players and open bets with its sign-up and updates them when they change.
