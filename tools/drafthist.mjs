@@ -27,6 +27,18 @@ const num = v => { const n = parseFloat(strip(v)); return Number.isFinite(n) ? n
 const now = new Date(), lastDraft = now.getUTCMonth() + 1 >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
 const YEARS = []; for (let y = 2001; y <= lastDraft; y++) YEARS.push(y);
 
+// ESPN ids for retired players (ESPN's search only finds current ones): the History section's data and the nickname
+// data both map Basketball-Reference ids to ESPN ids
+const RAW = 'https://raw.githubusercontent.com/larosa023/fullcourt';
+const espnOf = {};
+{
+  const [hn, nk] = await Promise.all([get(`${RAW}/hist-data/history.json`, true).catch(() => null), get(`${RAW}/nick-data/nicknames.json`, true).catch(() => null)]);
+  for (const [id, e] of Object.entries(hn?.espn || {})) if (e) espnOf[id] = String(e);
+  for (const [id, L] of Object.entries(hn?.legends || {})) if (L?.espn) espnOf[id] = String(L.espn);
+  for (const [id, p] of Object.entries(nk?.players || {})) if (p?.espn && !espnOf[id]) espnOf[id] = String(p.espn);
+  console.log('ESPN ids known for', Object.keys(espnOf).length, 'Basketball-Reference ids');
+}
+
 // ---- awards and All-Star games, by Basketball-Reference player id ----
 const tags = {}; // id -> { 'All-Star': n, MVP: n, ... }
 const bump = (id, k) => { if (!id) return; (tags[id] ||= {}); tags[id][k] = (tags[id][k] || 0) + 1; };
@@ -74,7 +86,7 @@ for (const y of YEARS) {
     const a = p.athlete || {}, link = a.proLink || a.link || '';
     let b = br[p.overall]; if (!b || fold(b.name) !== fold(a.displayName)) b = brByName[fold(a.displayName)] || b;
     const t = b?.br ? tags[b.br] : null;
-    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: a.displayName || b?.name || '', pid: a.alternativeId || link.match(/\/id\/(\d+)/)?.[1] || '', tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
+    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: String(a.displayName || b?.name || '').replace(/\s+/g, ' ').trim(), pid: a.alternativeId || link.match(/\/id\/(\d+)/)?.[1] || (b?.br && espnOf[b.br]) || '', tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
   }
   // ESPN ids for picks the draft feed leaves without one (overseas, G League Ignite), by exact name
   for (const p of picks.filter(p => !p.pid && p.name)) {
