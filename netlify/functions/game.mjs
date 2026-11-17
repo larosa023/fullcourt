@@ -270,7 +270,8 @@ export default async (req) => {
     pre,
     form,
     injuries,
-    series: series ? { summary: series.summary || series.description || '', title: series.title || '' } : null,
+    // The record ("NY leads series 1-0") is in summary or description depending on the game's state.
+    series: series ? { summary: [series.summary, series.description, series.shortSummary].find(x => /\d/.test(x || '')) || '', title: series.title || '' } : null,
     homeWinPct: typeof wp === 'number' ? Math.round(wp * 1000) / 10 : null,
     updated: new Date().toISOString(),
     refresh: live ? 15 : t.state === 'pre' ? 300 : 0,
