@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-17a', date: 'Nov 17', items: [
+    ['Draft classes', 'On an NBA player\'s page, the Draft line ("2018: Rd 1, Pk 10") opens that whole draft class: every pick in order with team, school, position and trade notes, starting at his pick. Switch rounds, step to the year before or after, and tap anyone for their page. The team name on a player\'s page opens the team too.'],
+  ] },
   { id: '2026-11-16b', date: 'Nov 16', items: [
     ['Windows app 1.3.5: Game night no longer freezes the app', 'Turning on Game night (or opening the mini scoreboard) could lock up both windows in 1.3.4. Fixed: the windows still open where you left them, without the freeze. Update from the prompt in the app.'],
     ['Live lines on Game lines', 'Once a game tips off, its card shows DraftKings\' live spread, moneyline and total (with the score in place of the record) instead of blanks, plus how the line moved: open, pregame close and live now, and a small chart of the live spread and total as it moves (noted every 30 seconds while you\'re watching). Finished games show the closing line and whether it covered and went over.'],

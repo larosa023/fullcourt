@@ -2009,7 +2009,8 @@ async function openPlayer(id) {
         <p class="pl-nick" hidden></p>
         <p>${teamId && tm.name ? `<button class="pl-team" data-team="${esc(teamId)}" title="Open the ${esc(tm.name)} page">${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name)}</button>` : `${tm.abbr ? logo(tm.abbr, 44) : ''}${esc(tm.name || '')}`}${bio.jersey || p.jersey ? ` · #${esc(bio.jersey || p.jersey)}` : ''}${bio.position?.displayName || bio.position?.abbreviation || p.pos ? ` · ${esc(bio.position?.displayName || bio.position?.abbreviation || p.pos)}` : ''}</p>
         </div>
-        ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+        ${facts.length ? `<dl class="pl-facts">${facts.map(([k, v]) => { const dy = k === 'Draft' && LG === 'nba' ? +String(v).match(/^(\d{4})/)?.[1] : 0;
+          return `<div${/College|Born|Draft/.test(k) ? ' class="w"' : ''}><dt>${esc(k)}</dt><dd title="${esc(v)}">${dy >= 2001 ? `<button class="pl-dlink" data-dclass="${dy}" data-dcpid="${esc(id)}" title="See the whole ${dy} draft class">${esc(v)}</button>` : esc(v)}</dd></div>`; }).join('')}</dl>` : ''}
       </div>
     </div>
     ${reg ? `<div class="big3">${[['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST']].map(([k, l]) => `<div><span>${l}<em> · ${esc(reg.displayName.replace('Regular Season', 'Season'))}</em></span><b>${esc(pick(k))}</b></div>`).join('')}</div>` : ''}
@@ -2803,7 +2804,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-16b'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-17a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2875,6 +2876,7 @@ const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
 const openToday = stub('today', 'openToday');
 const fillShots = stub('shotprof', 'fillShots');
+const openDraftClass = stub('dclass', 'openDraftClass');
 // the browser tab shows your team's score while it's playing ("NY 98–95 BOS · Q4 2:31 · Fullcourt")
 const BASE_TITLE = document.title || 'Fullcourt';
 function liveTitle() {
@@ -4192,6 +4194,7 @@ document.addEventListener('click', e => {
   const ak = el.closest('[data-ask]'); if (ak) { closeSearch(); openAsk(ak.dataset.ask || ''); return; }
   if (el.closest('[data-mv]')) { openMulti(); return; }
   if (el.closest('[data-gamenight]')) { gameNight(); return; }
+  const dc = el.closest('[data-dclass]'); if (dc) { openDraftClass(dc.dataset.dclass, dc.dataset.dcpid || ''); return; }
   const cw = el.closest('[data-cmpwith]');
   if (cw) { const id = cw.dataset.cmpwith; S.cmp = [id, S.cmp[1] !== id ? S.cmp[1] : S.cmp[0] !== id ? S.cmp[0] : null]; closeAll(); go('compare'); return; }
   const cs = el.closest('[data-cmpsplit]');
