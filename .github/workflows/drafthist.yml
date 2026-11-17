@@ -28,4 +28,4 @@ jobs:
           cd pub && git init -q && git checkout -q --orphan draft-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
           git add draft-history.json && git commit -qm "draft history $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" nick-data
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" draft-data
