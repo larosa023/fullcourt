@@ -38,7 +38,7 @@ const bump = (id, k) => { if (!id) return; (tags[id] ||= {}); tags[id][k] = (tag
     if (n) { (tags[id] ||= {}); tags[id]['All-Star'] = Math.max(tags[id]['All-Star'] || 0, n); }
   }
   console.log('all-star players', Object.values(tags).filter(t => t['All-Star']).length);
-  if (!Object.values(tags).some(t => t['All-Star'])) { console.log('ALLSTAR tables', [...h.matchAll(/<table[^>]*id="([^"]+)"/g)].map(m => m[1]).join(',')); const r = h.split(/<tr/).filter(x => /players\//.test(x)).slice(0, 2); console.log('ALLSTAR rows', r.map(x => x.slice(0, 600).replace(/\s+/g, ' ')).join('\n---\n')); }
+  if (!Object.values(tags).some(t => t['All-Star'])) { console.log('ALLSTAR tables', [...h.matchAll(/<table[^>]*id="([^"]+)"/g)].map(m => m[1]).join(',')); const k = h.indexOf('<tbody', h.indexOf('id="all_star_by_player"')); console.log('ALLSTAR body', h.slice(k, k + 1800).replace(/\s+/g, ' ')); }
 }
 for (const [page, label] of [['mvp', 'MVP'], ['roy', 'Rookie of the Year'], ['dpoy', 'Defensive Player of the Year'], ['smoy', 'Sixth Man'], ['mip', 'Most Improved']]) {
   const h = uncomment(await brGet(`/awards/${page}.html`)); if (!h) continue;
