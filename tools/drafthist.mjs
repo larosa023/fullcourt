@@ -32,13 +32,13 @@ const tags = {}; // id -> { 'All-Star': n, MVP: n, ... }
 const bump = (id, k) => { if (!id) return; (tags[id] ||= {}); tags[id][k] = (tags[id][k] || 0) + 1; };
 {
   const h = uncomment(await brGet('/awards/all_star_by_player.html'));
-  for (const row of h.split(/<tr/).slice(1)) {
-    const c = cells(row), id = brId(c.player); if (!id) continue;
-    const n = num(c.count) ?? num(c.all_star_games) ?? num(c.g) ?? null;
-    if (n) { (tags[id] ||= {}); tags[id]['All-Star'] = Math.max(tags[id]['All-Star'] || 0, n); }
+  // columns: rank, player, total, NBA, ABA (no labels on this table)
+  const k = h.indexOf('<tbody', h.indexOf('id="all_star_by_player"')), body = h.slice(k, h.indexOf('</tbody>', k));
+  for (const row of body.split(/<tr/).slice(1)) {
+    const td = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(m => m[1]), id = brId(td[1]), n = num(td[3]);
+    if (id && n) { (tags[id] ||= {}); tags[id]['All-Star'] = n; }
   }
   console.log('all-star players', Object.values(tags).filter(t => t['All-Star']).length);
-  if (!Object.values(tags).some(t => t['All-Star'])) { console.log('ALLSTAR tables', [...h.matchAll(/<table[^>]*id="([^"]+)"/g)].map(m => m[1]).join(',')); const k = h.indexOf('<tbody', h.indexOf('id="all_star_by_player"')); console.log('ALLSTAR body', h.slice(k, k + 1800).replace(/\s+/g, ' ')); }
 }
 for (const [page, label] of [['mvp', 'MVP'], ['roy', 'Rookie of the Year'], ['dpoy', 'Defensive Player of the Year'], ['smoy', 'Sixth Man'], ['mip', 'Most Improved']]) {
   const h = uncomment(await brGet(`/awards/${page}.html`)); if (!h) continue;
