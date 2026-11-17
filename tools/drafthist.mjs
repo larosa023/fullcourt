@@ -86,14 +86,18 @@ for (const y of YEARS) {
     const a = p.athlete || {}, link = a.proLink || a.link || '';
     let b = br[p.overall]; if (!b || fold(b.name) !== fold(a.displayName)) b = brByName[fold(a.displayName)] || b;
     const t = b?.br ? tags[b.br] : null;
-    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: String(a.displayName || b?.name || '').replace(/\s+/g, ' ').trim(), pid: link.match(/\/id\/(\d+)/)?.[1] || (b?.br && espnOf[b.br]) || '', alt: link ? '' : a.alternativeId || '', tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
+    picks.push({ ov: p.overall, rd: p.round, pk: p.pick, name: String(a.displayName || b?.name || '').replace(/\s+/g, ' ').trim(), pid: (b?.br && espnOf[b.br]) || '', alt: [link.match(/\/id\/(\d+)/)?.[1], a.alternativeId].filter(Boolean), tm: teams[String(p.teamId)] || '', tmId: String(p.teamId || ''), school: a.team?.shortDisplayName || b?.school || '', pos: pos[String(a.position?.id)] || '', note: p.tradeNote || '', br: b?.br || null, c: b?.c && b.c.g ? b.c : null, t: t || null });
   }
   // the feed's other id is only an ESPN player id some of the time (Dwyane Wade's is 6510; his ESPN id is 1987):
   // keep it when ESPN's record under that id has the same name
-  for (const p of picks.filter(p => !p.pid && p.alt)) {
-    const r = await get(`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${p.alt}`, true).catch(() => null);
-    if (fold(r?.athlete?.displayName) === fold(p.name)) p.pid = String(p.alt);
-    await sleep(120);
+  // even the feed's link to the player page is wrong for some older picks (Wade's points at Damian Saunders), so every
+  // id from the feed is checked by name; ids from the History data come first and are trusted
+  for (const p of picks.filter(p => !p.pid && p.alt?.length)) {
+    for (const id of [...new Set(p.alt)]) {
+      const r = await get(`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${id}`, true).catch(() => null);
+      await sleep(120);
+      if (fold(r?.athlete?.displayName) === fold(p.name)) { p.pid = String(id); break; }
+    }
   }
   for (const p of picks) delete p.alt;
   // ESPN ids for picks still without one (overseas, G League Ignite), by exact name
