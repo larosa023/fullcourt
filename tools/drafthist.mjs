@@ -107,6 +107,13 @@ for (const y of YEARS) {
     if (hit) p.pid = String(hit.id);
     await sleep(250);
   }
+  // retired players: the player search above only knows current ones, ESPN's general search knows them all (NBA = l:46)
+  for (const p of picks.filter(p => !p.pid && p.name)) {
+    const r = await get(`https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(p.name)}&limit=5`, true).catch(() => null);
+    const hit = (r?.results || []).flatMap(b => b.contents || []).find(c => /~l:46~a:\d+/.test(c.uid || '') && fold(c.displayName) === fold(p.name));
+    if (hit) p.pid = hit.uid.match(/~a:(\d+)/)[1];
+    await sleep(250);
+  }
   years[y] = picks;
   console.log(y, picks.length, 'picks,', picks.filter(p => p.c).length, 'with careers,', picks.filter(p => p.t).length, 'with honours');
 }
