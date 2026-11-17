@@ -1,5 +1,5 @@
 # Draft history: every NBA draft class since 2001 with careers and honours (tools/drafthist.mjs), daily.
-# Publishes draft-history.json to the draft-data branch (not part of the website, so no deploy).
+# Publishes draft-history.json to the drafthist-data branch (not part of the website, so no deploy).
 name: drafthist
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
         run: mkdir pub && node tools/drafthist.mjs pub/draft-history.json
       - name: Publish
         run: |
-          cd pub && git init -q && git checkout -q --orphan draft-data
+          cd pub && git init -q && git checkout -q --orphan drafthist-data
           git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
           git add draft-history.json && git commit -qm "draft history $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" draft-data
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" drafthist-data

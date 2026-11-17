@@ -2,7 +2,7 @@
 // Picks (team, school, position, trade notes, ESPN ids) come from ESPN's draft feed; careers (seasons, games, points,
 // rebounds, assists, Win Shares, VORP) from Basketball-Reference's draft pages; All-Star games and awards (MVP, ROY,
 // DPOY, Sixth Man, Most Improved, All-NBA) from its award pages. About 33 Basketball-Reference pages, one every ~4 s.
-// Runs daily on GitHub (careers change through the season) and publishes to the draft-data branch.
+// Runs daily on GitHub (careers change through the season) and publishes to the drafthist-data branch.
 import { writeFileSync } from 'node:fs';
 
 const UA = 'Mozilla/5.0 (compatible; fullcourt-drafthistory/1.0; daily; +https://github.com/larosa023/fullcourt)';
