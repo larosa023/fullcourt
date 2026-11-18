@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-18a', date: 'Nov 18', items: [
+    ['Clearer, steadier dropdowns', 'In every dropdown list, the row you\'re on is now clearly lit with a bar down its edge, whether you move the mouse or use the arrow keys (they now work from the search box too). Picks also always register: before, choosing from a list while the panel behind it was still loading (like the stat list in a prop\'s detail) could do nothing. Dragging the list\'s scrollbar no longer picks a row by accident.'],
+  ] },
   { id: '2026-11-17b', date: 'Nov 17', items: [
     ['Past drafts in the Draft tab', 'The Draft tab now has three views: Mock draft, Past classes and Team history. Past classes lets you pick any NBA draft from 2001 on and shows how every pick turned out: career points, rebounds and assists per game, seasons and games played, Win Shares, and tags for All-Star games, MVPs, Rookie of the Year, All-NBA and other awards. Players who never reached the NBA are marked.'],
     ['Redraft', 'In Past classes, switch to Redraft to re-rank the class by career value (Win Shares), with how far each player moved from where he was actually picked.'],

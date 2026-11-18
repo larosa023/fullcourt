@@ -1643,8 +1643,12 @@ select option { background: var(--surface); color: var(--ink); }
 .dd-list { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; display: grid; gap: 1px; min-height: 0; }
 .dd-o { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 34px; padding: 7px 10px; border-radius: 9px; font: inherit; font-size: 13.5px; text-align: left; color: var(--ink); background: none; }
 .dd-o span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dd-o:focus { outline: none; background: var(--surface-2); }
+.dd-list:focus, .dd-o:focus { outline: none; }
 .dd-o[aria-selected="true"] { color: var(--accent); font-weight: 650; }
+/* the row you're on: a solid tint with a bar down its edge, so it reads at a glance even in a long list */
+.dd-o.on { background: color-mix(in oklab, var(--accent) 22%, var(--surface-2)); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); font-weight: 650; }
+.dd-o.on[aria-selected="true"] { color: var(--ink); }
+.dd-o.on[aria-selected="true"] svg { color: var(--accent); }
 .dd-o svg { flex: none; }
 .dd-o[disabled] { opacity: .4; cursor: default; }
 .dd-g { padding: 9px 10px 3px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
