@@ -1,0 +1,34 @@
+# Careers: the data behind Similar players and the career timeline on player pages (tools/careers.mjs), built from the
+# era data plus ESPN ids. Runs after the era and game-log jobs, and weekly. Publishes to the careers-data branch.
+name: careers
+on:
+  push:
+    branches: [main]
+    paths: ['tools/careers.mjs', '.github/workflows/careers.yml']
+  workflow_run:
+    workflows: [eras, gamelogs]
+    types: [completed]
+  schedule:
+    - cron: '29 12 * * 2' # Tuesdays, 7:29 AM ET
+  workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
+permissions:
+  contents: write
+concurrency: { group: careers, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build
+        run: mkdir pub && node tools/careers.mjs pub
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan careers-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -qm "careers $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" careers-data
