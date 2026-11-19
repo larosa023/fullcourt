@@ -151,9 +151,13 @@ for (let Y = FIRST; Y <= LAST; Y++) {
       const end = laterElsewhere ? last : sched.length - 1;
       let run = [];
       const flush = () => {
-        if (run.length >= 10) {
+        // a run to the end of the season only counts when ESPN still lists him (inactive, with a reason) for most of
+        // it; otherwise he was likely let go or traded and never played again that season
+        const toEndRun = run.length && run.at(-1) === sched[sched.length - 1] && end === sched.length - 1;
+        const listed = run.filter(gi => why.has(`${pid}|${gi}`)).length;
+        if (run.length >= 10 && (!toEndRun || listed >= run.length * 0.6)) {
           const rs = run.map(gi => why.get(`${pid}|${gi}`)).filter(Boolean), top = rs.length ? Object.entries(rs.reduce((m, r) => (m[r] = (m[r] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1])[0][0] : '';
-          (bests[pid].out ||= []).push([Y, abbr(tid), G.d[run[0]], G.d[run.at(-1)], run.length, top, run.at(-1) === sched[sched.length - 1] && end === sched.length - 1 ? 1 : 0]);
+          (bests[pid].out ||= []).push([Y, abbr(tid), G.d[run[0]], G.d[run.at(-1)], run.length, top, toEndRun ? 1 : 0]);
         }
         run = [];
       };
