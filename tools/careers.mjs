@@ -5,6 +5,7 @@
 //   vec.json        one row per player-season with enough minutes: how he played that year as numbers measured
 //                   against that season's league (so a 1965 season and a 2020 one can be compared), for the
 //                   similarity search; plus every player's name, ESPN id and seasons
+//   ids.json        ESPN id -> Basketball-Reference id
 //   p/<a-z>.json    every player's seasons line by line (team or teams, per-game numbers, shooting, advanced numbers,
 //                   awards, titles, playoffs), split by the first letter of the Basketball-Reference id
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -94,13 +95,15 @@ for (let y = first; y <= last; y++) {
   const st = {}; for (const k of FEAT) { const xs = feats.map(x => x.f[k]).filter(x => x != null && Number.isFinite(x)); if (xs.length < 20) { st[k] = null; continue; } const m = xs.reduce((a, b) => a + b, 0) / xs.length, sd = Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length) || 1; st[k] = [m, sd]; }
   for (const { id, r, f } of feats) {
     const z = FEAT.map(k => st[k] && f[k] != null && Number.isFinite(f[k]) ? Math.max(-60, Math.min(60, Math.round((f[k] - st[k][0]) / st[k][1] * 10))) : null);
-    vecRows.push([ni(id), y, v(r, 'age'), posOf(v(r, 'pos')), v(r, 'tm'), ...z]);
+    vecRows.push([ni(id), y, v(r, 'age'), posOf(v(r, 'pos')), v(r, 'tm'), f.pts, f.trb, f.ast, f.ts, ...z]);
   }
   console.log(y, S.reg.length, 'seasons,', feats.length, 'compared');
 }
 mkdirSync(`${OUT}/p`, { recursive: true });
 const updated = new Date().toISOString();
-writeFileSync(`${OUT}/vec.json`, JSON.stringify({ updated, first, last, cur: idx.cur, ncols: ['id', 'name', 'espn', 'y0', 'y1'], names, cols: ['player', 'year', 'age', 'position', 'team', ...FEAT], scale: 10, rows: vecRows }));
+writeFileSync(`${OUT}/vec.json`, JSON.stringify({ updated, first, last, cur: idx.cur, ncols: ['id', 'name', 'espn', 'y0', 'y1'], names, cols: ['player', 'year', 'age', 'position', 'team', 'ppg', 'rpg', 'apg', 'ts', ...FEAT], zFrom: 9, scale: 10, rows: vecRows }));
+// ESPN id -> Basketball-Reference id, small enough for a player page to load just to find his data
+writeFileSync(`${OUT}/ids.json`, JSON.stringify({ updated, espn: Object.fromEntries(Object.entries(espn).map(([br, e]) => [e, br])) }));
 const LC = ['year', 'age', 'team', 'pos', 'g', 'gs', 'mp', 'pts', 'trb', 'ast', 'stl', 'blk', 'tov', 'fgp', 'tpp', 'ftp', 'ts', 'per', 'ws', 'bpm', 'awards', 'champion', 'playoffs g/pts/trb/ast'];
 const byL = {}; for (const [id, L] of Object.entries(lines)) (byL[id[0]] ||= {})[id] = L;
 for (const [l, ps] of Object.entries(byL)) writeFileSync(`${OUT}/p/${l}.json`, JSON.stringify({ updated, cols: LC, players: ps }));
