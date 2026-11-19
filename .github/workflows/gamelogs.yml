@@ -1,0 +1,42 @@
+# Game logs: every NBA game since 2000-01 and every player's line in it (tools/gamelogs.mjs), daily.
+# Publishes to the gamelog-data branch (not part of the website, so no deploy). Finished seasons are carried over from
+# the branch; only the current season is refetched. A partial first run still publishes, and the next run carries on.
+name: gamelogs
+on:
+  push:
+    branches: [main]
+    paths: ['tools/gamelogs.mjs', '.github/workflows/gamelogs.yml']
+  schedule:
+    - cron: '43 10 * * *' # every day, 5:43 AM ET, after the night's games
+  workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
+permissions:
+  contents: write
+concurrency: { group: gamelogs, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Bring in what's already published
+        run: |
+          mkdir pub
+          if git ls-remote --exit-code origin gamelog-data >/dev/null 2>&1; then
+            git fetch -q --depth 1 origin gamelog-data && git --work-tree=pub checkout FETCH_HEAD -- . && git reset -q
+          fi
+          ls pub pub/gl 2>/dev/null | head -40 || true
+      - name: Build
+        timeout-minutes: 130
+        run: node tools/gamelogs.mjs pub
+      - name: Publish
+        if: always()
+        run: |
+          [ -f pub/players.json ] || ls pub/gl/*.json >/dev/null 2>&1 || { echo nothing to publish; exit 0; }
+          cd pub && git init -q && git checkout -q --orphan gamelog-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -qm "game logs $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" gamelog-data
