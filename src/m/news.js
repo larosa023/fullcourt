@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-19a', date: 'Nov 19', items: [
+    ['Game finder', 'History has a new Game finder: search every NBA game since 2000-01. Pick a player or any player, the team he played for, the opponent, seasons, home or away, wins or losses, and any stat conditions (40+ points, a triple-double, 10+ threes, 20-20...), or search team games (scored 150, won by 40, triple overtime). It shows who has the most of them, and every game opens its box score. Quick searches are one tap.'],
+    ['Career timeline', 'NBA player pages have a Career timeline: his career season by season on one chart (points, rebounds, assists, Win Shares or PER) over the teams he played for, with All-Star seasons, MVPs and titles marked. Below it are the moments: the draft, moves and mid-season trades, awards, career-high games (tap one for the box score) and long runs of missed games with ESPN\'s reason.'],
+    ['Similar players', 'Also on player pages: Similar players. It finds whose game looks most like his across every season since 1947, measuring each season against its own league so eras compare fairly. Compare his whole career or one season, all eras or since 1980, and tap a match for a side by side.'],
+  ] },
   { id: '2026-11-18a', date: 'Nov 18', items: [
     ['Clearer, steadier dropdowns', 'In every dropdown list, the row you\'re on is now clearly lit with a bar down its edge, whether you move the mouse or use the arrow keys (they now work from the search box too). Picks also always register: before, choosing from a list while the panel behind it was still loading (like the stat list in a prop\'s detail) could do nothing. Dragging the list\'s scrollbar no longer picks a row by accident.'],
   ] },

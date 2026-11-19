@@ -37,6 +37,8 @@ const DATA = [
   { name: 'History (WNBA)', file: 'hist-data/history-wnba.json', maxH: 15 * 24, ok: d => Object.keys(d.legends || {}).length > 10 },
   { name: 'Mock Draft', file: 'draft-data/draft.json', maxH: 30, ok: d => (d.nba?.prospects?.length || 0) > 30 && (d.nba?.order?.length || 0) >= 30 },
   { name: 'Nicknames', file: 'nick-data/nicknames.json', maxH: 30, ok: d => Object.keys(d.players || {}).length > 200 },
+  { name: 'Game logs (Game finder)', file: 'gamelog-data/players.json', maxH: 30, ok: d => (d.players?.length || 0) > 2000 },
+  { name: 'Careers (timeline, similar players)', file: 'careers-data/vec.json', maxH: 8 * 24 + 6, ok: d => (d.rows?.length || 0) > 15000 && (d.names?.length || 0) > 4000 },
   { name: 'Coaches', file: 'coach-data/coaches.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.nba?.teams || {}).length >= 25 },
   { name: 'Bracketology', file: 'march-data/march.json', maxH: 26, when: M >= 11 || M <= 3, ok: d => (d.ncaam?.teams?.length || 0) > 300 && (!d.ncaam.active || !!d.ncaam.bracket) },
   { name: 'Game win chances', file: 'sim-data/wp.json', maxH: 8, when: nbaOn, ok: d => !nbaOn || Object.keys(d.nba || {}).length > 0 },

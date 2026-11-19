@@ -2036,6 +2036,14 @@ async function openPlayer(id) {
       <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career stats</b><small>Season by season</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
       <div class="career-b"><div class="career-in"></div></div>
     </section>
+    ${LG === 'nba' ? `<section class="card career" data-fill="timeline" data-name="${esc(name)}" data-draft="${esc(bio.displayDraft || '')}">
+      <button class="career-h" data-careertoggle aria-expanded="true" title="Minimize"><span><b>Career timeline</b><small>Seasons, teams, awards, big games and long absences</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="career-b"><div class="career-in"></div></div>
+    </section>
+    <section class="card career" data-fill="similar" data-name="${esc(name)}">
+      <button class="career-h" data-careertoggle aria-expanded="false" title="Show"><span><b>Similar players</b><small>Whose game looks most like his, across every season since 1947</small></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="career-b"><div class="career-in"></div></div>
+    </section>` : ''}
     <div class="splits-slot"></div>
     <div class="btn-row">${teamId ? `<button class="btn" data-team="${teamId}">View ${esc(tm.short || 'team')} roster</button>` : ''}<button class="btn ghost" data-cmpwith="${id}">Compare with another player</button></div>`;
   loadNicks().then(N => { const x = N.by[id], el = $('.pl-nick', sheet.body); if (x && el) { el.innerHTML = nickLine(x.nick, 3); el.hidden = false; } });
@@ -2050,12 +2058,13 @@ async function openPlayer(id) {
     const tg = $('[data-careertoggle]', car);
     const set = open => {
       car.classList.toggle('open', open); tg.setAttribute('aria-expanded', open);
-      if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; ({ log: fillLog, highs: fillHighs, shots: fillShots }[car.dataset.fill] || fillCareer)(car, id); }
+      if (open && !car._loaded) { car._loaded = true; $('.career-in', car).innerHTML = '<div class="sk" style="height:220px"></div>'; ({ log: fillLog, highs: fillHighs, shots: fillShots, timeline: fillTimeline, similar: fillSimilar }[car.dataset.fill] || fillCareer)(car, id); }
     };
-    // the shot profile reads several games' play-by-play, so it waits to be opened (and remembers if you leave it open)
-    const isShots = car.dataset.fill === 'shots';
-    tg.addEventListener('click', () => { const o = !car.classList.contains('open'); set(o); if (isShots) lsSet('fc-shp-open', o ? '1' : null); });
-    set(!isShots || lsGet('fc-shp-open') === '1');
+    // the shot profile (several games' play-by-play) and Similar players (every season in history) wait to be opened, and
+    // remember if you leave them open; the timeline starts open and remembers if you close it
+    const f = car.dataset.fill, rem = { shots: ['fc-shp-open', false], similar: ['fc-sim-open', false], timeline: ['fc-tl-shut', true] }[f];
+    tg.addEventListener('click', () => { const o = !car.classList.contains('open'); set(o); if (rem) lsSet(rem[0], o !== rem[1] ? '1' : null); });
+    set(rem ? (lsGet(rem[0]) === '1') !== rem[1] : true);
   });
   // every other card gets a minimize button too (cards that fill in later included)
   addMinimize(sheet.body);
@@ -2832,7 +2841,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-18a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-19a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -2904,6 +2913,8 @@ const openSettings = stub('settings', 'openSettings');
 const openWeek = stub('week', 'openWeek');
 const openToday = stub('today', 'openToday');
 const fillShots = stub('shotprof', 'fillShots');
+const fillTimeline = stub('timeline', 'fillTimeline');
+const fillSimilar = stub('similar', 'fillSimilar');
 const openDraftClass = stub('dclass', 'openDraftClass');
 // the browser tab shows your team's score while it's playing ("NY 98–95 BOS · Q4 2:31 · Fullcourt")
 const BASE_TITLE = document.title || 'Fullcourt';
