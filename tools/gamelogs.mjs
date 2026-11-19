@@ -42,14 +42,16 @@ const int = v => { const n = parseInt(String(v ?? '').replace('+', ''), 10); ret
 async function season(Y) {
   const file = `${OUT}/gl/${Y}.json`;
   const old = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
-  if (old?.done && Y < CUR) { console.log(Y, 'kept'); return old; }
+  // v2 takes overtimes from the schedule (the game summary doesn't say) and marks seasons ESPN has no plus-minus for;
+  // an older finished season is brought up to date from the schedule alone
+  if (old?.done && Y < CUR && old.v >= 2) { console.log(Y, 'kept'); return old; }
   // the game list: every team's schedule (regular season, playoffs, play-in)
   const sched = new Map();
   await pool(TEAMS.flatMap(t => [2, 3, 5].map(st => [t, st])), 6, async ([t, st]) => {
     const d = await get(`${E}/teams/${t}/schedule?season=${Y}&seasontype=${st}`).catch(() => null);
     for (const ev of d?.events || []) {
       const c = ev.competitions?.[0]; if (!c || !c.status?.type?.completed) continue;
-      sched.set(String(ev.id), { st: st === 5 ? 5 : st, date: ev.date });
+      sched.set(String(ev.id), { st: st === 5 ? 5 : st, date: ev.date, per: c.status?.period || 4 });
     }
   });
   const have = new Set(old ? old.games.id.map(String) : []);
@@ -81,7 +83,7 @@ async function season(Y) {
     const ny = new Date(dt.toLocaleString('en-US', { timeZone: 'America/New_York' }));
     G.id.push(+id); G.d.push(ny.getFullYear() * 10000 + (ny.getMonth() + 1) * 100 + ny.getDate());
     G.h.push(+home.id); G.a.push(+away.id); G.hs.push(int(home.score)); G.as.push(int(away.score));
-    G.st.push(sched.get(id)?.st || 2); G.ot.push(Math.max(0, int(c.status?.period) - 4));
+    G.st.push(sched.get(id)?.st || 2); G.ot.push(Math.max(0, (sched.get(id)?.per || 4) - 4));
     for (const tb of box) {
       const side = String(tb.team?.id) === String(home.id) ? 0 : 1, S = tb.statistics?.[0]; if (!S) continue;
       const lab = S.labels || S.names || [];
@@ -100,8 +102,12 @@ async function season(Y) {
       }
     }
   }
+  // overtimes for every game (older files had none), from the schedule
+  G.id.forEach((gid, i) => { const x = sched.get(String(gid)); if (x) G.ot[i] = Math.max(0, (x.per || 4) - 4); });
   const done = Y < CUR && sched.size > 0 && G.id.length >= sched.size;
-  const out = { v: 1, y: Y, done, cols: COLS, teams, games: G, players: P, r: R, dnp };
+  // ESPN has plus-minus from 2007-08; before that every line says 0
+  const nopm = R.pm.length > 0 && R.pm.every(v => v === 0);
+  const out = { v: 2, y: Y, done, nopm, cols: COLS, teams, games: G, players: P, r: R, dnp };
   writeFileSync(file, JSON.stringify(out));
   console.log(Y, 'wrote', G.id.length, 'games,', R.g.length, 'player lines', done ? '(final)' : '');
   return out;
