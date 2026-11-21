@@ -94,36 +94,44 @@ async function histFinder(pane) {
   $$('.seg', pane).forEach(placeKnob);
   gfWire(pane);
   if (gfLast) gfDraw();
+  // opened from Ask: run the search it filled in
+  if (gfAuto) { gfAuto = false; gfRun(); }
 }
 
 /* ---------- the search ---------- */
 async function gfRun() {
   const out = $('#gfOut'); if (!out) return;
-  const idx = await gfIndex(), years = []; for (let y = GF.from; y <= GF.to; y++) years.push(y);
   const my = (gfRun.n = (gfRun.n || 0) + 1);
-  let done = 0;
-  const bar = () => { if (my === gfRun.n && out.isConnected) out.innerHTML = `<div class="gf-load"><span>Loading ${years.length === 1 ? gfYearLabel(years[0]) : `seasons ${done} of ${years.length}`}</span><div class="gf-bar"><i style="width:${Math.round(done / years.length * 100)}%"></i></div></div>`; };
-  bar();
-  const seasons = new Array(years.length); let i = 0, failed = 0;
-  await Promise.all([0, 1, 2].map(async () => { while (i < years.length) { const j = i++; try { seasons[j] = await gfSeason(years[j], idx.last); } catch (e) { failed++; } done++; bar(); } }));
+  const bar = (done, n, y0) => { if (my === gfRun.n && out.isConnected) out.innerHTML = `<div class="gf-load"><span>Loading ${n === 1 ? gfYearLabel(y0) : `seasons ${done} of ${n}`}</span><div class="gf-bar"><i style="width:${Math.round(done / n * 100)}%"></i></div></div>`; };
+  const r = await gfSearch(GF, bar);
   if (my !== gfRun.n) return;
+  gfLast = { ...r, kind: GF.kind, pid: r.pid };
+  GF.n = GF_SHOW;
+  gfDraw();
+}
+// the search itself, for any set of filters (the form's, or a question typed into Ask)
+async function gfSearch(Q, progress) {
+  const idx = await gfIndex(), years = []; for (let y = Q.from || idx.first; y <= (Q.to || idx.last); y++) years.push(y);
+  let done = 0; progress?.(0, years.length, years[0]);
+  const seasons = new Array(years.length); let i = 0, failed = 0;
+  await Promise.all([0, 1, 2].map(async () => { while (i < years.length) { const j = i++; try { seasons[j] = await gfSeason(years[j], idx.last); } catch (e) { failed++; } done++; progress?.(done, years.length, years[0]); } }));
   const res = [];
   const cmp = (v, op, x) => op === '>=' ? v >= x : op === '<=' ? v <= x : v === x;
-  const conds = GF.conds.map(([k, op, v]) => [k, op, +v]).filter(([k, , v]) => k === 'td' || k === 'dd' || Number.isFinite(v));
-  const team = +GF.team || 0, opp = +GF.opp || 0, pid = GF.kind === 'p' && GF.pid ? +GF.pid : 0;
+  const conds = Q.conds.map(([k, op, v]) => [k, op, +v]).filter(([k, , v]) => k === 'td' || k === 'dd' || Number.isFinite(v));
+  const team = +Q.team || 0, opp = +Q.opp || 0, pid = Q.kind === 'p' && Q.pid ? +Q.pid : 0;
   for (const S of seasons) {
     if (!S) continue;
     const G = S.games, R = S.r, P = S.players;
-    const okGame = gi => (GF.type === 'all' || (GF.type === 'post' ? G.st[gi] === 3 : G.st[gi] !== 3));
-    if (GF.kind === 't') {
+    const okGame = gi => (Q.type === 'all' || (Q.type === 'post' ? G.st[gi] === 3 : G.st[gi] !== 3));
+    if (Q.kind === 't') {
       for (let gi = 0; gi < G.id.length; gi++) {
         if (!okGame(gi)) continue;
         for (const side of [0, 1]) {
           const t = side ? G.a[gi] : G.h[gi], o = side ? G.h[gi] : G.a[gi], tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi];
           if (team && t !== team) continue; if (opp && o !== opp) continue;
           if (!team && !opp && side === 1 && !conds.some(c => c[0] === 'tp' || c[0] === 'op' || c[0] === 'mg')) continue; // one row a game unless a side matters
-          if (GF.loc !== 'all' && (GF.loc === 'home') !== (side === 0)) continue;
-          const win = tp > op; if (GF.res !== 'all' && (GF.res === 'W') !== win) continue;
+          if (Q.loc !== 'all' && (Q.loc === 'home') !== (side === 0)) continue;
+          const win = tp > op; if (Q.res !== 'all' && (Q.res === 'W') !== win) continue;
           const val = { tp, op, mg: tp - op, tot: tp + op, ot: G.ot[gi] };
           if (!conds.every(([k, o2, x]) => cmp(val[k], o2, x))) continue;
           res.push({ S, gi, side, t, o, val });
@@ -138,8 +146,8 @@ async function gfRun() {
       const gi = R.g[r]; if (!okGame(gi)) continue;
       const side = R.t[r], t = side ? G.a[gi] : G.h[gi], o = side ? G.h[gi] : G.a[gi];
       if (team && t !== team) continue; if (opp && o !== opp) continue;
-      if (GF.loc !== 'all' && (GF.loc === 'home') !== (side === 0)) continue;
-      const tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi]; if (GF.res !== 'all' && (GF.res === 'W') !== (tp > op)) continue;
+      if (Q.loc !== 'all' && (Q.loc === 'home') !== (side === 0)) continue;
+      const tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi]; if (Q.res !== 'all' && (Q.res === 'W') !== (tp > op)) continue;
       let ok = true;
       for (const [k, o2, x] of conds) {
         let v;
@@ -152,12 +160,10 @@ async function gfRun() {
     }
   }
   // newest first, or by the stat searched on (the first one), biggest first
-  const sk = GF.sort || (conds.find(c => c[0] !== 'td' && c[0] !== 'dd' && c[1] !== '<=')?.[0]) || 'date';
+  const sk = Q.sort || (conds.find(c => c[0] !== 'td' && c[0] !== 'dd' && c[1] !== '<=')?.[0]) || 'date';
   const sv = x => sk === 'date' ? 0 : x.val ? x.val[sk] ?? 0 : sk === 'pra' ? x.S.r.pts[x.r] + x.S.r.reb[x.r] + x.S.r.ast[x.r] : sk === 'stocks' ? x.S.r.stl[x.r] + x.S.r.blk[x.r] : sk === 'fgp' ? (x.S.r.fga[x.r] ? x.S.r.fgm[x.r] / x.S.r.fga[x.r] : 0) : x.S.r[sk]?.[x.r] ?? 0;
   res.sort((a, b) => sv(b) - sv(a) || b.S.games.d[b.gi] - a.S.games.d[a.gi]);
-  gfLast = { res, sk, failed, conds, kind: GF.kind, pid };
-  GF.n = GF_SHOW;
-  gfDraw();
+  return { res, sk, failed, conds, pid, first: idx.first, last: idx.last };
 }
 
 /* ---------- the results ---------- */
@@ -246,4 +252,50 @@ function gfWire(pane) {
     if (e.key === 'Enter' && e.target.matches('.gf-mi')) e.target.click();
     if (e.key === 'Enter' && e.target.matches('[data-gfpq]')) { const b = e.target.parentElement.querySelector('[data-gfsug]'); if (b) b.click(); }
   });
+}
+
+/* ---------- for Ask: find a player by name, answer a question, open the finder already filled in ---------- */
+let gfAuto = false;
+async function gfOpen(cfg) {
+  Object.assign(GF, GF0(), cfg, { n: GF_SHOW }); gfSave(); gfLast = null; gfAuto = true;
+  try { localStorage.setItem('fc-histtab', 'finder'); } catch (e) {}
+  await lazy('history').then(m => { if (m.HS) m.HS.tab = 'finder'; }).catch(() => {});
+  go('history');
+}
+// a player in the archive whose name the words match best (whole name first, then last name), most games first
+async function gfFindPlayer(words) {
+  const idx = await gfIndex(), w = words.map(gfFold).filter(x => x.length >= 3);
+  if (!w.length) return null;
+  const full = gfFold(words.join(' '));
+  let best = null;
+  for (const p of idx.players) {
+    const n = gfFold(p[1]), parts = n.split(' ');
+    const sc = n === full ? 3 : w.length >= 2 && w.every(x => parts.includes(x)) ? 2 : w.some(x => parts.at(-1) === x || parts[0] === x) ? 1 : 0;
+    if (sc && (!best || sc > best.sc || (sc === best.sc && p[4] > best.p[4]))) best = { sc, p };
+  }
+  return best ? { id: String(best.p[0]), name: best.p[1], sc: best.sc } : null;
+}
+async function gfAnswer(cfg) {
+  const Q = { ...GF0(), ...cfg };
+  const r = await gfSearch(Q);
+  const { res } = r, span = Q.from && Q.from > r.first ? `${Q.from === Q.to ? `in ${gfYearLabel(Q.from)}` : `from ${gfYearLabel(Q.from)} to ${gfYearLabel(Q.to || r.last)}`}` : 'since 2000-01';
+  const tn = id => GF_TNAME[+id] || '', opp = (Q.opp ? ` against the ${tn(Q.opp).split(' ').slice(-1)[0]}` : '') + (Q.type === 'post' ? ' in the playoffs' : Q.type === 'reg' ? ' in the regular season' : '') + (Q.loc === 'home' ? ' at home' : Q.loc === 'away' ? ' on the road' : '') + (Q.res === 'W' ? ' in wins' : Q.res === 'L' ? ' in losses' : '');
+  const what = Q.conds.map(([k, op, v]) => k === 'td' ? 'a triple-double' : k === 'dd' ? 'a double-double' : k === 'mg' && op === '>=' ? `a win by ${v}+` : k === 'mg' && op === '<=' && v < 0 ? `a loss by ${-v}+` : `${op === '<=' ? 'at most ' : op === '=' ? 'exactly ' : ''}${v}${op === '>=' ? '+' : ''} ${({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tpa: '3-point tries', fgm: 'field goals', ftm: 'free throws', oreb: 'offensive rebounds', tov: 'turnovers', min: 'minutes', pm: 'plus-minus', pra: 'points + rebounds + assists', stocks: 'steals + blocks', tp: 'points', op: 'points allowed', mg: 'point margin', tot: 'combined points', ot: 'overtimes', fgp: '% shooting' })[k] || k}`).join(' and ');
+  const n = res.length, abbr = (S, id) => S.teams[id]?.[0] || '';
+  let text;
+  if (Q.kind === 't') text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} ${Q.team ? `by the ${esc(tn(Q.team))} ` : ''}with ${esc(what) || 'those filters'}${opp} ${span}.`;
+  else if (Q.pid) text = `${esc(Q.pname)} has ${n ? n.toLocaleString() : 'no'} game${n === 1 ? '' : 's'} with ${esc(what)}${opp} ${span}${n && Q.team ? ` for the ${esc(tn(Q.team))}` : ''}.`;
+  else {
+    const by = new Map(); for (const x of res) { const id = x.S.players.id[x.S.r.p[x.r]]; const e = by.get(id) || by.set(id, { n: 0, name: x.S.players.n[x.S.r.p[x.r]] }).get(id); e.n++; }
+    const top = [...by.values()].sort((a, b) => b.n - a.n).slice(0, 3);
+    text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} with ${esc(what)}${Q.team ? ` by ${esc(tn(Q.team))} players` : ''}${opp} ${span}.${top.length && n > 1 ? ` Most: ${top.map(t => `${esc(t.name)} (${t.n})`).join(', ')}.` : ''}`;
+  }
+  const rows = res.slice(0, 5).map(x => {
+    const { S, gi, side, o } = x, G = S.games, tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi], when = `${gfDate(G.d[gi])} · ${side ? '@' : 'vs'} ${esc(abbr(S, o))} · ${tp > op ? 'W' : 'L'} ${tp}-${op}${G.ot[gi] ? ` ${G.ot[gi] > 1 ? G.ot[gi] : ''}OT` : ''}`;
+    if (Q.kind === 't') return `<button class="gfa-r" data-game="${G.id[gi]}"><b>${esc(abbr(S, x.t))}</b><span>${when}</span></button>`;
+    const R = S.r, r = x.r, nm = S.players.n[R.p[r]];
+    return `<button class="gfa-r" data-game="${G.id[gi]}"><b>${esc(nm)}: ${R.pts[r]} pts, ${R.reb[r]} reb, ${R.ast[r]} ast</b><span>${when}</span></button>`;
+  }).join('');
+  const open = esc(JSON.stringify({ kind: Q.kind, pid: Q.pid || '', pname: Q.pname || '', team: Q.team || '', opp: Q.opp || '', from: Q.from || 0, to: Q.to || 0, type: Q.type, loc: Q.loc, res: Q.res, conds: Q.conds }));
+  return { text, html: `${rows ? `<div class="gfa">${rows}</div>` : ''}<button class="btn sm" data-gfopen="${open}">${n > 5 ? `See all ${n.toLocaleString()} in the Game finder` : 'Open in the Game finder'}</button>`, src: 'ESPN box scores' };
 }

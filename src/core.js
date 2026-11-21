@@ -1913,9 +1913,15 @@ async function openTeam(id) {
           ${a.injuries?.length ? `<span class="badge">${esc(a.injuries[0].status || 'Injured')}</span>` : ''}</div>
           <div class="in"><b>${esc(a.displayName)}</b><span>${esc(a.position?.abbreviation || '')}${a.displayHeight ? ' · ' + esc(a.displayHeight) : ''}${a.age ? ' · ' + a.age + ' yrs' : ''}</span></div>
         </button>`).join('')}</div>
-    </div>`;
+    </div>
+    ${LG === 'nba' ? `<div class="card fh-card" id="fh-${id}" hidden></div>` : ''}`;
   wireDrag(sheet.body);
   const injP = teamInjuries(id, tm.name, evs, athletes);
+  // franchise history: every season since the team began, loaded when you scroll near it
+  { const fh = $(`#fh-${id}`, sheet.body);
+    if (fh) { fh.hidden = false; fh.innerHTML = '<div class="card-h"><h4>Franchise history</h4></div><div class="sk" style="height:200px;border-radius:12px"></div>';
+      const io = new IntersectionObserver(es => { if (!sheet.alive || !fh.isConnected) { io.disconnect(); return; } if (!es.some(x => x.isIntersecting)) return; io.disconnect(); lazy('franchise').then(m => m.fillFranchise(fh, tm.abbr, String(id))).catch(() => { fh.hidden = true; }); }, { rootMargin: '400px' });
+      io.observe(fh); } }
   { const dcBox = $(`#dc-${id}`, sheet.body); if (dcBox) lazy('depth').then(m => m.fillDepth(dcBox, id, evs, athletes, injP)).catch(() => {}); }
   // lineups and minutes: needs a feed per game, so it loads only once you scroll near it
   { const lu = $(`#lu-${id}`, sheet.body);
@@ -2841,7 +2847,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-19a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-21a'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -4207,6 +4213,8 @@ setInterval(() => { if (!document.hidden && !IS_W && lsGet('fc-bd-stars') && lsG
 document.addEventListener('click', e => {
   const el = e.target;
   const lgb = el.closest('[data-lg]'); if (lgb) { switchLeague(lgb.dataset.lg); return; }
+  // "See all in the Game finder" under an Ask answer: open History's finder with that question's filters
+  const gfo = el.closest('[data-gfopen]'); if (gfo) { try { const c = JSON.parse(gfo.dataset.gfopen); lazy('finder').then(m => m.gfOpen(c)).catch(() => {}); } catch (e2) {} return; }
   if (el.closest('[data-navmore]')) { navMenu(); return; }
   // a game's highlights in Replay (from the game sheet)
   const ckb = el.closest('[data-court]'); if (ckb) { e.preventDefault(); openGame(ckb.dataset.court, { tab: 'court' }); return; }

@@ -1,6 +1,11 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-21a', date: 'Nov 21', items: [
+    ['Franchise history on team pages', 'NBA team pages now end with the franchise\'s whole history: every season since it began (under every name, like the Seattle SuperSonics for the Thunder) on one chart coloured by how the playoffs went, its titles and Finals, its greatest players and the best of each decade, every season in a list, and team records since 2000-01: highest and lowest scores, biggest wins and losses, longest winning and losing runs, and the best single games by its players.'],
+    ['Ask the Game finder', 'Ask now answers questions about games across every season since 2000-01: "Knicks 40-point games", "triple-doubles against the Celtics", "Kobe 50 point games", "Jokic triple doubles at home since 2023", "Warriors scored 150", "triple overtime games". You get the count, who has the most and the top games, with a button that opens the Game finder already filled in.'],
+    ['Your team\'s card', 'On the scores page, your team\'s game card now shows its TV channels like every other game; the Your team tag sits beside the date.'],
+  ] },
   { id: '2026-11-19a', date: 'Nov 19', items: [
     ['Game finder', 'History has a new Game finder: search every NBA game since 2000-01. Pick a player or any player, the team he played for, the opponent, seasons, home or away, wins or losses, and any stat conditions (40+ points, a triple-double, 10+ threes, 20-20...), or search team games (scored 150, won by 40, triple overtime). It shows who has the most of them, and every game opens its box score. Quick searches are one tap.'],
     ['Career timeline', 'NBA player pages have a Career timeline: his career season by season on one chart (points, rebounds, assists, Win Shares or PER) over the teams he played for, with All-Star seasons, MVPs and titles marked. Below it are the moments: the draft, moves and mid-season trades, awards, career-high games (tap one for the box score) and long runs of missed games with ESPN\'s reason.'],

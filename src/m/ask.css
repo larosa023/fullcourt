@@ -390,3 +390,8 @@ button.pb:hover { background: var(--surface-2); }
 .ask-share .btn { margin-top: 0; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 7px 12px; }
 .ask-share .btn svg { width: 15px; height: 15px; }
 .ask-share .btn.busy { opacity: .6; pointer-events: none; }
+/* answers from the Game finder: the top games, each opening its box score */
+.gfa { display: grid; gap: 2px; margin: 6px 0 10px; }
+.gfa-r { display: grid; gap: 1px; padding: 7px 10px; border-radius: 10px; background: var(--surface-2); text-align: left; color: inherit; }
+.gfa-r:hover { background: color-mix(in oklab, var(--accent) 16%, var(--surface-2)); }
+.gfa-r b { font-weight: 650; font-size: 13.5px; } .gfa-r span { font-size: 12px; color: var(--muted); }

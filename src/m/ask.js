@@ -525,6 +525,44 @@ async function aAwardNow(kind, title, n, rows, past) {
 }
 
 /* ---------------- router ---------------- */
+async function gfAsk({ raw, nn, has, players, teams, minVal, thrStat, td, dd, findTeams: ft }) {
+  const ot = has(/ (quadruple|4|four) (overtimes?|ot) /) ? 4 : has(/ (triple|3|three) (overtimes?|ot) /) ? 3 : has(/ (double|2|two) (overtimes?|ot) /) ? 2 : has(/ overtime games /) ? 1 : 0;
+  const teamPts = nn.match(/ (?:scored|score|scoring|put up|dropped|dropping) (1\d\d|2\d\d) /) || nn.match(/ (1\d\d|2\d\d) (?:point|pt) games /);
+  const margin = nn.match(/ (?:won|win|wins|winning) by (\d{2}) /) || nn.match(/ (\d{2}) (?:point|pt) (?:wins|win|blowouts?) /);
+  const lossBy = nn.match(/ (?:lost|loss|losses|losing) by (\d{2}) /);
+  const statCond = minVal && thrStat && ['pts', 'reb', 'ast', 'stl', 'blk', 'tpm'].includes(thrStat);
+  if (!(statCond || td || dd || ot || teamPts || margin || lossBy)) return null;
+  // it has to be about games, and not about this season's or a recent stretch
+  if (!(has(/ games? /) || td || dd || ot || teamPts || margin || lossBy)) return null;
+  if (has(/ (this season|this year|so far|last \d+|last (five|ten)|tonight|last night|yesterday|today|right now|lately|recently|in a row|straight|streak|average|averaging|per game|leaders?|leads|props?) /)) return null;
+  // the opponent: a team named after "against", "vs" or "facing"
+  const oppM = raw.match(/\b(?:against|vs\.?|versus|facing|v)\s+(?:the\s+)?(.+)$/i);
+  const oppIds = oppM ? ft(oppM[1], ' ' + nameKey(oppM[1]) + ' ').teams : [];
+  const opp = oppIds[0] || '', mine = teams.map(t => t.id).filter(id => String(id) !== String(opp));
+  // seasons: "since 2010", "in 2016", "2015-16", "from 2005 to 2010"
+  let from = 0, to = 0; const y2 = nn.match(/ (19|20)(\d\d) (\d\d) /), rng = nn.match(/ from (20\d\d) to (20\d\d) /), since = nn.match(/ since (?:the )?(20\d\d) /), inY = nn.match(/ (?:in|during) (20\d\d) /);
+  if (y2) from = to = +(y2[1] + y2[2]) + 1; else if (rng) { from = +rng[1] + 1; to = +rng[2]; } else if (since) from = +since[1] + 1; else if (inY) from = to = +inY[1];
+  const base = { from, to, type: has(/ playoffs? | postseason /) ? 'post' : has(/ regular season /) ? 'reg' : 'all', loc: has(/ at home | home games /) ? 'home' : has(/ on the road | road games | away games /) ? 'away' : 'all', res: has(/ in (wins|a win) /) ? 'W' : has(/ in (losses|a loss) /) ? 'L' : 'all' };
+  const fm = await lazy('finder');
+  if ((teamPts || margin || lossBy || ot) && !statCond && !td && !dd) {
+    const conds = []; if (teamPts) conds.push(['tp', '>=', +teamPts[1]]); if (margin) conds.push(['mg', '>=', +margin[1]]); if (lossBy) conds.push(['mg', '<=', -lossBy[1]]); if (ot) conds.push(['ot', '>=', ot]);
+    return fm.gfAnswer({ ...base, kind: 't', team: mine[0] || '', opp, conds });
+  }
+  // a player: one of this season's, or anyone in the archive by name (retired players too)
+  let pid = '', pname = '';
+  // this season's player only when his last name is in the question ("Kobe" alone means Bryant, not this year's Kobe)
+  // (matched by a nickname like "Wemby" is fine: only his first name without his last one sends it to the archive)
+  const firstOnly = p => { const ws = nameKey(p.name).split(' ').filter(w => !/^(jr|sr|ii|iii|iv)$/.test(w)); return ws.length > 1 && nn.includes(` ${ws[0]} `) && !nn.includes(` ${ws.at(-1)} `); };
+  if (players[0] && !firstOnly(players[0])) { pid = String(players[0].id); pname = players[0].name; }
+  else {
+    const teamWords = new Set(teams.flatMap(t => nameKey(`${t.name || ''} ${t.short || ''} ${t.abbr || ''} ${t.loc || ''}`).split(' ')));
+    const words = nameKey(oppM ? raw.slice(0, oppM.index) : raw).split(' ').filter(w => w && !STOP.has(w) && !teamWords.has(w) && !/^\d+$/.test(w) && !/^(triple|double|doubles|triples|games|game|point|pt|plus|nba|history|ever|all|time|since|from|every|players|player|any|anyone|who|most|has|had|any|their|his)$/.test(w));
+    if (words.length) { const p = await fm.gfFindPlayer(words); if (p && (p.sc >= 2 || words.length === 1)) { pid = p.id; pname = p.name; } }
+  }
+  const conds = []; if (statCond) conds.push([thrStat, '>=', minVal]); if (td) conds.push(['td', 'yes', 1]); else if (dd) conds.push(['dd', 'yes', 1]);
+  return fm.gfAnswer({ ...base, kind: 'p', pid, pname, team: mine[0] || '', opp, conds });
+}
+
 async function answer(raw) {
   // "who was the MVP that year?" after an answer about one season
   if (ASK.ctx?.y && /\b(that|the same|same) (year|season)\b/i.test(raw)) raw = raw.replace(/\b(in |during )?(that|the same|same) (year|season)\b/i, `in ${ASK.ctx.y}`);
@@ -576,6 +614,9 @@ async function answer(raw) {
   if (!players.length && !teams.length && ASK.ctx.teamId && pronoun && (stat || has(/ (record|next|last game|odds|spread|schedule) /))) { const t = S.teams[ASK.ctx.teamId]; if (t) teams.push(t); }
 
   const dd = has(/ double ?doubles? /), td = has(/ triple ?doubles? /);
+  // games across every season since 2000-01 ("Knicks 40-point games", "triple-doubles against the Celtics", "Kobe 50 point
+  // games", "triple overtime games"): answered from the Game finder's archive, with a button that opens it filled in
+  if (LGK === 'nba') { const r = await gfAsk({ raw, nn, has, players, teams, minVal, thrStat, td, dd, findTeams }).catch(e => { console.warn('ask finder', e); return null; }); if (r) return r; }
   const st = stat || thrStat;
 
   if (has(/ (help|what can you|what do you know|examples?) /) && !players.length && !teams.length) return { text: `Ask about this season: players (stats, height, age, injuries${LGK === 'nba' ? ', contracts' : ''}), teams (rosters, coaches, schedules, rankings), games, leaders, standings${IS_C ? '' : ', playoff chances, the draft'} and odds. I can also explain the terms and the rules.${IS_C ? '' : IS_W ? ' For the WNBA\'s past: champions, MVPs and career leaders.' : ' And NBA history back to 1947: drafts, careers, awards, champions, records, and searches like "players who averaged 30 and 10".'} If you ask a follow-up ("what about 1999?", "how many rings does he have?") I keep the thread. Some examples:`, examples: true };
