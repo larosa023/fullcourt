@@ -768,6 +768,10 @@ kbd { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius
 /* favorite highlights */
 .game.fav { border-color: color-mix(in oklab, var(--accent) 55%, var(--line)); box-shadow: inset 0 3px 0 var(--accent); }
 .fav-tag { font-size: 11.5px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+/* on a game card it sits beside the date, so the TV channels keep their place on the right */
+.g-top .status .fav-tag { margin-left: 8px; font-size: 11px; }
+.g-top .status { flex: none; white-space: nowrap; }
+.g-top .tv { flex: 1 1 auto; min-width: 0; text-align: right; }
 .mini-row.fav-row .nm, .std tr.fav-row .team-cell b, .std tr.fav-row .team-cell .ab { color: var(--accent); }
 .std tr.fav-row td { background: color-mix(in oklab, var(--accent) 5%, var(--surface)); }
 .tile-star { position: absolute; top: 12px; right: 14px; color: var(--accent); font-size: 16px; z-index: 1; }

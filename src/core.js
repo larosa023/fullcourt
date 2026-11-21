@@ -884,8 +884,8 @@ function gameCard(g, i) {
   }
   return `<button class="game${live ? ' live' : ''}${isFavGame(g) ? ' fav' : ''}" style="--i:${i}" data-game="${g.id}" aria-label="${esc(g.away.full)} at ${esc(g.home.full)}, ${esc(statusText(g))}">
     <div class="g-top">
-      <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}</span>
-      ${isFavGame(g) ? '<span class="fav-tag">★ Your team</span>' : upsetOf(g) ? `<span class="g-tag up">Upset</span>` : IS_C && isClash(g) ? `<span class="g-tag">Top 25 clash</span>` : cupTag(g) ? `<span class="g-tag cup">${esc(cupTag(g))}</span>` : `<span class="tv">${esc(g.note || g.tv)}</span>`}
+      <span class="status${live ? ' live' : ''}">${live ? '<span class="dot on"></span>' : ''}${esc(pre ? fmtShortDate(g.date) : statusText(g))}${live ? toPill(S.sit[g.id], id => id === g.home.id ? g.home.abbr : g.away.abbr) : ''}${isFavGame(g) ? '<span class="fav-tag" title="Your team">★ Your team</span>' : ''}</span>
+      ${upsetOf(g) ? `<span class="g-tag up">Upset</span>` : IS_C && isClash(g) ? `<span class="g-tag">Top 25 clash</span>` : cupTag(g) ? `<span class="g-tag cup">${esc(cupTag(g))}</span>` : `<span class="tv">${esc(g.note || g.tv)}</span>`}
     </div>
     ${row(g.away, 'away')}${row(g.home, 'home')}
     ${pre ? oddsLine(g.odds) + preWPLine(g) : live ? liveLine(g) : ''}

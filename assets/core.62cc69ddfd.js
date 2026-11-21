@@ -14,8 +14,8 @@ var jl=Object.defineProperty;var Nl=(t,e,s)=>e in t?jl(t,e,{enumerable:!0,config
       ${n?si(t.odds,p):`<span class="score${y?" bump":""}">${d(l.score)}</span>`}
     </div>`},i=ri(t);let o="";if(n){const l=ti(t.date);o=`<div class="g-foot"><span class="tip">${d(St(t.date))}</span><span class="lead">${d(l||t.venue||"")}</span></div>`}else i&&(o=`<div class="g-foot">${ht(i.a?.id,i.a?.displayName,"mini-face",80)}<span class="lead"><b>${d(i.a?.shortName||i.a?.displayName)}</b> ${d(i.dv)} ${i.cat?.name==="points"?"pts":d(i.cat?.abbreviation||"")} \xB7 ${d(i.team.abbr)}</span></div>`,a&&t.hasHl&&(o=o.replace("</div>",`<span class="g-hl" title="Highlights available: open the game">${Ts}<em class="g-lbl">Highlights</em></span></div>`)),(!_||s)&&(o=o.replace(/<\/div>$/,`<span class="g-court" data-court="${t.id}" role="button" tabindex="0" title="Watch on the 2D court" aria-label="Court view">${il}<em class="g-lbl">Court</em></span></div>`)));return`<button class="game${s?" live":""}${gt(t)?" fav":""}" style="--i:${e}" data-game="${t.id}" aria-label="${d(t.away.full)} at ${d(t.home.full)}, ${d(Ct(t))}">
     <div class="g-top">
-      <span class="status${s?" live":""}">${s?'<span class="dot on"></span>':""}${d(n?Nt(t.date):Ct(t))}${s?ln(c.sit[t.id],l=>l===t.home.id?t.home.abbr:t.away.abbr):""}</span>
-      ${gt(t)?'<span class="fav-tag">\u2605 Your team</span>':Hs(t)?'<span class="g-tag up">Upset</span>':_&&qa(t)?'<span class="g-tag">Top 25 clash</span>':Ga(t)?`<span class="g-tag cup">${d(Ga(t))}</span>`:`<span class="tv">${d(t.note||t.tv)}</span>`}
+      <span class="status${s?" live":""}">${s?'<span class="dot on"></span>':""}${d(n?Nt(t.date):Ct(t))}${s?ln(c.sit[t.id],l=>l===t.home.id?t.home.abbr:t.away.abbr):""}${gt(t)?'<span class="fav-tag" title="Your team">\u2605 Your team</span>':""}</span>
+      ${Hs(t)?'<span class="g-tag up">Upset</span>':_&&qa(t)?'<span class="g-tag">Top 25 clash</span>':Ga(t)?`<span class="g-tag cup">${d(Ga(t))}</span>`:`<span class="tv">${d(t.note||t.tv)}</span>`}
     </div>
     ${r(t.away,"away")}${r(t.home,"home")}
     ${n?ai(t.odds)+ui(t):s?ni(t):""}
