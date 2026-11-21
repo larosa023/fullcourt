@@ -1,0 +1,307 @@
+{
+ "updated": "2026-11-21T13:42:07.366Z",
+ "ok": true,
+ "data": [
+  {
+   "name": "Odds (prop lines)",
+   "ok": true,
+   "note": "updated 11 h ago",
+   "at": "2026-11-21T02:33:57.890Z"
+  },
+  {
+   "name": "Highlights",
+   "ok": true,
+   "note": "updated 7 min ago",
+   "at": "2026-11-21T13:35:34.191Z"
+  },
+  {
+   "name": "Salary cap",
+   "ok": true,
+   "note": "updated 5 days ago",
+   "at": "2026-11-16T10:51:56.028Z"
+  },
+  {
+   "name": "History (NBA)",
+   "ok": true,
+   "note": "updated 4 days ago",
+   "at": "2026-11-17T10:48:00.771Z"
+  },
+  {
+   "name": "History (WNBA)",
+   "ok": true,
+   "note": "updated 4 days ago",
+   "at": "2026-11-17T10:54:39.159Z"
+  },
+  {
+   "name": "Mock Draft",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T12:04:43.534Z"
+  },
+  {
+   "name": "Nicknames",
+   "ok": true,
+   "note": "updated 4 h ago",
+   "at": "2026-11-21T09:28:05.217Z"
+  },
+  {
+   "name": "Game logs (Game finder)",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T11:25:17.972Z"
+  },
+  {
+   "name": "Franchise histories",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T11:29:00.000Z"
+  },
+  {
+   "name": "Team records",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T11:25:17.971Z"
+  },
+  {
+   "name": "Careers (timeline, similar players)",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T11:28:59.972Z"
+  },
+  {
+   "name": "Coaches",
+   "ok": true,
+   "note": "updated 3 days ago",
+   "at": "2026-11-18T10:21:53.065Z"
+  },
+  {
+   "name": "Bracketology",
+   "ok": true,
+   "note": "updated 2 h ago",
+   "at": "2026-11-21T11:15:04.866Z"
+  },
+  {
+   "name": "Game win chances",
+   "ok": true,
+   "note": "updated 43 min ago",
+   "at": "2026-11-21T12:59:24.484Z"
+  },
+  {
+   "name": "Playoff odds",
+   "ok": true,
+   "note": "updated 43 min ago",
+   "at": "2026-11-21T12:59:24.484Z"
+  },
+  {
+   "name": "NBA game videos",
+   "ok": true,
+   "note": "newest video 8 h ago · via YouTube API"
+  },
+  {
+   "name": "Women's college game videos",
+   "ok": true,
+   "note": "newest video 2 h ago · via YouTube API"
+  },
+  {
+   "name": "Men's college game videos",
+   "ok": true,
+   "note": "newest video 8 h ago · via YouTube API"
+  }
+ ],
+ "jobs": [
+  {
+   "name": "cap",
+   "ok": true,
+   "note": "last run passed 5 days ago"
+  },
+  {
+   "name": "careers",
+   "ok": true,
+   "note": "last run passed 2 h ago"
+  },
+  {
+   "name": "coach",
+   "ok": true,
+   "note": "last run passed 3 days ago"
+  },
+  {
+   "name": "desktop",
+   "ok": true,
+   "note": "last run passed 5 days ago"
+  },
+  {
+   "name": "discord",
+   "ok": true,
+   "note": "last run passed 9 days ago"
+  },
+  {
+   "name": "draft",
+   "ok": true,
+   "note": "last run passed 2 h ago"
+  },
+  {
+   "name": "drafthist",
+   "ok": true,
+   "note": "last run passed 3 h ago"
+  },
+  {
+   "name": "eras",
+   "ok": true,
+   "note": "last run passed 3 days ago"
+  },
+  {
+   "name": "gamelogs",
+   "ok": true,
+   "note": "last run passed 2 h ago"
+  },
+  {
+   "name": "history",
+   "ok": true,
+   "note": "last run passed 4 days ago"
+  },
+  {
+   "name": "march",
+   "ok": true,
+   "note": "last run passed 2 h ago"
+  },
+  {
+   "name": "nick",
+   "ok": true,
+   "note": "last run passed 4 h ago"
+  },
+  {
+   "name": "odds",
+   "ok": true,
+   "note": "last run passed 11 h ago"
+  },
+  {
+   "name": "pages",
+   "ok": true,
+   "note": "last run passed 3 h ago"
+  },
+  {
+   "name": "sim",
+   "ok": true,
+   "note": "last run passed 42 min ago"
+  },
+  {
+   "name": "watchdog",
+   "ok": true,
+   "note": "last ran 17 min ago"
+  },
+  {
+   "name": "highlights",
+   "ok": true,
+   "note": "last run passed 6 min ago"
+  }
+ ],
+ "espn": [
+  {
+   "name": "NBA scoreboard",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA team schedule",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA box score (summary)",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA standings",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA teams",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA roster",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA player profile",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA player stats",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA game log",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA league leaders (byathlete)",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA injuries",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "NBA transactions",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "Scores ticker (header)",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "WNBA scoreboard",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "WNBA standings",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "Men's college scoreboard",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "Women's college scoreboard",
+   "ok": true,
+   "note": "ok"
+  },
+  {
+   "name": "College rankings",
+   "ok": true,
+   "note": "ok"
+  }
+ ],
+ "sites": [
+  {
+   "name": "Netlify",
+   "ok": true,
+   "note": "serving the current build"
+  },
+  {
+   "name": "Cloudflare Pages",
+   "ok": true,
+   "note": "serving the current build"
+  },
+  {
+   "name": "GitHub Pages",
+   "ok": true,
+   "note": "serving the current build; the Windows app can load it (CORS ok)"
+  }
+ ]
+}
