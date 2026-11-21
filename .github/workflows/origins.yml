@@ -1,0 +1,36 @@
+# Origins: every NBA player's birthplace and college for History > Map (tools/origins.mjs), plus the map shapes
+# (tools/origins-shapes.mjs). Weekly. Publishes to the origins-data branch (not part of the website, so no deploy).
+name: origins
+on:
+  push:
+    branches: [main]
+    paths: ['tools/origins*.mjs', '.github/workflows/origins.yml']
+  schedule:
+    - cron: '37 8 * * 4' # Thursdays, 3:37 AM ET
+  workflow_dispatch:
+    inputs:
+      runner: { description: 'Machine type (the watchdog picks another one when the usual type is stuck)', type: choice, options: [ubuntu-latest, ubuntu-24.04, ubuntu-22.04], default: ubuntu-latest }
+permissions:
+  contents: write
+concurrency: { group: origins, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Map shapes
+        run: |
+          mkdir pub && mkdir -p /tmp/geo && cp tools/origins-shapes.mjs /tmp/geo/ && cd /tmp/geo
+          npm init -y >/dev/null && npm i --silent d3-geo topojson-client topojson-simplify world-atlas us-atlas i18n-iso-countries
+          node origins-shapes.mjs "$GITHUB_WORKSPACE/pub/shapes.json"
+      - name: Build
+        run: node tools/origins.mjs pub/origins.json
+      - name: Publish
+        run: |
+          cd pub && git init -q && git checkout -q --orphan origins-data
+          git config user.name fullcourt-bot && git config user.email bot@users.noreply.github.com
+          git add -A && git commit -qm "origins $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" origins-data
