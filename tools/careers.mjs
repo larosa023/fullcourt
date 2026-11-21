@@ -71,6 +71,13 @@ const vecRows = [], lines = {}; // lines[id] = seasons
 const nameIx = new Map(), names = [];
 const ni = id => { if (!nameIx.has(id)) { const p = idx.players.find(x => x[IC.id] === id); nameIx.set(id, names.length); names.push([id, p?.[IC.name] || id, espn[id] || '', p?.[IC.y0] || null, p?.[IC.y1] || null]); } return nameIx.get(id); };
 for (const p of idx.players) ni(p[IC.id]);
+// ---- franchises: every name a team has played under, rolled up to today's team (ESPN's abbreviation) ----
+const LINEAGE = { ATL: ['ATL', 'STL', 'MLH', 'TRI'], BOS: ['BOS'], BKN: ['BRK', 'NJN', 'NYN'], CHA: ['CHO', 'CHA', 'CHH'], CHI: ['CHI'], CLE: ['CLE'], DAL: ['DAL'], DEN: ['DEN'], DET: ['DET', 'FTW'],
+  GS: ['GSW', 'SFW', 'PHW'], HOU: ['HOU', 'SDR'], IND: ['IND'], LAC: ['LAC', 'SDC', 'BUF'], LAL: ['LAL', 'MNL'], MEM: ['MEM', 'VAN'], MIA: ['MIA'], MIL: ['MIL'], MIN: ['MIN'], NO: ['NOP', 'NOH', 'NOK'],
+  NY: ['NYK'], OKC: ['OKC', 'SEA'], ORL: ['ORL'], PHI: ['PHI', 'SYR'], PHX: ['PHO'], POR: ['POR'], SAC: ['SAC', 'KCK', 'KCO', 'CIN', 'ROC'], SA: ['SAS'], TOR: ['TOR'], UTAH: ['UTA', 'NOJ'], WSH: ['WAS', 'WSB', 'CAP', 'BAL', 'CHZ', 'CHP'] };
+const FR_OF = {}; for (const [fr, abs] of Object.entries(LINEAGE)) for (const ab of abs) FR_OF[ab] = fr;
+// Denver's 1949-50 Nuggets and Baltimore's 1947-54 Bullets were other franchises (Basketball-Reference: DNN, BLB), so they stay out
+const FR = Object.fromEntries(Object.keys(LINEAGE).map(k => [k, { seasons: [], greats: {} }]));
 for (let y = first; y <= last; y++) {
   const S = await get(`${RAW}/era-data/seasons/${y}.json`).catch(() => null); if (!S?.reg) { console.log(y, 'missing'); continue; }
   const ix = Object.fromEntries(S.cols.map((k, i) => [k, i])), v = (r, k) => r[ix[k]];
@@ -97,11 +104,45 @@ for (let y = first; y <= last; y++) {
     const z = FEAT.map(k => st[k] && f[k] != null && Number.isFinite(f[k]) ? Math.max(-60, Math.min(60, Math.round((f[k] - st[k][0]) / st[k][1] * 10))) : null);
     vecRows.push([ni(id), y, v(r, 'age'), posOf(v(r, 'pos')), v(r, 'tm'), f.pts, f.trb, f.ast, f.ts, ...z]);
   }
+  // each franchise's season: record, how the playoffs went, its best players (by Win Shares)
+  {
+    const series = (S.po || []).filter(x => !/tiebreaker/i.test(x[0]));
+    const tc = Object.fromEntries((S.tcols || []).map((k, i) => [k, i]));
+    const byTeam = new Map();
+    for (const r of S.reg) for (const t of String(v(r, 'tm') || '').split('/')) if (t) (byTeam.get(t) || byTeam.set(t, []).get(t)).push(r);
+    for (const [ab, row] of Object.entries(S.teams || {})) {
+      const fr = FR_OF[ab]; if (!fr) continue;
+      // the last series he played: won the Finals = champion; otherwise the round they went out in
+      const mine = series.filter(x => x[1] === ab || x[2] === ab), lastS = mine[0];
+      const won = lastS ? (lastS[3] > lastS[4] ? lastS[1] : lastS[2]) === ab : false;
+      const po = lastS ? [lastS[0], won ? 1 : 0, mine.length] : null;
+      const ps = (byTeam.get(ab) || []).filter(r => v(r, 'ws') != null).sort((a, b) => v(b, 'ws') - v(a, 'ws'));
+      const top = ps.slice(0, 3).map(r => [ni(v(r, 'id')), v(r, 'ws'), v(r, 'pts'), v(r, 'trb'), v(r, 'ast'), String(v(r, 'tm')).includes('/') ? 1 : 0]);
+      FR[fr].seasons.push([y, ab, row[tc.name], row[tc.w], row[tc.l], row[tc.srs] ?? null, po, top]);
+      // franchise greats: Win Shares with this team (a split season's shared out by how many teams he played for)
+      for (const r of byTeam.get(ab) || []) {
+        const id = v(r, 'id'), n = String(v(r, 'tm')).split('/').length, g = (FR[fr].greats[id] ||= { ws: 0, s: 0, y0: y, y1: y, as: 0, pts: 0, gp: 0 });
+        g.ws += (v(r, 'ws') || 0) / n; g.s++; g.y1 = y; if (String(v(r, 'aw') || '').split(',').includes('AS') && n === 1) g.as++;
+        if (n === 1 && v(r, 'g')) { g.pts += (v(r, 'pts') || 0) * v(r, 'g'); g.gp += v(r, 'g'); }
+      }
+    }
+  }
   console.log(y, S.reg.length, 'seasons,', feats.length, 'compared');
 }
 mkdirSync(`${OUT}/p`, { recursive: true });
 const updated = new Date().toISOString();
 writeFileSync(`${OUT}/vec.json`, JSON.stringify({ updated, first, last, cur: idx.cur, ncols: ['id', 'name', 'espn', 'y0', 'y1'], names, cols: ['player', 'year', 'age', 'position', 'team', 'ppg', 'rpg', 'apg', 'ts', ...FEAT], zFrom: 9, scale: 10, rows: vecRows }));
+// every franchise's history, with the players it mentions
+{
+  const used = new Set(), out = {};
+  for (const [fr, F] of Object.entries(FR)) {
+    const greats = Object.entries(F.greats).sort((a, b) => b[1].ws - a[1].ws).slice(0, 15).map(([id, g]) => { const i = ni(id); used.add(i); return [i, +g.ws.toFixed(1), g.s, g.y0, g.y1, g.as, g.gp ? +(g.pts / g.gp).toFixed(1) : null]; });
+    for (const s2 of F.seasons) for (const t of s2[7]) used.add(t[0]);
+    out[fr] = { seasons: F.seasons, greats };
+  }
+  writeFileSync(`${OUT}/franchises.json`, JSON.stringify({ updated: new Date().toISOString(), scols: ['year', 'team', 'name', 'w', 'l', 'srs', 'playoffs [last round, won it, series played]', 'top [player, ws, ppg, rpg, apg, split season]'], gcols: ['player', 'ws with team', 'seasons', 'first', 'last', 'all-star', 'ppg'], names: Object.fromEntries([...used].map(i => [i, names[i]])), teams: out }));
+  console.log('franchises', Object.entries(out).map(([k, f]) => `${k}:${f.seasons.length}`).join(' '));
+}
 // ESPN id -> Basketball-Reference id, small enough for a player page to load just to find his data
 writeFileSync(`${OUT}/ids.json`, JSON.stringify({ updated, espn: Object.fromEntries(Object.entries(espn).map(([br, e]) => [e, br])) }));
 const LC = ['year', 'age', 'team', 'pos', 'g', 'gs', 'mp', 'pts', 'trb', 'ast', 'stl', 'blk', 'tov', 'fgp', 'tpp', 'ftp', 'ts', 'per', 'ws', 'bpm', 'awards', 'champion', 'playoffs g/pts/trb/ast'];

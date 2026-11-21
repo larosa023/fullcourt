@@ -117,10 +117,28 @@ async function season(Y) {
 const players = new Map(); // espn id -> { n, y0, y1, gp }
 const bests = {};
 const keep = (b, k, v, info, n = 1) => { const L = (b[k] ||= []); L.push([v, ...info]); L.sort((x, y) => y[0] - x[0] || x[2] - y[2]); if (L.length > n) L.length = n; };
+// team records (2000-01 on), by ESPN team id: highest and lowest scores, most allowed, biggest wins and losses, longest
+// winning and losing runs (regular season, carried across seasons), and the best single games by its players
+const TR = {}; const tr = id => TR[id] ||= { hi: [], lo: [], al: [], bw: [], bl: [], run: { w: 0, l: 0, cur: 0, from: 0, bestW: null, bestL: null }, pg: { pts: [], reb: [], ast: [], tpm: [] }, cnt: {} };
+const top = (L, item, n, di = 2) => { L.push(item); L.sort((a, b) => b[0] - a[0] || a[di] - b[di]); if (L.length > n) L.length = n; }; // biggest first, then the earliest
 for (let Y = FIRST; Y <= LAST; Y++) {
   const S = await season(Y);
   const { games: G, players: P, r: R, teams } = S;
   const abbr = id => teams[id]?.[0] || '';
+  // team games, oldest first
+  {
+    const order = G.id.map((_, gi) => gi).sort((a, b) => G.d[a] - G.d[b] || G.id[a] - G.id[b]);
+    for (const gi of order) for (const side of [0, 1]) {
+      const t = side ? G.a[gi] : G.h[gi], o = side ? G.h[gi] : G.a[gi], f = side ? G.as[gi] : G.hs[gi], ag = side ? G.hs[gi] : G.as[gi], T = tr(t);
+      const g = [G.id[gi], G.d[gi], abbr(o), side ? '@' : 'vs', f, ag, G.ot[gi], G.st[gi]];
+      top(T.hi, [f, ...g], 3); top(T.lo, [-f, ...g], 3); top(T.al, [ag, ...g], 3); top(T.bw, [f - ag, ...g], 3); top(T.bl, [ag - f, ...g], 3);
+      if (G.st[gi] !== 2) continue;
+      const R0 = T.run, w = f > ag;
+      if (R0.cur && (R0.cur > 0) === w) R0.cur += w ? 1 : -1; else { R0.cur = w ? 1 : -1; R0.from = G.d[gi]; }
+      const n = Math.abs(R0.cur), k = w ? 'bestW' : 'bestL';
+      if (!R0[k] || n > R0[k][0]) R0[k] = [n, R0.from, G.d[gi]];
+    }
+  }
   // per player: lines in this season by team, for highs and for games missed
   const byP = new Map();
   for (let i = 0; i < R.g.length; i++) {
@@ -130,6 +148,10 @@ for (let Y = FIRST; Y <= LAST; Y++) {
     const b = (bests[pid] ||= { c: {} }), c = b.c;
     const pts = R.pts[i], reb = R.reb[i], ast = R.ast[i], stl = R.stl[i], blk = R.blk[i];
     const info = [G.id[gi], G.d[gi], abbr(oid), R.t[i] ? '@' : 'vs', G.st[gi]];
+    { const T = tr(tid), pg = [P.id[R.p[i]], P.n[R.p[i]], G.id[gi], G.d[gi], abbr(oid), R.t[i] ? '@' : 'vs'];
+      top(T.pg.pts, [pts, ...pg], 5, 4); top(T.pg.reb, [reb, ...pg], 3, 4); top(T.pg.ast, [ast, ...pg], 3, 4); top(T.pg.tpm, [R.tpm[i], ...pg], 3, 4);
+      const tens = [pts, reb, ast, stl, blk].filter(v => v >= 10).length, k = P.id[R.p[i]];
+      if (tens >= 3 || pts >= 40) { const c = (T.cnt[k] ||= { n: P.n[R.p[i]], td: 0, p40: 0 }); if (tens >= 3) c.td++; if (pts >= 40) c.p40++; } }
     keep(b, 'pts', pts, info, 3); keep(b, 'reb', reb, info); keep(b, 'ast', ast, info); keep(b, 'stl', stl, info); keep(b, 'blk', blk, info); keep(b, 'tpm', R.tpm[i], info);
     if (pts >= 30) c.p30 = (c.p30 || 0) + 1; if (pts >= 40) c.p40 = (c.p40 || 0) + 1; if (pts >= 50) c.p50 = (c.p50 || 0) + 1;
     const tens = [pts, reb, ast, stl, blk].filter(v => v >= 10).length;
@@ -166,6 +188,9 @@ for (let Y = FIRST; Y <= LAST; Y++) {
     }
   }
 }
+// team records: lowest scores were kept as negatives so one sort serves all
+for (const T of Object.values(TR)) { T.lo = T.lo.map(x => [-x[0], ...x.slice(1)]); const cs = Object.entries(T.cnt); T.td = cs.filter(c => c[1].td).sort((a, b) => b[1].td - a[1].td).slice(0, 3).map(([id, c]) => [+id, c.n, c.td]); T.p40 = cs.filter(c => c[1].p40).sort((a, b) => b[1].p40 - a[1].p40).slice(0, 3).map(([id, c]) => [+id, c.n, c.p40]); T.run = { w: T.run.bestW, l: T.run.bestL }; delete T.cnt; }
+writeFileSync(`${OUT}/teams.json`, JSON.stringify({ updated: new Date().toISOString(), first: FIRST, gcols: ['value', 'game id', 'date', 'opponent', 'at', 'scored', 'allowed', 'overtimes', 'season type'], pcols: ['value', 'player', 'name', 'game id', 'date', 'opponent', 'at'], teams: TR }));
 writeFileSync(`${OUT}/players.json`, JSON.stringify({ updated: new Date().toISOString(), first: FIRST, last: CUR, cols: ['id', 'name', 'y0', 'y1', 'gp'], players: [...players].map(([id, p]) => [+id, p.n, p.y0, p.y1, p.gp]) }));
 // split 20 ways by ESPN id so a player page loads a small piece: bests/<id % 20>.json
 mkdirSync(`${OUT}/bests`, { recursive: true });
