@@ -252,9 +252,9 @@ async function fillLineups(box, tid, evs, sheet) {
       <div class="lu-qf"><span>Total</span><b>${rtMS(tot)}</b></div>` : '<p class="lu-qn">No play-by-play for this game, so no quarter split.</p>'}`;
     if (!tip.isConnected) document.body.append(tip);
     tip.hidden = false;
-    const r = td.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    const r = zRect(td), w = tip.offsetWidth, h = tip.offsetHeight;
     let x = r.left + r.width / 2 - w / 2, y = r.top - h - 8;
-    x = Math.max(8, Math.min(innerWidth - w - 8, x)); if (y < 8) y = r.bottom + 8;
+    x = Math.max(8, Math.min(vw() - w - 8, x)); if (y < 8) y = r.bottom + 8;
     tip.style.left = `${Math.round(x)}px`; tip.style.top = `${Math.round(y)}px`;
     $$('.lu-c.on', box).forEach(c => c.classList.remove('on')); td.classList.add('on');
   };

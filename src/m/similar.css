@@ -42,3 +42,4 @@
 .sm-b i.dn::after { background: color-mix(in oklab, var(--ink) 40%, transparent); }
 .sm-b i.na { opacity: .4; } .sm-b i.na::after { display: none; }
 @media (max-width: 600px) { .sm-sel { max-width: 200px; } .sm-hf { width: 64px; height: 64px; } .sm-z tbody th { white-space: normal; font-size: 12px; } }
+.sm-share { width: 34px; height: 34px; flex: none; order: 3; margin-left: auto; }

@@ -259,3 +259,158 @@ async function shareSlate(games, dayLabel, dayDate) {
   K.foot();
   return { canvas: K.c, name: `slate-${LGK}-${dayDate.replace(/[^\w]+/g, '-').toLowerCase()}.png`, title: `${LG} slate · ${dayDate}` };
 }
+
+/* ---------------- shared drawing helpers for the newer cards ---------------- */
+// text broken into lines that fit a width (at most `max` lines, the last one cut with …)
+function wrapLines(x, t, f, width, max = 3) {
+  x.font = f; const words = String(t).split(/\s+/), out = []; let line = '';
+  for (const w of words) { const tryL = line ? line + ' ' + w : w; if (x.measureText(tryL).width <= width) line = tryL; else { if (line) out.push(line); line = w; } }
+  if (line) out.push(line);
+  if (out.length > max) { out.length = max; let l = out[max - 1]; while (l.length > 3 && x.measureText(l + '…').width > width) l = l.slice(0, -1); out[max - 1] = l.trimEnd() + '…'; }
+  return out;
+}
+// a round photo (ESPN headshots are wider than tall: crop to the face), or initials when there's none
+async function faceAt(K, espn, name, cx, cy, r) {
+  const { x, C } = K, im = espn ? await loadImg(headSrc(espn, 300)) : null;
+  x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.closePath(); x.fillStyle = C.line; x.fill(); x.clip();
+  if (im) { const h = r * 2 * 1.05, w = h * im.width / im.height; x.drawImage(im, cx - w / 2, cy - r * 1.02, w, h); }
+  else { const ini = String(name || '').split(/\s+/).map(s => s[0] || '').join('').slice(0, 2).toUpperCase(); K.text(ini, cx, cy + r * .32, K.font(800, Math.round(r * .9)), C.muted, 'center'); }
+  x.restore();
+}
+const slugOf = s => String(s || 'fullcourt').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/* ---------------- Game finder results ----------------
+   D = { head, count, noun, title, leaders: [[name, espn, n]], rows: [{ name, espn, big, line, when }] } */
+async function shareFinder(D) {
+  const rows = D.rows.slice(0, 6), ROW = 112;
+  const K0 = await canvasKit(10); const titleL = wrapLines(K0.x, D.title, K0.font(700, 40, 'body'), 936, 3);
+  const top = 300 + titleL.length * 52 + (D.leaders?.length ? 110 : 0), H = top + rows.length * ROW + 160;
+  const K = await canvasKit(H); const { x, C, font, text, fit } = K;
+  text((D.head || 'Game finder').toUpperCase(), 72, 110, font(600, 28, 'mono'), C.accent);
+  text(D.count.toLocaleString(), 72, 250, font(800, 150), C.ink);
+  x.font = font(800, 150); const cw = x.measureText(D.count.toLocaleString()).width;
+  text((D.noun || 'games').toUpperCase(), 72 + cw + 22, 250, font(700, 40, 'mono'), C.muted);
+  titleL.forEach((l, i) => text(l, 72, 318 + i * 52, font(700, 40, 'body'), C.ink));
+  let y = 300 + titleL.length * 52;
+  if (D.leaders?.length) {
+    text('MOST', 72, y + 66, font(600, 22, 'mono'), C.muted);
+    let lx = 160;
+    for (const [n, e, c] of D.leaders.slice(0, 3)) {
+      await faceAt(K, e, n, lx + 26, y + 58, 26);
+      const lab = `${n.split(' ').slice(-1)[0]} ${c}`; x.font = font(700, 30, 'body'); const w = x.measureText(lab).width;
+      text(lab, lx + 62, y + 69, font(700, 30, 'body'), C.ink); lx += 62 + w + 34; if (lx > 960) break;
+    }
+    y += 110;
+  }
+  for (const [i, r] of rows.entries()) {
+    const ry = y + i * ROW;
+    x.fillStyle = C.surface; roundRect(x, 72, ry, 936, ROW - 14, 22); x.fill();
+    const mid = ry + (ROW - 14) / 2;
+    if (r.espn !== undefined) await faceAt(K, r.espn, r.name, 124, mid, 34);
+    const lx = r.espn !== undefined ? 176 : 100;
+    text(fit(r.name, font(800, 40), 560), lx, mid - 4, font(800, 40), C.ink);
+    text(fit(`${r.when}`, font(500, 21, 'mono'), 600), lx, mid + 30, font(500, 21, 'mono'), C.muted);
+    text(r.big, 980, mid + 6, font(800, 52), C.accent, 'right');
+    if (r.line) text(fit(r.line, font(500, 19, 'mono'), 300), 980, mid + 34, font(500, 19, 'mono'), C.muted, 'right');
+  }
+  K.foot();
+  return { canvas: K.c, name: `${slugOf(D.title).slice(0, 60)}.png`, title: D.title };
+}
+
+/* ---------------- career timeline ----------------
+   D = { name, espn, abbr, teamId, years, teams, tiles: [[big, label]], stat, seasons: [{ y, v, as, mvp, ch }] } */
+async function shareTimeline(D) {
+  const K = await canvasKit(1080); const { x, C, font, text, fit } = K;
+  const tc = visibleColor(teamColor(D.teamId || D.abbr), C.surface);
+  x.fillStyle = C.surface; roundRect(x, 72, 72, 936, 380, 32); x.fill();
+  x.save(); roundRect(x, 72, 72, 936, 380, 32); x.clip();
+  const g = x.createLinearGradient(72, 72, 1008, 452); g.addColorStop(0, tc); g.addColorStop(1, C.surface); x.globalAlpha = .55; x.fillStyle = g; x.fillRect(72, 72, 936, 380); x.globalAlpha = 1;
+  const head = D.espn ? await loadImg(headSrc(D.espn, 700)) : null;
+  if (head) { const h = 360, w = h * head.width / head.height; x.drawImage(head, 1008 - w + 30, 452 - h, w, h); }
+  x.restore();
+  text('CAREER TIMELINE', 112, 136, font(600, 26, 'mono'), C.ink);
+  const parts = D.name.split(' '), first = parts[0].toUpperCase(), last = parts.slice(1).join(' ').toUpperCase() || ' ';
+  const npx = Math.min(K.size(first, 800, null, 96, 50, 520), K.size(last, 800, null, 96, 50, 520));
+  text(fit(first, font(800, npx), 520), 112, 240, font(800, npx), C.ink);
+  text(fit(last, font(800, npx), 520), 112, 240 + npx * .95, font(800, npx), C.ink);
+  text(fit(`${D.years} · ${D.teams}`, font(500, 22, 'mono'), 520), 112, 420, font(500, 22, 'mono'), C.ink);
+  // tiles
+  const tiles = D.tiles.slice(0, 4), tw = (936 - (tiles.length - 1) * 12) / tiles.length;
+  tiles.forEach(([b, l], i) => {
+    const tx = 72 + i * (tw + 12);
+    x.fillStyle = C.surface; roundRect(x, tx, 480, tw, 120, 20); x.fill();
+    text(String(b), tx + 22, 548, font(800, K.size(String(b), 800, null, 60, 30, tw - 40)), C.ink);
+    text(fit(l.toUpperCase(), font(500, 18, 'mono'), tw - 40), tx + 22, 582, font(500, 18, 'mono'), C.muted);
+  });
+  // chart
+  const S = D.seasons, cx0 = 112, cx1 = 968, cy0 = 660, cy1 = 900, max = Math.max(1, ...S.map(s => s.v || 0)) * 1.12;
+  text(`${D.stat} BY SEASON`, 72, 642, font(600, 22, 'mono'), C.accent);
+  const px = i => S.length === 1 ? (cx0 + cx1) / 2 : cx0 + i * (cx1 - cx0) / (S.length - 1), py = v => cy1 - (cy1 - cy0) * (v / max);
+  x.strokeStyle = C.line; x.lineWidth = 2; x.beginPath(); x.moveTo(cx0 - 20, cy1); x.lineTo(cx1 + 20, cy1); x.stroke();
+  x.strokeStyle = C.accent; x.lineWidth = 5; x.lineJoin = 'round'; x.beginPath(); S.forEach((s, i) => { if (s.v == null) return; const X = px(i), Y = py(s.v); i ? x.lineTo(X, Y) : x.moveTo(X, Y); }); x.stroke();
+  S.forEach((s, i) => {
+    if (s.v == null) return; const X = px(i), Y = py(s.v);
+    if (s.ch) { x.strokeStyle = '#E2B23A'; x.lineWidth = 3; x.beginPath(); x.arc(X, Y, 15, 0, Math.PI * 2); x.stroke(); }
+    x.fillStyle = s.as ? C.accent : C.bg; x.strokeStyle = C.accent; x.lineWidth = 3; x.beginPath(); x.arc(X, Y, s.as ? 9 : 7, 0, Math.PI * 2); x.fill(); x.stroke();
+    if (s.mvp) text('★', X, Y - 22, font(800, 30, 'body'), '#E2B23A', 'center');
+    if (S.length <= 12 || i % Math.ceil(S.length / 10) === 0 || i === S.length - 1) text(`'${String(s.y).slice(2)}`, X, cy1 + 30, font(500, 18, 'mono'), C.muted, 'center');
+  });
+  text('● All-Star  ★ MVP  ◯ Title', 1008, 642, font(500, 18, 'body'), C.muted, 'right');
+  K.foot();
+  return { canvas: K.c, name: `${slugOf(D.name)}-career.png`, title: `${D.name}: career timeline` };
+}
+
+/* ---------------- franchise history ----------------
+   D = { name, abbr, teamId, since, record, tiles: [[big, label]], bars: [{ y, pct, k }], greats: [[name, espn, ws, years]] } */
+async function shareFranchise(D) {
+  const greats = D.greats.slice(0, 5), H = 760 + greats.length * 92 + 140;
+  const K = await canvasKit(H); const { x, C, font, text, fit } = K;
+  const lg = await loadImg(logoSrc(D.abbr, 300)); if (lg) x.drawImage(lg, 72, 72, 150, 150);
+  text('FRANCHISE HISTORY', 250, 112, font(600, 26, 'mono'), C.accent);
+  text(fit(D.name.toUpperCase(), font(800, 72), 760), 250, 186, font(800, 72), C.ink);
+  text(`SINCE ${D.since}`, 250, 222, font(500, 22, 'mono'), C.muted);
+  const tiles = D.tiles.slice(0, 4), tw = (936 - (tiles.length - 1) * 12) / tiles.length;
+  tiles.forEach(([b, l], i) => { const tx = 72 + i * (tw + 12); x.fillStyle = C.surface; roundRect(x, tx, 262, tw, 120, 20); x.fill(); text(String(b), tx + 22, 330, font(800, K.size(String(b), 800, null, 60, 28, tw - 40)), i === 1 && +b ? '#E2B23A' : C.ink); text(fit(l.toUpperCase(), font(500, 18, 'mono'), tw - 40), tx + 22, 364, font(500, 18, 'mono'), C.muted); });
+  // bars
+  const B = D.bars, bx0 = 72, bx1 = 1008, by0 = 430, by1 = 680, bw = (bx1 - bx0) / B.length;
+  const col = k => k === 'champ' ? '#E2B23A' : k === 'finals' ? C.accent : k === 'po' ? C.muted : C.line;
+  B.forEach((b, i) => { const h = (by1 - by0) * b.pct; x.fillStyle = col(b.k); x.fillRect(bx0 + i * bw + 1, by1 - h, Math.max(1.5, bw - 2), h); });
+  x.strokeStyle = C.muted; x.setLineDash([6, 6]); x.lineWidth = 1.5; x.beginPath(); x.moveTo(bx0, by1 - (by1 - by0) * .5); x.lineTo(bx1, by1 - (by1 - by0) * .5); x.stroke(); x.setLineDash([]);
+  B.forEach((b, i) => { if (b.y % 10 === 0) text(String(b.y), bx0 + i * bw + bw / 2, by1 + 30, font(500, 17, 'mono'), C.muted, 'center'); });
+  { let lx = 1008; for (const [lab, k] of [['Missed', 'out'], ['Playoffs', 'po'], ['Finals', 'finals'], ['Title', 'champ']]) { x.font = font(500, 18, 'body'); const w = x.measureText(lab).width; text(lab, lx, 412, font(500, 18, 'body'), C.muted, 'right'); x.fillStyle = col(k); x.fillRect(lx - w - 20, 398, 14, 14); lx -= w + 40; } }
+  // greats
+  text('FRANCHISE GREATS', 72, 760, font(600, 22, 'mono'), C.accent);
+  for (const [i, [n, e, ws, yrs]] of greats.entries()) {
+    const ry = 784 + i * 92;
+    x.fillStyle = C.surface; roundRect(x, 72, ry, 936, 80, 18); x.fill();
+    text(String(i + 1), 104, ry + 52, font(800, 34), C.muted, 'center');
+    await faceAt(K, e, n, 166, ry + 40, 28);
+    text(fit(n, font(800, 38), 520), 212, ry + 48, font(800, 38), C.ink);
+    text(yrs, 212, ry + 72, font(500, 17, 'mono'), C.muted);
+    text(`${ws} WS`, 980, ry + 52, font(800, 38), C.ink, 'right');
+  }
+  K.foot();
+  return { canvas: K.c, name: `${slugOf(D.name)}-history.png`, title: `${D.name}: franchise history` };
+}
+
+/* ---------------- similar players ----------------
+   D = { name, espn, what, matches: [{ name, espn, when, line, score }] } */
+async function shareSimilar(D) {
+  const M = D.matches.slice(0, 6), H = 340 + M.length * 112 + 150;
+  const K = await canvasKit(H); const { x, C, font, text, fit } = K;
+  text('SIMILAR PLAYERS', 72, 110, font(600, 28, 'mono'), C.accent);
+  await faceAt(K, D.espn, D.name, 150, 220, 78);
+  text('MOST LIKE', 256, 190, font(600, 24, 'mono'), C.muted);
+  text(fit(D.name.toUpperCase(), font(800, 72), 740), 256, 260, font(800, 72), C.ink);
+  text(fit(D.what, font(500, 22, 'mono'), 740), 256, 296, font(500, 22, 'mono'), C.muted);
+  for (const [i, m] of M.entries()) {
+    const ry = 340 + i * 112, mid = ry + 49;
+    x.fillStyle = C.surface; roundRect(x, 72, ry, 936, 98, 22); x.fill();
+    await faceAt(K, m.espn, m.name, 130, mid, 34);
+    text(fit(m.name, font(800, 40), 600), 182, mid - 4, font(800, 40), C.ink);
+    text(fit(`${m.when} · ${m.line}`, font(500, 19, 'mono'), 640), 182, mid + 28, font(500, 19, 'mono'), C.muted);
+    text(String(m.score), 986, mid + 16, font(800, 56), C.accent, 'right');
+  }
+  K.foot();
+  return { canvas: K.c, name: `${slugOf(D.name)}-similar.png`, title: `Players most like ${D.name}` };
+}

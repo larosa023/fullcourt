@@ -100,3 +100,6 @@
 .gf-mr { color: var(--ink); }
 .gf-ms .gf-po { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--accent); }
 @media (max-width: 600px) { .gf-lead { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; } .gf-lp { flex: none; } }
+.gf-share { width: 34px; height: 34px; margin-left: auto; }
+.gf-share + .gf-sort { margin-left: 0; }
+@media (max-width: 600px) { .gf-share { margin-left: auto; } }

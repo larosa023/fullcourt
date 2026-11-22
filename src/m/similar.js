@@ -77,6 +77,7 @@ async function fillSimilar(car, id) {
     box.innerHTML = `<div class="sm-wrap">
       <div class="sm-ctl">
         <label class="sm-pick"><span>Compare</span><select class="sm-sel" data-smpick aria-label="Which of his seasons"><option value="career"${pick === 'career' ? ' selected' : ''}>His whole career</option>${mine.slice().reverse().map(r => `<option value="${r.y}"${String(r.y) === pick ? ' selected' : ''}>${smYear(r.y)} · ${esc(r.tm)} · ${r.ppg?.toFixed(1)} pts</option>`).join('')}</select></label>
+        <button class="icon-btn sm-share" data-smshare aria-label="${smShareLabel()}" title="${smShareLabel()}">${SHARE_ICON}</button>
         <div class="seg sm" data-smera><span class="knob"></span><button data-smera="all" aria-pressed="${era === 'all'}">All eras</button><button data-smera="1980" aria-pressed="${era !== 'all'}">Since 1980</button></div>
       </div>
       <div class="sm-me"><b>${esc(name)}</b><span>${when(target)}</span><span>${line(target)}</span></div>
@@ -89,6 +90,10 @@ async function fillSimilar(car, id) {
   };
   box.addEventListener('click', e => {
     const er = e.target.closest('button[data-smera]'); if (er) { e.stopPropagation(); era = er.dataset.smera; lsSet('fc-sim-era', era === 'all' ? null : era); draw(); return; }
+    const sh = e.target.closest('[data-smshare]');
+    if (sh) { e.stopPropagation(); const L = box._list || [], t = box._target, wh = c => pick === 'career' ? `${smYear(c.y)} to ${smYear(c.y1)}` : `${smYear(c.y)} · ${c.tm}`;
+      runShare(() => lazy('share').then(m => m.shareSimilar({ name, espn: id, what: pick === 'career' ? `Whole career · ${wh(t)}${era !== 'all' ? ' · since 1980' : ''}` : `${wh(t)} season${era !== 'all' ? ' · since 1980' : ''}`,
+        matches: L.slice(0, 6).map(({ c, d }) => { const n = D.names[c.p]; return { name: n[1], espn: n[2], when: wh(c), line: `${c.ppg?.toFixed(1)} PTS · ${c.rpg?.toFixed(1)} REB · ${c.apg?.toFixed(1)} AST`, score: smScore(d) }; }) })), sh); return; }
     const r = e.target.closest('[data-smi]'); if (r) { e.stopPropagation(); const x = box._list[+r.dataset.smi]; smSide(D, me, box._target, x.c, x.d, pick === 'career', name); }
   });
   box.addEventListener('change', e => { if (e.target.matches('[data-smpick]')) { pick = e.target.value; lsSet('fc-sim-pick', pick === 'career' ? null : 'season'); draw(); } });
@@ -117,3 +122,5 @@ function smSide(D, me, a, b, d, career, myName) {
     <div class="btn-row">${na[2] ? `<button class="btn ghost" data-player="${na[2]}">${esc(na[1])}'s page</button>` : ''}${nb[2] ? `<button class="btn" data-player="${nb[2]}">${esc(nb[1])}'s page</button>` : ''}</div>
   </div>`;
 }
+
+const smShareLabel = () => (!isTouch && navigator.clipboard?.write && 'ClipboardItem' in window) ? 'Copy as image' : 'Share as image';

@@ -127,7 +127,8 @@ async function fillTimeline(car, id) {
         ${c.p40 || c.td ? `<div><b>${c.p40 || 0}</b><small>40-point games${c.p50 ? ` (${c.p50} of 50+)` : ''}${c.td ? ` · ${c.td} triple-double${c.td === 1 ? '' : 's'}` : ''}<em>since 2000-01</em></small></div>` : ''}
       </div>
       <div class="tl-ctl"><div class="seg sm" data-tlstat><span class="knob"></span>${STATS.map(([k, l]) => `<button data-tlstat="${k}" aria-pressed="${stat === k}">${l}</button>`).join('')}</div>
-        <span class="tl-key"><i class="as"></i>All-Star <i class="mvp">★</i>MVP <i class="ring"></i>Title</span></div>
+        <span class="tl-key"><i class="as"></i>All-Star <i class="mvp">★</i>MVP <i class="ring"></i>Title</span>
+        <button class="icon-btn tl-share" data-tlshare aria-label="${tlShareLabel()}" title="${tlShareLabel()}">${SHARE_ICON}</button></div>
       <div class="tl-chart drag-x" data-drag><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(name)}, ${STATS.find(x => x[0] === stat)[1]} by season" style="min-width:${Math.max(520, S.length * 30)}px">${grid}<path d="${path}" class="tl-line"/>${dots}${yrs}${bands}${tlabels}</svg></div>
       <ol class="tl-list">${ys2.map(y => { const s = S.find(x => x.year === y);
         return `<li><div class="tl-when"><b>${tlYear(y)}</b>${s ? `<small>${esc(s.team)} · age ${s.age}</small><small>${s.pts ?? '–'} / ${s.trb ?? '–'} / ${s.ast ?? '–'}</small>` : ''}</div>
@@ -137,6 +138,14 @@ async function fillTimeline(car, id) {
     $$('.seg', box).forEach(placeKnob);
     wireDrag(box);
   };
+  box.addEventListener('click', e => {
+    const sh = e.target.closest('[data-tlshare]'); if (!sh) return; e.stopPropagation();
+    const lab = STATS.find(x => x[0] === stat)[1], now = S.at(-1), tm = String(now.team).split('/').at(-1);
+    const tiles = [[S.length, `season${S.length === 1 ? '' : 's'}`], [car3('pts'), 'career PPG'], ...(stars ? [[stars, 'All-Star']] : []), ...(mvps ? [[mvps, `MVP${mvps === 1 ? '' : 's'}`]] : []), ...(rings ? [[rings, `title${rings === 1 ? '' : 's'}`]] : []), [car3('trb'), 'career RPG'], [car3('ast'), 'career APG']].slice(0, 4);
+    runShare(() => lazy('share').then(m => m.shareTimeline({ name, espn: id, abbr: tlEspn(tm), years: S.length > 1 ? `${tlYear(S[0].year)} to ${tlYear(now.year)}` : tlYear(now.year), teams: uniq.join(', '), tiles, stat: lab, seasons: S.map(x => ({ y: x.year, v: x[stat], as: aw(x).includes('AS'), mvp: won(x, 'MVP'), ch: !!x.ch })) })), sh);
+  });
   box.addEventListener('click', e => { const b = e.target.closest('button[data-tlstat]'); if (!b) return; e.stopPropagation(); stat = b.dataset.tlstat; lsSet('fc-tl-stat', stat === 'pts' ? null : stat); draw(); });
   draw();
 }
+
+const tlShareLabel = () => (!isTouch && navigator.clipboard?.write && 'ClipboardItem' in window) ? 'Copy as image' : 'Share as image';

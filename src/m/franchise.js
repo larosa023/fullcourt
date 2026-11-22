@@ -61,7 +61,7 @@ async function fillFranchise(box, abbr, teamId) {
       ['Most 40-point games', T.p40?.[0] ? `<div class="fh-rg"><b>${T.p40[0][2]}</b><span>${esc(T.p40[0][1])}</span><small>${T.p40.slice(1).map(x => `${esc(x[1])} ${x[2]}`).join(' · ')}</small></div>` : ''],
       ['Most triple-doubles', T.td?.[0] ? `<div class="fh-rg"><b>${T.td[0][2]}</b><span>${esc(T.td[0][1])}</span><small>${T.td.slice(1).map(x => `${esc(x[1])} ${x[2]}`).join(' · ')}</small></div>` : ''],
     ].filter(x => x[1]) : [];
-    box.innerHTML = `<div class="card-h"><h4>Franchise history</h4><span class="eyebrow">Since ${fhYear(S[0][0])}</span></div>
+    box.innerHTML = `<div class="card-h"><h4>Franchise history</h4><span class="eyebrow">Since ${fhYear(S[0][0])}</span><button class="icon-btn fh-share" data-fhshare aria-label="${fhShareLabel()}" title="${fhShareLabel()}">${SHARE_ICON}</button></div>
       <div class="fh">
         <div class="fh-sum">
           <div><b>${W.toLocaleString()}-${Lo.toLocaleString()}</b><small>all-time record · ${W + Lo ? (W / (W + Lo) * 100).toFixed(1) : '–'}%</small></div>
@@ -85,7 +85,17 @@ async function fillFranchise(box, abbr, teamId) {
     wireDrag(box);
     const ch = $('.fh-chart', box); if (ch) ch.scrollLeft = ch.scrollWidth;
   };
-  box.addEventListener('click', e => { if (e.target.closest('[data-fhall]')) { e.stopPropagation(); showAll = !showAll; draw(); } });
+  box.addEventListener('click', e => {
+    if (e.target.closest('[data-fhall]')) { e.stopPropagation(); showAll = !showAll; draw(); return; }
+    const sh = e.target.closest('[data-fhshare]'); if (!sh) return; e.stopPropagation();
+    const pct = W + Lo ? (W / (W + Lo) * 100).toFixed(1) + '%' : '–';
+    runShare(() => lazy('share').then(m => m.shareFranchise({ name: S.at(-1)[2], abbr, teamId, since: fhYear(S[0][0]),
+      tiles: [[`${W.toLocaleString()}-${Lo.toLocaleString()}`, `all-time · ${pct}`], [titles.length, `title${titles.length === 1 ? '' : 's'}`], [finals, 'Finals'], [po, 'playoff seasons']],
+      bars: S.map(s => { const g = s[3] + s[4]; return { y: s[0], pct: g ? s[3] / g : 0, k: fhResult(s, cur)[0] }; }),
+      greats: F.greats.slice(0, 5).map(g => { const n = who(g[0]); return [n[1], n[2], g[1].toFixed(1), `${fhYear(g[3])} to ${fhYear(g[4])}`]; }) })), sh);
+  });
   box.hidden = false;
   draw();
 }
+
+const fhShareLabel = () => (!isTouch && navigator.clipboard?.write && 'ClipboardItem' in window) ? 'Copy as image' : 'Share as image';

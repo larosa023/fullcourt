@@ -64,7 +64,7 @@ const HS = { tab: HS0, sort: 'pts', day: null, season: null, rec: 'pts', era: 'a
 async function renderHistory() {
   const root = $('#histBody'); if (!root) return;
   if (!root._wired) { root._wired = true; wireHistory(root); }
-  root.innerHTML = `<div class="seg hy-seg" id="histSeg"><span class="knob"></span>${[['day', 'On this day'], ['seasons', 'Seasons'], ['records', 'Records'], ['legends', 'Legends'], ['finder', 'Game finder']].map(([k, t]) => `<button data-htab="${k}" aria-pressed="${HS.tab === k}">${t}</button>`).join('')}</div><div id="histPane"><div class="sk" style="height:420px;border-radius:16px"></div></div>`;
+  root.innerHTML = `<div class="seg hy-seg" id="histSeg"><span class="knob"></span>${[['day', 'On this day'], ['seasons', 'Seasons'], ['records', 'Records'], ['legends', 'Legends'], ['finder', 'Game finder'], ['map', 'Map']].map(([k, t]) => `<button data-htab="${k}" aria-pressed="${HS.tab === k}">${t}</button>`).join('')}</div><div id="histPane"><div class="sk" style="height:420px;border-radius:16px"></div></div>`;
   // on a phone the tabs scroll sideways: bring the open one into view
   requestAnimationFrame(() => { const sg = $('#histSeg'); placeKnob(sg); const on = sg?.querySelector('[aria-pressed="true"]'); if (sg && on && sg.scrollWidth > sg.clientWidth) sg.scrollLeft = Math.max(0, on.offsetLeft - 24); });
   if (LGK !== 'nba' && LGK !== 'wnba') { $('#histPane').innerHTML = `<div class="empty"><b>History covers the NBA and WNBA</b><span>Pick a league to see its past games, seasons, records and legends.</span><button class="btn" data-lg="wnba">WNBA history</button><button class="btn" data-lg="nba">Switch to NBA</button></div>`; return; }
@@ -73,6 +73,7 @@ async function renderHistory() {
     if (HS.tab === 'day') await histDay(pane);
     else if (HS.tab === 'seasons') await histSeasons(pane);
     else if (HS.tab === 'records') await histRecords(pane);
+    else if (HS.tab === 'map') { if (LGK !== 'nba') { pane.innerHTML = '<div class="empty"><b>The map covers the NBA</b><span>Where every NBA player was born and went to college. Switch to the NBA to see it.</span><button class="btn" data-lg="nba">Switch to NBA</button></div>'; return; } await lazy('origins').then(m => m.histMap(pane)); }
     else if (HS.tab === 'finder') { if (LGK !== 'nba') { pane.innerHTML = '<div class="empty"><b>The Game finder covers the NBA</b><span>Every NBA game since 2000-01. Switch to the NBA to use it.</span><button class="btn" data-lg="nba">Switch to NBA</button></div>'; return; } await lazy('finder').then(m => m.histFinder(pane)); }
     else await histLegends(pane);
   } catch (e) { if (pane.isConnected) pane.innerHTML = `<div class="empty"><b>History didn't load</b><button class="btn" data-hretry>Try again</button></div>`; }

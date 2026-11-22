@@ -1701,3 +1701,20 @@ html.mt4 .mast .today-btn { display: none !important; }
 .pl-hero .pl-team:hover, .pl-hero .pl-team:focus-visible { background: rgb(255 255 255 / .14); text-decoration: underline; text-underline-offset: 3px; }
 .pl-hero .pl-dlink { color: inherit; font: inherit; padding: 1px 4px; margin: -1px -4px; border-radius: 6px; text-align: left; text-decoration: underline; text-decoration-color: rgb(255 255 255 / .35); text-underline-offset: 3px; transition: background .15s; }
 .pl-hero .pl-dlink:hover, .pl-hero .pl-dlink:focus-visible { background: rgb(255 255 255 / .14); text-decoration-color: currentColor; }
+
+/* ================= accessibility (Settings > Accessibility) ================= */
+/* color-blind friendly: blue for wins/gains/overs, amber for losses/drops (the pair most kinds of color blindness tell apart) */
+:root.a11y-cb.a11y-cb.a11y-cb { --win: #1D5FB8; --loss: #9A5800; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]).a11y-cb.a11y-cb.a11y-cb { --win: #6AAEFF; --loss: #F2AA3C; } }
+:root[data-theme="dark"].a11y-cb.a11y-cb.a11y-cb { --win: #6AAEFF; --loss: #F2AA3C; }
+/* larger text: the whole page scales (browsers and the Windows app); iPhone and iPad scale the text instead */
+html.a11y-t1 { zoom: 1.1; }
+html.a11y-t2 { zoom: 1.22; }
+@supports (-webkit-touch-callout: none) { html.a11y-t1 { zoom: 1; -webkit-text-size-adjust: 115%; text-size-adjust: 115%; } html.a11y-t2 { zoom: 1; -webkit-text-size-adjust: 130%; text-size-adjust: 130%; } }
+/* reduce motion */
+html.a11y-motion *, html.a11y-motion *::before, html.a11y-motion *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) { html *, html *::before, html *::after { scroll-behavior: auto !important; } }
+/* high contrast: secondary text and borders much closer to the main text color, and clear focus outlines */
+:root.a11y-hc.a11y-hc.a11y-hc { --muted: color-mix(in oklab, var(--ink) 84%, var(--bg)); --ink-2: color-mix(in oklab, var(--ink) 94%, var(--bg)); --line: color-mix(in oklab, var(--ink) 38%, var(--bg)); }
+html.a11y-hc :focus-visible { outline: 3px solid var(--accent) !important; outline-offset: 2px !important; }
+html.a11y-hc .card, html.a11y-hc .game { border-color: color-mix(in oklab, var(--ink) 30%, var(--bg)) !important; }

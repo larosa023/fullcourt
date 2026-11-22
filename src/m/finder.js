@@ -105,7 +105,7 @@ async function gfRun() {
   const bar = (done, n, y0) => { if (my === gfRun.n && out.isConnected) out.innerHTML = `<div class="gf-load"><span>Loading ${n === 1 ? gfYearLabel(y0) : `seasons ${done} of ${n}`}</span><div class="gf-bar"><i style="width:${Math.round(done / n * 100)}%"></i></div></div>`; };
   const r = await gfSearch(GF, bar);
   if (my !== gfRun.n) return;
-  gfLast = { ...r, kind: GF.kind, pid: r.pid };
+  gfLast = { ...r, kind: GF.kind, pid: r.pid, q: { ...GF } };
   GF.n = GF_SHOW;
   gfDraw();
 }
@@ -202,6 +202,7 @@ function gfDraw() {
   }).join('');
   const sortOpts = [['date', 'Newest first'], ...(kind === 'p' ? GF_PSTATS : GF_TSTATS).map(([k, l]) => [k, `Most ${l.toLowerCase()}`])];
   out.innerHTML = `<div class="gf-sum"><b>${res.length.toLocaleString()}</b><span>game${res.length === 1 ? '' : 's'}${GF.team || pid ? ` · ${wins}-${res.length - wins}` : ''}</span>
+      <button class="icon-btn gf-share" data-gfshare aria-label="${shareLabel()}" title="${shareLabel()}">${SHARE_ICON}</button>
       <label class="gf-sort">Sort <select class="bd-sel" data-gfsort>${sortOpts.map(([k, l]) => `<option value="${k}"${k === sk ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
     ${failed ? `<p class="gf-hint">${failed} season${failed === 1 ? '' : 's'} didn't load, so a few games may be missing.</p>` : ''}
     ${leaders}
@@ -222,6 +223,7 @@ function gfWire(pane) {
     const d = t.closest('[data-gfdel]'); if (d) { GF.conds.splice(+d.dataset.gfdel, 1); redraw(); return; }
     const a = t.closest('[data-gfadd]'); if (a) { const f = a.dataset.gfadd; if (f) { if (!GF.conds.some(c => c[0] === f)) GF.conds.push([f, 'yes', 1]); } else GF.conds.push([GF.kind === 'p' ? 'reb' : 'mg', '>=', GF.kind === 'p' ? 10 : 20]); redraw(); return; }
     if (t.closest('[data-gfgo]')) { gfSave(); gfRun(); return; }
+    const sh = t.closest('[data-gfshare]'); if (sh && gfLast) { e.stopPropagation(); runShare(() => lazy('share').then(m => m.shareFinder(gfShareData())), sh); return; }
     if (t.closest('[data-gfmore]')) { GF.n += GF_SHOW * 2; gfDraw(); return; }
     if (t.closest('[data-gfpclr]')) { GF.pid = ''; GF.pname = ''; redraw(); return; }
     const s = t.closest('[data-gfsug]'); if (s) { GF.pid = s.dataset.gfsug; GF.pname = s.dataset.name; redraw(); return; }
@@ -275,21 +277,28 @@ async function gfFindPlayer(words) {
   }
   return best ? { id: String(best.p[0]), name: best.p[1], sc: best.sc } : null;
 }
-async function gfAnswer(cfg) {
-  const Q = { ...GF0(), ...cfg };
-  const r = await gfSearch(Q);
+// a one-line description of a search and its result ("100 games with 40+ points by New York Knicks players since 2000-01")
+function gfDescribe(Q, r, leaders = true) {
   const { res } = r, span = Q.from && Q.from > r.first ? `${Q.from === Q.to ? `in ${gfYearLabel(Q.from)}` : `from ${gfYearLabel(Q.from)} to ${gfYearLabel(Q.to || r.last)}`}` : 'since 2000-01';
   const tn = id => GF_TNAME[+id] || '', opp = (Q.opp ? ` against the ${tn(Q.opp).split(' ').slice(-1)[0]}` : '') + (Q.type === 'post' ? ' in the playoffs' : Q.type === 'reg' ? ' in the regular season' : '') + (Q.loc === 'home' ? ' at home' : Q.loc === 'away' ? ' on the road' : '') + (Q.res === 'W' ? ' in wins' : Q.res === 'L' ? ' in losses' : '');
   const what = Q.conds.map(([k, op, v]) => k === 'td' ? 'a triple-double' : k === 'dd' ? 'a double-double' : k === 'mg' && op === '>=' ? `a win by ${v}+` : k === 'mg' && op === '<=' && v < 0 ? `a loss by ${-v}+` : `${op === '<=' ? 'at most ' : op === '=' ? 'exactly ' : ''}${v}${op === '>=' ? '+' : ''} ${({ pts: 'points', reb: 'rebounds', ast: 'assists', stl: 'steals', blk: 'blocks', tpm: 'threes', tpa: '3-point tries', fgm: 'field goals', ftm: 'free throws', oreb: 'offensive rebounds', tov: 'turnovers', min: 'minutes', pm: 'plus-minus', pra: 'points + rebounds + assists', stocks: 'steals + blocks', tp: 'points', op: 'points allowed', mg: 'point margin', tot: 'combined points', ot: 'overtimes', fgp: '% shooting' })[k] || k}`).join(' and ');
-  const n = res.length, abbr = (S, id) => S.teams[id]?.[0] || '';
+  const n = res.length;
   let text;
-  if (Q.kind === 't') text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} ${Q.team ? `by the ${esc(tn(Q.team))} ` : ''}with ${esc(what) || 'those filters'}${opp} ${span}.`;
-  else if (Q.pid) text = `${esc(Q.pname)} has ${n ? n.toLocaleString() : 'no'} game${n === 1 ? '' : 's'} with ${esc(what)}${opp} ${span}${n && Q.team ? ` for the ${esc(tn(Q.team))}` : ''}.`;
+  if (Q.kind === 't') text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} ${Q.team ? `by the ${(tn(Q.team))} ` : ''}with ${(what) || 'those filters'}${opp} ${span}.`;
+  else if (Q.pid) text = `${(Q.pname)} has ${n ? n.toLocaleString() : 'no'} game${n === 1 ? '' : 's'} with ${(what)}${opp} ${span}${n && Q.team ? ` for the ${(tn(Q.team))}` : ''}.`;
   else {
     const by = new Map(); for (const x of res) { const id = x.S.players.id[x.S.r.p[x.r]]; const e = by.get(id) || by.set(id, { n: 0, name: x.S.players.n[x.S.r.p[x.r]] }).get(id); e.n++; }
     const top = [...by.values()].sort((a, b) => b.n - a.n).slice(0, 3);
-    text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} with ${esc(what)}${Q.team ? ` by ${esc(tn(Q.team))} players` : ''}${opp} ${span}.${top.length && n > 1 ? ` Most: ${top.map(t => `${esc(t.name)} (${t.n})`).join(', ')}.` : ''}`;
+    text = `${n ? n.toLocaleString() : 'No'} game${n === 1 ? '' : 's'} with ${(what)}${Q.team ? ` by ${(tn(Q.team))} players` : ''}${opp} ${span}.${leaders && top.length && n > 1 ? ` Most: ${top.map(t => `${(t.name)} (${t.n})`).join(', ')}.` : ''}`;
   }
+  return text;
+}
+
+async function gfAnswer(cfg) {
+  const Q = { ...GF0(), ...cfg };
+  const r = await gfSearch(Q);
+  const { res } = r, n = res.length, abbr = (S, id) => S.teams[id]?.[0] || '';
+  const text = esc(gfDescribe(Q, r));
   const rows = res.slice(0, 5).map(x => {
     const { S, gi, side, o } = x, G = S.games, tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi], when = `${gfDate(G.d[gi])} · ${side ? '@' : 'vs'} ${esc(abbr(S, o))} · ${tp > op ? 'W' : 'L'} ${tp}-${op}${G.ot[gi] ? ` ${G.ot[gi] > 1 ? G.ot[gi] : ''}OT` : ''}`;
     if (Q.kind === 't') return `<button class="gfa-r" data-game="${G.id[gi]}"><b>${esc(abbr(S, x.t))}</b><span>${when}</span></button>`;
@@ -298,4 +307,22 @@ async function gfAnswer(cfg) {
   }).join('');
   const open = esc(JSON.stringify({ kind: Q.kind, pid: Q.pid || '', pname: Q.pname || '', team: Q.team || '', opp: Q.opp || '', from: Q.from || 0, to: Q.to || 0, type: Q.type, loc: Q.loc, res: Q.res, conds: Q.conds }));
   return { text, html: `${rows ? `<div class="gfa">${rows}</div>` : ''}<button class="btn sm" data-gfopen="${open}">${n > 5 ? `See all ${n.toLocaleString()} in the Game finder` : 'Open in the Game finder'}</button>`, src: 'ESPN box scores' };
+}
+
+// the share image: the count, the search in words, who has the most, and the top six games
+const shareLabel = () => (!isTouch && navigator.clipboard?.write && 'ClipboardItem' in window) ? 'Copy as image' : 'Share as image';
+function gfShareData() {
+  const { res, q, kind, pid } = gfLast, abbr = (S, id) => S.teams[id]?.[0] || '';
+  let leaders = [];
+  if (kind === 'p' && !pid) { const by = new Map(); for (const x of res) { const id = x.S.players.id[x.S.r.p[x.r]]; const e = by.get(id) || by.set(id, { n: 0, name: x.S.players.n[x.S.r.p[x.r]] }).get(id); e.n++; } leaders = [...by].sort((a, b) => b[1].n - a[1].n).slice(0, 3).map(([id, e]) => [e.name, String(id), e.n]); }
+  const hot = (q.conds.find(c => c[0] !== 'td' && c[0] !== 'dd') || [])[0];
+  const rows = res.slice(0, 6).map(x => {
+    const { S, gi, side, o } = x, G = S.games, tp = side ? G.as[gi] : G.hs[gi], op = side ? G.hs[gi] : G.as[gi];
+    const when = `${gfDate(G.d[gi])} · ${side ? '@' : 'vs'} ${abbr(S, o)} · ${tp > op ? 'W' : 'L'} ${tp}-${op}${G.ot[gi] ? ` ${G.ot[gi] > 1 ? G.ot[gi] : ''}OT` : ''}`;
+    if (kind === 't') return { name: abbr(S, x.t), big: `${tp}-${op}`, line: `${tp - op > 0 ? '+' : ''}${tp - op}`, when };
+    const R = S.r, r = x.r, id = S.players.id[R.p[r]], lab = { pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: '3PM', tov: 'TO', min: 'MIN' }[hot] || 'PTS', key = lab === 'PTS' ? 'pts' : hot;
+    const others = ['pts', 'reb', 'ast'].filter(k => k !== key).map(k => `${R[k][r]} ${k.toUpperCase()}`).join(' · ');
+    return { name: S.players.n[R.p[r]], espn: String(id), big: `${R[key]?.[r] ?? R.pts[r]} ${lab}`, line: others, when };
+  });
+  return { head: 'Game finder', count: res.length, noun: res.length === 1 ? 'game' : 'games', title: gfDescribe(q, gfLast, false).replace(/^[\d,]+ games? (\w)/, (_, c) => c.toUpperCase()), leaders, rows };
 }

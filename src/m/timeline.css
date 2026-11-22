@@ -45,3 +45,5 @@
   .tl-when { grid-auto-flow: column; justify-content: start; align-items: baseline; gap: 10px; }
   .tl-k { min-width: 58px; }
 }
+.tl-share { width: 34px; height: 34px; flex: none; }
+@media (max-width: 600px) { .tl-share { margin-left: auto; } }

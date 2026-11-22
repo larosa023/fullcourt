@@ -57,6 +57,7 @@
   try { const t = localStorage.getItem('fc-theme'), k = localStorage.getItem('fc-skin'); if (t) document.documentElement.dataset.theme = t; if (k) document.documentElement.dataset.skin = k; } catch (e) {}
   // settings: parts you've switched off stay hidden from the first paint
   try { const p = JSON.parse(localStorage.getItem('fc-prefs') || '{}'); Object.keys(p).forEach(k => { if (p[k] === false) document.documentElement.classList.add('no-' + k); }); } catch (e) {}
+  try { const a = JSON.parse(localStorage.getItem('fc-a11y') || '{}'), c = document.documentElement.classList; if (a.cb) c.add('a11y-cb'); if (a.hc) c.add('a11y-hc'); if (a.motion) c.add('a11y-motion'); if (a.text) c.add('a11y-t' + a.text); } catch (e) {}
   try { const l = localStorage.getItem('fc-league'); document.documentElement.dataset.league = ['wnba', 'ncaaw', 'ncaam'].includes(l) ? l : 'nba'; } catch (e) { document.documentElement.dataset.league = 'nba'; }
   // a favourite team chip is coming: hold its space from the first paint so the buttons beside it don't hop when it appears
   try { const l = document.documentElement.dataset.league; if (localStorage.getItem(l === 'nba' ? 'fc-fav' : 'fc-fav-' + l)) document.documentElement.classList.add('has-fav'); } catch (e) {}
@@ -233,7 +234,7 @@
   </section>
 
   <section class="view" id="v-history" aria-label="History: past seasons, records and legends">
-    <div class="eyebrow">On this day · seasons · records · legends · game finder</div>
+    <div class="eyebrow">On this day · seasons · records · legends · game finder · map</div>
     <h1 class="h-display page-title">History</h1>
     <div id="histBody"></div>
   </section>

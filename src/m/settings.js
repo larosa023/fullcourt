@@ -83,6 +83,28 @@ function alertsSection() {
     ${on ? '<button class="set-row" data-pushtest><span><b>Send a test alert</b><small>Check that alerts reach this device</small></span><em class="set-val">Send</em></button>' : ''}
   </div><p class="set-note">${note}</p></section>`;
 }
+// Accessibility: colors that work with color blindness, larger text, less motion, stronger contrast. Saved as fc-a11y
+// and applied as classes on the page (shell.html sets them before the page draws, so nothing flashes)
+const readA11y = () => { try { return JSON.parse(localStorage.getItem('fc-a11y') || '{}') || {}; } catch (e) { return {}; } };
+const TEXT_SIZES = [[0, 'Normal'], [1, 'Larger'], [2, 'Largest']];
+function setA11y(k, v) {
+  const a = readA11y(); if (v) a[k] = v; else delete a[k];
+  lsSet('fc-a11y', Object.keys(a).length ? JSON.stringify(a) : null);
+  const c = document.documentElement.classList;
+  c.toggle('a11y-cb', !!a.cb); c.toggle('a11y-hc', !!a.hc); c.toggle('a11y-motion', !!a.motion);
+  c.remove('a11y-t1', 'a11y-t2'); if (a.text) c.add('a11y-t' + a.text);
+  requestAnimationFrame(() => { $$(".seg").forEach(placeKnob); dispatchEvent(new Event("resize")); });
+}
+function a11ySection() {
+  const a = readA11y(), sw = (k, t, d) => `<button class="set-row" role="switch" aria-checked="${!!a[k]}" data-a11y="${k}"><span><b>${t}</b><small>${d}</small></span><i class="sw"><i></i></i></button>`;
+  const osMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return `<section><h3 class="set-h">Accessibility</h3><div class="set-list">
+    ${sw('cb', 'Color-blind friendly colors', 'Wins, gains and overs in blue, losses and drops in amber, instead of green and red')}
+    <div class="set-row a11y-txt"><span><b>Text size</b><small>Makes everything on the site bigger</small></span><div class="seg sm" data-a11ytext><span class="knob"></span>${TEXT_SIZES.map(([v, l]) => `<button data-a11ytext="${v}" aria-pressed="${(a.text || 0) === v}">${l}</button>`).join('')}</div></div>
+    ${sw('motion', 'Reduce motion', osMotion ? 'Your device already asks for less motion, so the site keeps animations to a minimum. This turns off the rest' : 'Turns off animations, sliding panels and the scrolling score ticker')}
+    ${sw('hc', 'High contrast', 'Brighter secondary text, stronger borders and clearer focus outlines')}
+  </div></section>`;
+}
 function openSettings() {
   const sheet = openSheet('Settings');
   const draw = () => {
@@ -95,6 +117,7 @@ function openSettings() {
       <section><h3 class="set-h">Appearance</h3><div class="set-list">
         <button class="set-row" data-settheme><span><b>Theme</b><small>Colors for the whole site</small></span><em class="set-val">${esc((THEMES.find(t => t[0] === themeId()) || THEMES[0])[1])}</em></button>
       </div></section>
+      ${a11ySection()}
       ${alertsSection()}
       ${IS_APP ? `<section><h3 class="set-h">Windows app</h3><div class="set-list">
         <button class="set-row" role="switch" aria-checked="${lsGet('fc-app-tray') !== '0'}" data-apptray><span><b>Keep running in the tray</b><small>Closing the window keeps Fullcourt by the clock so bet alerts keep coming. Right-click the tray icon to quit</small></span><i class="sw"><i></i></i></button>
@@ -177,6 +200,10 @@ function openSettings() {
     if (hm) { const [col, k, d] = hm.dataset.hmove.split(':'), o = homeOrder(), l = o[col], i = l.indexOf(k), j = i + +d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; lsSet('fc-home', JSON.stringify(o)); applyHome(); draw(); return; }
     const r = e.target.closest('[data-pref]');
     if (r) { const on = r.getAttribute('aria-checked') !== 'true'; setPref(r.dataset.pref, on); r.setAttribute('aria-checked', on); r.closest('.hm-row')?.classList.toggle('off', !on); return; }
+    const ax = e.target.closest('[data-a11y]');
+    if (ax) { const on = ax.getAttribute('aria-checked') !== 'true'; ax.setAttribute('aria-checked', on); setA11y(ax.dataset.a11y, on ? 1 : 0); return; }
+    const at = e.target.closest('button[data-a11ytext]');
+    if (at) { setA11y('text', +at.dataset.a11ytext); $$('[data-a11ytext] button, button[data-a11ytext]', sheet.body).forEach(b => b.setAttribute('aria-pressed', b === at)); requestAnimationFrame(() => placeKnob(at.parentElement)); return; }
     const st = e.target.closest('[data-settheme]');
     if (st) { openThemeMenu(st); const t = setInterval(() => { if (!$('.theme-menu')) { clearInterval(t); if (sheet.alive) draw(); } }, 300); return; }
     if (e.target.closest('[data-dexport]')) { toast(await saveDataFile()); return; }

@@ -380,6 +380,13 @@ function applyTheme(id, origin) {
   document.startViewTransition(go).ready.then(() => document.documentElement.animate({ clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] }, { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
 }
 // a small menu under the theme button
+
+/* larger text (Settings > Accessibility) zooms the whole page; an element's on-screen position then has to be divided by
+   the zoom before it's used to place a pop-up, which is zoomed too */
+const pageZoom = () => { const z = parseFloat(getComputedStyle(document.documentElement).zoom); return z > 0 ? z : 1; };
+const zRect = el => { const r = el.getBoundingClientRect(), z = pageZoom(); return z === 1 ? r : { left: r.left / z, right: r.right / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z, height: r.height / z }; };
+const vw = () => innerWidth / pageZoom(), vh = () => innerHeight / pageZoom();
+
 function openThemeMenu(btn) {
   const old = $('.theme-menu'); if (old) { old.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
   const cur = themeId();
@@ -387,9 +394,9 @@ function openThemeMenu(btn) {
   menu.className = 'theme-menu'; menu.setAttribute('role', 'menu');
   menu.innerHTML = `<div class="tm-h">Theme</div>${THEMES.map(([id, name, mode, , sw]) => `<button role="menuitemradio" aria-checked="${id === cur}" data-themeid="${id}"><i class="tm-sw" style="--a:${sw[0]};--b:${sw[1]}"></i><span>${esc(name)}</span><small>${mode ? (mode === 'dark' ? 'Dark' : 'Light') : 'Auto'}</small><svg class="tm-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button>`).join('')}`;
   document.body.append(menu);
-  const r = btn.getBoundingClientRect();
+  const r = zRect(btn);
   menu.style.top = Math.round(r.bottom + 8) + 'px';
-  menu.style.right = Math.max(8, Math.round(innerWidth - r.right)) + 'px';
+  menu.style.right = Math.max(8, Math.round(vw() - r.right)) + 'px';
   btn.setAttribute('aria-expanded', 'true');
   requestAnimationFrame(() => menu.classList.add('on'));
   const close = () => { menu.classList.remove('on'); btn.setAttribute('aria-expanded', 'false'); setTimeout(() => menu.remove(), 160); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc_); removeEventListener('resize', close); };
@@ -491,7 +498,7 @@ document.addEventListener('change', e => { if (e.target.matches?.('[data-cscope]
 function navMenu(open) {
   const m = $('#navMenu'), b = $('#nav [data-navmore]'); if (!m || !b) return;
   if (open == null) open = m.hidden;
-  if (open) { const r = b.getBoundingClientRect(); m.style.left = `${Math.round(Math.min(r.left, innerWidth - 250))}px`; m.style.top = `${Math.round(r.bottom + 8)}px`; }
+  if (open) { const r = zRect(b); m.style.left = `${Math.round(Math.min(r.left, vw() - 250))}px`; m.style.top = `${Math.round(r.bottom + 8)}px`; }
   m.hidden = !open; b.setAttribute('aria-expanded', open);
   if (open) setTimeout(() => $('button', m)?.focus({ preventScroll: true }), 30);
 }
@@ -2313,12 +2320,12 @@ function renderTicker() {
     s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
   };
   const place = sel => {
-    const r = sel.getBoundingClientRect(), below = innerHeight - r.bottom - 12, above = r.top - 12, up = below < 240 && above > below;
+    const r = zRect(sel), H = vh(), W = vw(), below = H - r.bottom - 12, above = r.top - 12, up = below < 240 && above > below;
     pop.style.minWidth = `${Math.max(180, r.width)}px`;
     pop.style.maxHeight = `${Math.min(380, up ? above : below)}px`;
-    const w = pop.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left));
+    const w = pop.offsetWidth, x = Math.max(8, Math.min(W - w - 8, r.left));
     pop.style.left = `${Math.round(x)}px`; pop.style.top = pop.style.bottom = '';
-    if (up) pop.style.bottom = `${Math.round(innerHeight - r.top + 6)}px`; else pop.style.top = `${Math.round(r.bottom + 6)}px`;
+    if (up) pop.style.bottom = `${Math.round(H - r.top + 6)}px`; else pop.style.top = `${Math.round(r.bottom + 6)}px`;
     pop.classList.toggle('up', up);
   };
   let uid = 0;
@@ -2847,7 +2854,7 @@ function saveImage({ blob, name }) {
   toast('Image saved to your downloads');
 }
 
-const NEWS_LATEST = '2026-11-21a'; // must match the first entry in m/news.js
+const NEWS_LATEST = '2026-11-21b'; // must match the first entry in m/news.js
 const NEWS_KEY = 'fc-news-seen';
 function markNews() { $$('.news-dot').forEach(d => { d.hidden = lsGet(NEWS_KEY) === NEWS_LATEST; }); }
 
@@ -4311,7 +4318,7 @@ function fitMast() {
   const m = $('.mast-in'), root = document.documentElement, steps = ['mt1', 'mt2', 'mt3', 'mt4'];
   if (!m) return;
   root.classList.remove(...steps);
-  if (innerWidth <= 760) return;
+  if (innerWidth <= 760 && pageZoom() === 1) return; // phones fit by layout, unless larger text zooms the page
   const over = () => { const r = m.getBoundingClientRect(), edge = r.right - (parseFloat(getComputedStyle(m).paddingRight) || 0); return Math.max(...[...m.children].filter(e => e.offsetParent).map(e => e.getBoundingClientRect().right)) - edge > 0.5; };
   for (const c of steps) { if (!over()) break; root.classList.add(c); }
 }

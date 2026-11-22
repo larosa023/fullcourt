@@ -38,6 +38,7 @@ const DATA = [
   { name: 'Mock Draft', file: 'draft-data/draft.json', maxH: 30, ok: d => (d.nba?.prospects?.length || 0) > 30 && (d.nba?.order?.length || 0) >= 30 },
   { name: 'Nicknames', file: 'nick-data/nicknames.json', maxH: 30, ok: d => Object.keys(d.players || {}).length > 200 },
   { name: 'Game logs (Game finder)', file: 'gamelog-data/players.json', maxH: 30, ok: d => (d.players?.length || 0) > 2000 },
+  { name: 'Birthplaces and colleges (History map)', file: 'origins-data/origins.json', maxH: 8 * 24 + 6, ok: d => (d.players?.length || 0) > 4000 },
   { name: 'Franchise histories', file: 'careers-data/franchises.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.teams || {}).length === 30 },
   { name: 'Team records', file: 'gamelog-data/teams.json', maxH: 30, ok: d => Object.keys(d.teams || {}).length >= 30 },
   { name: 'Careers (timeline, similar players)', file: 'careers-data/vec.json', maxH: 8 * 24 + 6, ok: d => (d.rows?.length || 0) > 15000 && (d.names?.length || 0) > 4000 },
