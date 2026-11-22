@@ -55,26 +55,30 @@ const LINEAGE = { ATL: ['ATL', 'STL', 'MLH', 'TRI'], BOS: ['BOS'], BKN: ['BRK', 
 const FR_OF = {}; for (const [fr, abs] of Object.entries(LINEAGE)) for (const ab of abs) FR_OF[ab] = fr;
 const idx = await get(`${RAW}/era-data/index.json`, true); if (!idx?.players?.length) throw new Error('era index missing');
 const IC = Object.fromEntries(idx.cols.map((k, i) => [k, i]));
-const teams = {};
+const teams = {}, played = {};
 for (let y = idx.first; y <= idx.last; y++) {
   const S = await get(`${RAW}/era-data/seasons/${y}.json`, true).catch(() => null); if (!S?.reg) continue;
   const ti = S.cols.indexOf('tm'), ii = S.cols.indexOf('id');
-  for (const r of S.reg) for (const t of String(r[ti] || '').split('/')) { const fr = FR_OF[t]; if (fr) (teams[r[ii]] ||= new Set()).add(fr); }
+  for (const r of S.reg) for (const t of String(r[ti] || '').split('/')) { const fr = FR_OF[t]; if (fr) (teams[r[ii]] ||= new Set()).add(fr); if (t && t !== 'TOT') (played[r[ii]] ||= new Set()).add(t); }
 }
 const ids = await get(`${RAW}/careers-data/ids.json`, true).catch(() => null);
 const espnOf = {}; for (const [e, br] of Object.entries(ids?.espn || {})) espnOf[br] = e;
 for (const p of idx.players) if (p[IC.espn] && !espnOf[p[IC.id]]) espnOf[p[IC.id]] = String(p[IC.espn]);
+// ESPN names some schools differently from Basketball-Reference's draft pages: use one name per school
+const ESPN_COLLEGE = { 'North Carolina': 'UNC', Pittsburgh: 'Pitt', UTEP: 'Texas-El Paso', Miami: 'Miami (FL)', 'Miami University': 'Miami (OH)', Connecticut: 'UConn', Mississippi: 'Ole Miss',
+  'Southern California': 'USC', 'Louisiana State': 'LSU', "Saint John's": "St. John's", 'Brigham Young': 'BYU', 'Nevada-Las Vegas': 'UNLV', 'Virginia Commonwealth': 'VCU', 'Central Florida': 'UCF', 'Southern Methodist': 'SMU',
+  'Massachusetts': 'UMass', 'California': 'Cal', 'Texas Christian': 'TCU', 'Mississippi Valley State University': 'Mississippi Valley State' };
 // undrafted players since 2000-01 still without a college: ESPN's player record
 {
   const left = idx.players.filter(p => p[IC.y1] >= 2001 && !college[p[IC.id]] && espnOf[p[IC.id]]);
   let n = 0;
   for (const p of left) {
     const a = (await get(`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/${espnOf[p[IC.id]]}`, true).catch(() => null))?.athlete;
-    if (a?.college?.name) { college[p[IC.id]] = a.college.name; n++; }
+    if (a?.college?.name) { college[p[IC.id]] = ESPN_COLLEGE[a.college.name] || a.college.name; n++; }
     await sleep(150);
   }
   console.log('ESPN colleges', n, 'of', left.length);
 }
-const players = idx.players.map(p => { const id = p[IC.id]; return [id, p[IC.name], espnOf[id] || '', p[IC.y0], p[IC.y1], p[IC.score] ?? 0, place[id] || '', college[id] || '', [...(teams[id] || [])].join(',')]; });
-writeFileSync(OUT, JSON.stringify({ updated: new Date().toISOString(), cols: ['id', 'name', 'espn', 'first', 'last', 'score', 'born', 'college', 'teams'], places, players }));
+const players = idx.players.map(p => { const id = p[IC.id]; return [id, p[IC.name], espnOf[id] || '', p[IC.y0], p[IC.y1], p[IC.score] ?? 0, place[id] || '', college[id] || '', [...(teams[id] || [])].join(','), [...(played[id] || [])].join(',')]; });
+writeFileSync(OUT, JSON.stringify({ updated: new Date().toISOString(), cols: ['id', 'name', 'espn', 'first', 'last', 'score', 'born', 'college', 'teams', 'played'], places, players }));
 console.log('players', players.length, 'with a birthplace', players.filter(p => p[6]).length, 'with a college', players.filter(p => p[7]).length);
