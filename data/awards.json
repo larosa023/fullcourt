@@ -1,21 +1,21 @@
 {
   "season": "2026-27",
-  "updated": "2026-11-16",
+  "updated": "2026-11-23",
   "note": "Media rankings gathered from sportsbook odds, prediction markets and the NBA.com Kia MVP and Rookie ladders. Odds and market prices become an implied chance; ladder ranks become a share of the vote. Each source counts the same.",
   "races": {
     "mvp": [
-      { "name": "Kia MVP Ladder", "via": "NBA.com", "url": "https://www.nba.com/news/kia-mvp-ladder-nov-13-2026", "date": "2026-11-13", "kind": "points",
-        "list": [["Luka Doncic", 15], ["Victor Wembanyama", 14], ["Jayson Tatum", 13], ["Shai Gilgeous-Alexander", 12], ["Stephen Curry", 11], ["Tyrese Maxey", 10], ["Nikola Jokic", 9], ["Cooper Flagg", 8], ["Alperen Sengun", 7], ["Cade Cunningham", 6], ["Giannis Antetokounmpo", 5], ["Deni Avdija", 4], ["Karl-Anthony Towns", 3], ["Jamal Murray", 2], ["Ty Jerome", 1]] },
-      { "name": "DraftKings odds", "via": "VegasInsider", "url": "https://www.vegasinsider.com/nba/odds/mvp/", "date": "2026-11-15", "kind": "odds",
-        "list": [["Victor Wembanyama", 120], ["Luka Doncic", 135], ["Jayson Tatum", 1300], ["Shai Gilgeous-Alexander", 1600], ["Nikola Jokic", 2500], ["Cade Cunningham", 4500], ["Giannis Antetokounmpo", 4500], ["Tyrese Maxey", 7500], ["Jalen Brunson", 15000], ["Cooper Flagg", 15000]] },
-      { "name": "FanDuel odds", "via": "VegasInsider", "url": "https://www.vegasinsider.com/nba/odds/mvp/", "date": "2026-11-15", "kind": "odds",
-        "list": [["Victor Wembanyama", 110], ["Luka Doncic", 140], ["Jayson Tatum", 1500], ["Shai Gilgeous-Alexander", 1500], ["Nikola Jokic", 2500], ["Cade Cunningham", 4000], ["Giannis Antetokounmpo", 6000], ["Tyrese Maxey", 10000], ["Jalen Brunson", 20000], ["Cooper Flagg", 20000]] },
-      { "name": "Kalshi market", "via": "Kalshi", "url": "https://kalshi.com/nba/mvp-odds", "date": "2026-11-15", "kind": "odds",
-        "list": [["Victor Wembanyama", 122], ["Luka Doncic", 170], ["Shai Gilgeous-Alexander", 1567], ["Jayson Tatum", 2400], ["Nikola Jokic", 3233], ["Cade Cunningham", 4900], ["Cooper Flagg", 4900], ["Giannis Antetokounmpo", 4900], ["Tyrese Maxey", 4900]] }
+      { "name": "Kia MVP Ladder", "via": "NBA.com", "url": "https://www.nba.com/news/kia-mvp-ladder-nov-20-2026", "date": "2026-11-20", "kind": "points",
+        "list": [["Luka Doncic", 15], ["Victor Wembanyama", 14], ["Giannis Antetokounmpo", 13], ["Jayson Tatum", 12], ["Nikola Jokic", 11], ["Alperen Sengun", 10], ["Tyrese Maxey", 9], ["Shai Gilgeous-Alexander", 8], ["Cade Cunningham", 7], ["Karl-Anthony Towns", 6], ["Cooper Flagg", 5], ["Stephen Curry", 4], ["Deni Avdija", 3], ["Jamal Murray", 2], ["Jalen Brunson", 1]] },
+      { "name": "DraftKings odds", "via": "VegasInsider", "url": "https://www.vegasinsider.com/nba/odds/mvp/", "date": "2026-11-22", "kind": "odds",
+        "list": [["Victor Wembanyama", -105], ["Luka Doncic", 135], ["Jayson Tatum", 1800], ["Shai Gilgeous-Alexander", 1800], ["Nikola Jokic", 2800], ["Cade Cunningham", 4500], ["Giannis Antetokounmpo", 5000], ["Tyrese Maxey", 10000], ["Cooper Flagg", 15000]] },
+      { "name": "FanDuel odds", "via": "VegasInsider", "url": "https://www.vegasinsider.com/nba/odds/mvp/", "date": "2026-11-22", "kind": "odds",
+        "list": [["Victor Wembanyama", -110], ["Luka Doncic", 140], ["Jayson Tatum", 2000], ["Shai Gilgeous-Alexander", 2000], ["Nikola Jokic", 2500], ["Cade Cunningham", 4000], ["Giannis Antetokounmpo", 4000], ["Tyrese Maxey", 15000], ["Cooper Flagg", 30000]] },
+      { "name": "Kalshi market", "via": "Kalshi", "url": "https://kalshi.com/nba/mvp-odds", "date": "2026-11-23", "kind": "odds",
+        "list": [["Victor Wembanyama", -127], ["Luka Doncic", 245], ["Shai Gilgeous-Alexander", 1900], ["Giannis Antetokounmpo", 2400], ["Jayson Tatum", 2400], ["Nikola Jokic", 2400], ["Cade Cunningham", 4900], ["Tyrese Maxey", 4900], ["Alperen Sengun", 9900], ["Amen Thompson", 9900]] }
     ],
     "roy": [
-      { "name": "Kia Rookie Ladder", "via": "NBA.com", "url": "https://www.nba.com/news/kia-rookie-ladder-november-11-2026", "date": "2026-11-11", "kind": "points",
-        "list": [["Yaxel Lendeborg", 10], ["Darius Acuff Jr.", 9], ["Cameron Boozer", 8], ["Darryn Peterson", 7], ["AJ Dybantsa", 6], ["Caleb Wilson", 5], ["Aday Mara", 4], ["Mikel Brown Jr.", 3], ["Kingston Flemings", 2], ["Meleek Thomas", 1]] },
+      { "name": "Kia Rookie Ladder", "via": "NBA.com", "url": "https://www.nba.com/news/kia-rookie-ladder-november-18-2026", "date": "2026-11-18", "kind": "points",
+        "list": [["Yaxel Lendeborg", 10], ["Cameron Boozer", 9], ["Darius Acuff Jr.", 8], ["Darryn Peterson", 7], ["AJ Dybantsa", 6], ["Caleb Wilson", 5], ["Aday Mara", 4], ["Keaton Wagler", 3], ["Meleek Thomas", 2], ["Brayden Burries", 1]] },
       { "name": "DraftKings odds", "via": "ESPN", "url": "https://www.espn.com/espn/betting/story/_/id/50453889/nba-awards-watch-mvp-rookie-year-2026-2027", "date": "2026-11-11", "kind": "odds",
         "list": [["Yaxel Lendeborg", 190], ["Cameron Boozer", 220], ["Darius Acuff Jr.", 340], ["AJ Dybantsa", 750], ["Caleb Wilson", 900], ["Darryn Peterson", 1600], ["Keaton Wagler", 8000], ["Kingston Flemings", 10000]] },
       { "name": "Sportsbook odds", "via": "CBS Sports", "url": "https://www.cbssports.com/nba/news/nba-rookie-of-the-year-race-yaxel-lendeborg-cameron-boozer-darryn-peterson-aj-dybantsa/", "date": "2026-11-13", "kind": "odds",
