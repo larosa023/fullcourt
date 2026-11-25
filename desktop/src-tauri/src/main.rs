@@ -1,12 +1,15 @@
 // no console window behind the app in release builds
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alert_engine;
+mod alerts;
+
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 // Where each window sits is written to disk shortly after it's moved or resized, and when it goes to the tray, so the
@@ -45,11 +48,15 @@ fn save_soon(app: &AppHandle) {
     });
 }
 
-// closing the main window hides it to the tray (on by default; Settings can turn it off)
+// closing the main window sends Fullcourt to the tray (on by default; Settings can turn it off). The window really
+// closes, so its web view (most of the app's memory) is freed; alerts.rs keeps the alerts going meanwhile, and
+// show_main builds the window again when it's opened.
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 
 // a game to open that came in on the command line (`--league nba --game 401…`, e.g. from Isle)
 static LAUNCH: Mutex<Option<(String, String)>> = Mutex::new(None);
+// a page to go to (`#bets` from the tray menu) once a main window that's being built again has loaded
+static NAV: Mutex<Option<String>> = Mutex::new(None);
 
 /// Reads `--league <lg> --game <id>` from command-line arguments. Both must be short and alphanumeric.
 fn game_args(args: &[String]) -> Option<(String, String)> {
@@ -71,11 +78,23 @@ fn game_args(args: &[String]) -> Option<(String, String)> {
     game.filter(|g| ok(g) && ok(&league)).map(|g| (league, g))
 }
 
-/// The page asks once at startup whether it was opened to show a particular game.
+/// The page asks once at startup whether it was opened to show a particular game, or a particular page.
 #[tauri::command]
 fn launch_target() -> Option<serde_json::Value> {
-    let (league, game) = LAUNCH.lock().ok()?.take()?;
-    Some(serde_json::json!({ "league": league, "game": game }))
+    if let Some((league, game)) = LAUNCH.lock().ok()?.take() {
+        return Some(serde_json::json!({ "league": league, "game": game }));
+    }
+    let nav = NAV.lock().ok()?.take()?;
+    Some(serde_json::json!({ "nav": nav }))
+}
+
+/// The page's alert choices (the same ones it gives the phone-alert service), for the alerts sent while the window
+/// is closed to the tray.
+#[tauri::command]
+fn set_alert_prefs(app: AppHandle, prefs: serde_json::Value) {
+    if let Some(a) = app.try_state::<Arc<alerts::Alerts>>() {
+        a.set_prefs(prefs.to_string());
+    }
 }
 
 fn err<E: std::fmt::Display>(e: E) -> String {
@@ -141,12 +160,49 @@ async fn install_update(app: tauri::AppHandle, url: String, sha256: Option<Strin
     }
 }
 
-fn show_main(app: &AppHandle) {
+/// Brings the main window up, building it again if it was closed to the tray. Returns true when it was already there
+/// (so events can go to it straight away; a new one picks up LAUNCH and NAV through launch_target once it loads).
+fn show_main(app: &AppHandle) -> bool {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+        return true;
     }
+    if let Some(a) = app.try_state::<Arc<alerts::Alerts>>() {
+        a.set_tray(false); // the page sends its own alerts again
+    }
+    // off the event loop: building a window from inside an event or a synchronous command deadlocks on Windows
+    let a = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if a.get_webview_window("main").is_some() {
+            return; // two clicks in a row: the first one is already building it
+        }
+        let Some(cfg) = a.config().app.windows.iter().find(|w| w.label == "main").cloned() else { return };
+        // made hidden (tauri.conf.json); the window-state plugin moves it back where it was, then it's shown
+        if let Ok(w) = WebviewWindowBuilder::from_config(&a, &cfg).and_then(|b| b.build()) {
+            show_after_restore(w);
+        }
+    });
+    false
+}
+
+/// The first time the window goes to the tray, say where Fullcourt went (a marker file remembers it was said).
+fn tray_hint(app: &AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
+    let Ok(dir) = app.path().app_config_dir() else { return };
+    let mark = dir.join("tray-hint-shown");
+    if mark.exists() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(&mark, b"1");
+    let _ = app
+        .notification()
+        .builder()
+        .title("Fullcourt is still running")
+        .body("It's in the tray by the clock, keeping your alerts on. Right-click it to quit. You can turn this off in Settings.")
+        .show();
 }
 
 /// The mini scoreboard: a small always-on-top window with today's games and tracked bets.
@@ -197,7 +253,7 @@ async fn open_mini(app: AppHandle) {
 
 #[tauri::command]
 fn focus_main(app: AppHandle) {
-    show_main(&app);
+    let _ = show_main(&app);
 }
 
 #[tauri::command]
@@ -231,15 +287,22 @@ fn main() {
     tauri::Builder::default()
         // opening Fullcourt again focuses the window that's already open (and opens a game if one was passed)
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            show_main(app);
-            if let Some((league, game)) = game_args(&args) {
-                let _ = app.emit_to("main", "fc-open", serde_json::json!({ "league": league, "game": game }));
+            let game = game_args(&args);
+            if game.is_some() && app.get_webview_window("main").is_none() {
+                if let Ok(mut l) = LAUNCH.lock() {
+                    *l = game.clone(); // the window being built asks for it once it loads
+                }
+            }
+            if show_main(app) {
+                if let Some((league, game)) = game {
+                    let _ = app.emit_to("main", "fc-open", serde_json::json!({ "league": league, "game": game }));
+                }
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().with_state_flags(keep_flags()).build()) // remembers size, position, monitor
         .plugin(tauri_plugin_opener::init()) // outside links open in the normal browser
         .plugin(tauri_plugin_notification::init()) // alerts as Windows notifications
-        .invoke_handler(tauri::generate_handler![install_update, open_mini, focus_main, set_mini_on_top, set_close_to_tray, save_export, launch_target])
+        .invoke_handler(tauri::generate_handler![install_update, open_mini, focus_main, set_mini_on_top, set_close_to_tray, save_export, launch_target, set_alert_prefs])
         .setup(|app| {
             // tray icon: click to open, right-click for the menu
             let open = MenuItem::with_id(app, "open", "Open Fullcourt", true, None::<&str>)?;
@@ -253,28 +316,37 @@ fn main() {
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, e| match e.id.as_ref() {
-                    "open" => show_main(app),
+                    "open" => {
+                        let _ = show_main(app);
+                    }
                     "mini" => {
                         // off the event loop, for the same reason as open_mini
                         let a = app.clone();
                         tauri::async_runtime::spawn(async move { open_mini_window(&a) });
                     }
                     "bets" => {
-                        show_main(app);
-                        let _ = app.emit_to("main", "fc-nav", "#bets");
+                        if app.get_webview_window("main").is_none() {
+                            if let Ok(mut n) = NAV.lock() {
+                                *n = Some("#bets".into());
+                            }
+                        }
+                        if show_main(app) {
+                            let _ = app.emit_to("main", "fc-nav", "#bets");
+                        }
                     }
                     "quit" => app.exit(0),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, e| {
                     if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
-                        show_main(tray.app_handle());
+                        let _ = show_main(tray.app_handle());
                     }
                 });
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
+            app.manage(alerts::Alerts::start(app.handle().clone()));
             // the main window starts hidden (tauri.conf.json): the plugin puts it back where it was, then it's shown,
             // so it doesn't flash on the main monitor first. Waits briefly in case the window isn't made yet.
             let handle = app.handle().clone();
@@ -291,17 +363,29 @@ fn main() {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => save_soon(window.app_handle()),
-            tauri::WindowEvent::CloseRequested { api, .. } => {
+            tauri::WindowEvent::CloseRequested { .. } => {
                 if window.label() == "main" && CLOSE_TO_TRAY.load(Ordering::Relaxed) {
-                    api.prevent_close();
-                    // remember where it was before it goes to the tray
-                    let _ = window.app_handle().save_window_state(keep_flags());
-                    let _ = window.hide();
-                    let _ = window.emit("fc-to-tray", ());
+                    // the window closes (and its web view with it); Fullcourt stays in the tray, and the exit that
+                    // closing the last window asks for is turned down below. Remember where it was first.
+                    let app = window.app_handle();
+                    let _ = app.save_window_state(keep_flags());
+                    if let Some(a) = app.try_state::<Arc<alerts::Alerts>>() {
+                        a.set_tray(true);
+                    }
+                    tray_hint(app);
                 }
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Fullcourt");
+        .build(tauri::generate_context!())
+        .expect("error while building Fullcourt")
+        .run(|_app, event| {
+            // closing the last window asks to exit (no code); in tray mode Fullcourt keeps running. Quit and the
+            // updater exit with a code, which always goes through.
+            if let RunEvent::ExitRequested { code: None, api, .. } = &event {
+                if CLOSE_TO_TRAY.load(Ordering::Relaxed) {
+                    api.prevent_exit();
+                }
+            }
+        });
 }

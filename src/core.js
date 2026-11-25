@@ -3593,7 +3593,7 @@ async function toggleAlerts() {
     if (p !== 'granted') { toast('Alerts are blocked for this site in your browser settings'); return; }
     alertsOn = true;
   }
-  lsSet(lsKey('fc-alerts'), alertsOn ? '1' : null);
+  lsSet(lsKey('fc-alerts'), alertsOn ? '1' : null); appAlertSync();
   $$('[data-alerts]').forEach(b => { b.outerHTML = alertBtnHTML(); });
   const who = S.teams[favId]?.short || 'your team', pushed = canPush() ? await pushSync().catch(() => false) : false;
   toast(!alertsOn ? 'Game alerts off' : pushed ? `You'll get alerts when the ${who} tip off, go to overtime, are in a close finish and when it's final, even with Fullcourt closed` : `You'll get alerts when ${who} tips off, goes to overtime, or is in a close finish${IS_APP ? ' while Fullcourt is running' : ' while Fullcourt is open'}`);
@@ -3625,7 +3625,7 @@ function pushPrefs() {
 const pushBets = () => pushOn() && lsGet('fc-push-bets') !== '0' && !IS_APP;
 // a change to your players or bets: tell the alert service, once things settle (only when this device is signed up)
 let pushT = 0;
-function pushSoon() { if (lsGet('fc-push') !== '1' || !canPush()) return; clearTimeout(pushT); pushT = setTimeout(() => { const sig = JSON.stringify(pushPrefs()); if (sig !== lsGet('fc-push-sig')) pushSync().catch(() => {}); }, 2500); }
+function pushSoon() { if (IS_APP) { appAlertSync(); return; } if (lsGet('fc-push') !== '1' || !canPush()) return; clearTimeout(pushT); pushT = setTimeout(() => { const sig = JSON.stringify(pushPrefs()); if (sig !== lsGet('fc-push-sig')) pushSync().catch(() => {}); }, 2500); }
 const b64uBytes = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
 const bytesB64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const pushPost = (what, body) => fetch(`${PUSH_API}/${what}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -3655,6 +3655,19 @@ async function pushSync() {
 }
 // once a day, re-confirm the sign-up (phones renew them now and then, and this keeps the team current)
 if (lsGet('fc-push') === '1') setTimeout(() => { if (Date.now() - (+lsGet('fc-push-at') || 0) > 86400e3) pushSync().catch(() => {}); }, 8000);
+/* Windows app: while the window is closed to the tray (it really closes, to free its memory), the app itself sends
+   the alerts, with the alert service's own rules (desktop/src-tauri/src/alerts.rs). It gets the same choices a phone
+   would: your team in each league, game night, and your open bets. Player alerts stay a phone thing, as in the app's
+   settings; game night holds for its night only. */
+let appAlertSig = '';
+function appAlertSync() {
+  if (!IS_APP || IS_MINI) return;
+  const p = pushPrefs(), gn = lsGet('fc-gn');
+  const sig = JSON.stringify({ teams: p.teams, any: p.any, night: gn || '', players: [], bets: p.bets, want: { players: false, bets: p.want.bets } });
+  if (sig === appAlertSig) return;
+  appAlertSig = sig;
+  appCall('set_alert_prefs', { prefs: JSON.parse(sig) }).catch(() => { appAlertSig = ''; }); // an older app: nothing to tell
+}
 async function notify(title, body, gameId) {
   const opts = { body, tag: `fc-${gameId}`, renotify: true, icon: 'icon-192.png', badge: 'icon-192.png', data: { game: gameId, lg: LG } };
   try {
@@ -3699,9 +3712,9 @@ let alertTimer = 0;
 const gnOn = () => lsGet('fc-gn') === S.today;
 function gnPaint() { $$('[data-gamenight]').forEach(b => { b.setAttribute('aria-pressed', gnOn()); b.classList.toggle('on', gnOn()); }); }
 async function gameNight() {
-  if (gnOn()) { lsSet('fc-gn', null); gnPaint(); toast('Game night off'); return; }
+  if (gnOn()) { lsSet('fc-gn', null); appAlertSync(); gnPaint(); toast('Game night off'); return; }
   if (canNotify() && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) {} }
-  lsSet('fc-gn', S.today); gnPaint();
+  lsSet('fc-gn', S.today); appAlertSync(); gnPaint();
   if (S.view !== 'scores') go('scores');
   // today's board, freshly loaded if you were looking at another day
   const games = S.date === S.today && S.games?.length ? S.games : await scoreboardOn(S.today).catch(() => []);
@@ -3715,7 +3728,7 @@ async function gameNight() {
   alertTick(true);
 }
 async function alertTick(force) {
-  clearTimeout(alertTimer);
+  clearTimeout(alertTimer); appAlertSync(); // also catches a favorite team changed on its page
   if ((alertsOn && favId) || gnOn()) {
     const usingToday = S.date === S.today && Date.now() - S.lastUpdate < 60e3 && !document.hidden;
     if (!usingToday || force) {
@@ -4428,13 +4441,13 @@ function appOpenGame(t) {
 const appCall = (cmd, args) => { try { return window.__TAURI__.core.invoke(cmd, args); } catch (e) { return Promise.reject(e); } };
 if (IS_APP && !IS_MINI) {
   appCall('set_close_to_tray', { on: lsGet('fc-app-tray') !== '0' }).catch(() => {});
+  setTimeout(appAlertSync, 1500); addEventListener('pagehide', appAlertSync);
   try {
     window.__TAURI__.event.listen('fc-nav', e => { location.hash = String(e.payload || '#scores'); });
     // Isle (or anything else) can start the app with --league nba --game 401… to open that game
     window.__TAURI__.event.listen('fc-open', e => appOpenGame(e.payload));
-    setTimeout(() => appCall('launch_target').then(appOpenGame).catch(() => {}), 400);
-    // the first time the window hides to the tray, say so (Windows notification, since the window is gone)
-    window.__TAURI__.event.listen('fc-to-tray', () => { if (lsGet('fc-app-trayseen')) return; lsSet('fc-app-trayseen', '1'); try { window.__TAURI__.notification.sendNotification({ title: 'Fullcourt is still running', body: 'It\'s in the tray by the clock, keeping your bet alerts on. Right-click it to quit. You can turn this off in Settings.' }); } catch (x) {} });
+    // a game to open, or a page (Bet desk from the tray menu) when the window was just opened again from the tray
+    setTimeout(() => appCall('launch_target').then(t => { if (t?.nav && /^#\w{1,20}$/.test(t.nav)) location.hash = t.nav; else appOpenGame(t); }).catch(() => {}), 400);
   } catch (e) {}
   const mb = document.createElement('button');
   mb.className = 'icon-btn mini-btn'; mb.dataset.openmini = ''; mb.title = 'Mini scoreboard: a small always-on-top window'; mb.setAttribute('aria-label', 'Open the mini scoreboard');
