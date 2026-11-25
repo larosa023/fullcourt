@@ -133,12 +133,24 @@ async function gameProps(g) {
   const rows = [...by.values()].filter(e => Number.isFinite(e.line)).map(e => ({ ...e, over: e.odds[0], under: e.odds[1] }));
   // keep the full-game ladder: the one whose rung at the main line is priced like the main over
   const imp = o => o > 0 ? 100 / (o + 100) : -o / (-o + 100);
+  // Only a ladder we can tie to the main line is used: it has a rung at the main line priced within a few points of
+  // the main over. The feed also carries first-quarter and first-half ladders, and once a game starts the full-game
+  // one is pulled; falling back to "the longest ladder left" put a first-quarter "2+ rebounds -124" on the desk as a
+  // full-game 1.5 alt. With no main line, or nothing that matches, there are no alt lines for that player and stat.
   for (const [k, L] of ladders) {
-    const main = rows.find(r => r.pid + '|' + r.k === k), t = main ? Math.floor(main.line) + 1 : null, ov = main ? +main.over : NaN;
-    const withT = t != null && Number.isFinite(ov) ? L.filter(l => l.some(x => x.t === t)) : [];
-    const best = withT.length ? withT.sort((a, b) => Math.abs(imp(a.find(x => x.t === t).o) - imp(ov)) - Math.abs(imp(b.find(x => x.t === t).o) - imp(ov)))[0]
-      : [...L].sort((a, b) => b.at(-1).t - a.at(-1).t || b.length - a.length)[0];
-    if (best?.length) BD.alts.set(k, best.filter(x => Number.isFinite(x.o)));
+    BD.alts.delete(k);
+    const main = rows.find(r => r.pid + '|' + r.k === k); if (!main) continue;
+    const t = Math.floor(main.line) + 1, ov = +main.over; if (!Number.isFinite(ov)) continue;
+    const best = L.filter(l => l.some(x => x.t === t && Number.isFinite(x.o)))
+      .map(l => ({ l, d: Math.abs(imp(l.find(x => x.t === t).o) - imp(ov)) })).filter(c => c.d <= 0.08)
+      .sort((a, b) => a.d - b.d)[0]?.l;
+    if (!best) continue;
+    // and the prices have to get longer as the number goes up. Working out from the main line's rung, a rung that
+    // breaks that is a stray, not a real price, and is dropped
+    const R0 = best.filter(x => Number.isFinite(x.o)).sort((a, b) => a.t - b.t), at = R0.findIndex(x => x.t === t), keep = [R0[at]];
+    for (let i = at - 1, p = imp(R0[at].o); i >= 0; i--) { const q = imp(R0[i].o); if (q >= p - 0.02) { keep.unshift(R0[i]); p = q; } }
+    for (let i = at + 1, p = imp(R0[at].o); i < R0.length; i++) { const q = imp(R0[i].o); if (q <= p + 0.02) { keep.push(R0[i]); p = q; } }
+    BD.alts.set(k, keep);
   }
   BD.lines.set(g.id, { t: Date.now(), rows });
   return rows;
@@ -541,7 +553,7 @@ function bdTable(main, keepScroll, final, soft) {
     // DraftKings' alt lines at those prices. (It used to pass a row when either price fit, so a -231 over stayed in
     // a +150 and up range because its under was +180.)
     const sd = BD.side === 'u' ? 'u' : 'o', alts = [];
-    if (sd === 'o') for (const x of list) { if (x.est || Q1.has(x.k)) continue; for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
+    if (sd === 'o') for (const x of list) { if (x.est || Q1.has(x.k) || (x.g?.state && x.g.state !== 'pre')) continue; /* alt prices are pre-game prices: none once a game has started */ for (const a of BD.alts.get(x.pid + '|' + x.k) || []) if (a.t - 0.5 !== x.line && inOdds(a.o)) { const y = { ...x, line: a.t - 0.5, over: a.o, under: null, alt: true, open: null }; y.st = y.log ? rowStats(y) : null; alts.push(y); } }
     // lines no book prices are judged by their fair price (from his hit rate); ones without one yet stay
     list = list.filter(x => x.est ? x.st?.fair == null || inOdds(x.st.fair) : inOdds(sd === 'u' ? x.under : x.over)).concat(alts);
   }
@@ -1012,7 +1024,7 @@ function bdWire(body) {
   // what the prop detail needs for one row, plus forK so its market picker can jump to this player's other lines
   function pdExtra(x) {
     const pid = String(x.pid), k = x.k;
-    return { pj: projOf(x), pjk: x.k, forK: k2 => { const y = (BD.all || []).find(z => String(z.pid) === pid && z.k === k2 && Number.isFinite(z.line)); return y ? { m: Math.floor(+y.line) + 1, tag: y.est ? (Number.isFinite(y.mkt) ? 'mkt' : 'est') : '', extra: pdExtra(y) } : null; }, r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) };
+    return { pj: projOf(x), pjk: x.k, forK: k2 => { const y = (BD.all || []).find(z => String(z.pid) === pid && z.k === k2 && Number.isFinite(z.line)); return y ? { m: Math.floor(+y.line) + 1, tag: y.est ? (Number.isFinite(y.mkt) ? 'mkt' : 'est') : '', extra: pdExtra(y) } : null; }, r: x.p, g: x.g, opp: x.opp, dr: (() => { const r = defRankOf(x.opp.id); const t = (S.standings?.confs || []).flatMap(c => c.rows).find(z => z.id === x.opp.id); return r ? { rank: r, of: (S.standings?.confs || []).flatMap(c => c.rows).length, opp: parseFloat(t?.opp) } : null; })(), mates: [], alts: x.g?.state && x.g.state !== 'pre' ? null : BD.alts.get(pid + '|' + k) || null, side: BD.side, book: x.est ? null : { line: x.line, over: +x.over, under: +x.under }, gameLabel: `${x.g.away.abbr} @ ${x.g.home.abbr}`, prices: pricesOf(x), peers: (BD.all || []).filter(y => y.k === k && y.log?.length && String(y.pid) !== pid).map(y => ({ pid: String(y.pid), name: y.p.name, abbr: y.p.abbr, line: y.line, log: y.log })), ...(x.log ? { log: x.log } : {}) };
   }
   body.addEventListener('submit', e => { if (e.target.matches('[data-bdsvform]')) { e.preventDefault(); svSave($('[data-bdsvname]', e.target)?.value); } });
   body.addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.matches('[data-bdsvname]')) { e.stopPropagation(); BD.svNaming = false; bdTable($('#bdMain'), true); } });

@@ -1,6 +1,9 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-25a', date: 'Nov 25', items: [
+    ['Alt lines fixed', 'The Bet Desk could show a first-quarter price as a full-game alt line (LeBron 1.5 rebounds at -124) once a game had started. Alt lines now only come from the full-game ladder that matches the main line\'s price, any rung priced out of order is dropped, and alt lines disappear once a game tips off (they\'re pre-game prices).'],
+  ] },
   { id: '2026-11-21b', date: 'Nov 21', items: [
     ['Where they\'re from', 'History has a new Map: where every NBA player since 1946-47 was born, on a world map or the US by state, and every college, with how many players each produced. Filter by team or era (a decade, or players playing now) and tap a place or school for its players. Places too small for the map, like the US Virgin Islands, are listed beside it.'],
     ['More to share', 'Game finder results, career timelines, Similar players and franchise histories now have a share button too. On a computer it copies a picture to paste anywhere; on a phone it opens the share sheet.'],
