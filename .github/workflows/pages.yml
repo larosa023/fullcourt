@@ -15,6 +15,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read
 concurrency: { group: pages, cancel-in-progress: true }
 jobs:
   deploy:
@@ -31,5 +32,16 @@ jobs:
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
+      # GitHub sometimes takes a little while to list a freshly uploaded artifact (after its Nov 25 outage the deploy
+      # step kept finding none): wait until it shows up, up to two minutes
+      - name: Wait for the upload to be listed
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          for i in $(seq 1 24); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" -q '[.artifacts[] | select(.name == "github-pages")] | length' 2>/dev/null || echo 0)
+            [ "$n" -gt 0 ] && { echo "listed after $((i * 5 - 5)) s"; exit 0; }
+            sleep 5
+          done
+          echo "not listed after 2 minutes; trying the deploy anyway"
       - id: deploy
         uses: actions/deploy-pages@v4
