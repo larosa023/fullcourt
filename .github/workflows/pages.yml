@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     environment:
       name: github-pages
-      url: '${{ steps.deploy.outputs.page_url }}'
+      url: '${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}'
     steps:
       - uses: actions/checkout@v4
       - name: Gather the site
@@ -31,5 +31,19 @@ jobs:
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v5
         with: { path: _site }
+      # GitHub's deploy step sometimes can't find the upload it was just given (seen on and off since Nov 25): try
+      # again after 30 seconds, then after 90
       - id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+      - if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+      - if: steps.deploy.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 90
+      - id: deploy3
+        if: steps.deploy.outcome == 'failure' && steps.deploy2.outcome == 'failure'
         uses: actions/deploy-pages@v5
