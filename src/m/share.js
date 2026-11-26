@@ -414,3 +414,35 @@ async function shareSimilar(D) {
   K.foot();
   return { canvas: K.c, name: `${slugOf(D.name)}-similar.png`, title: `Players most like ${D.name}` };
 }
+
+/* ---------------- career highs (Ask) ----------------
+   D = { name, espn, side: 'r'|'p', tiles: [{ l, v, when }], counts: [[n, label]], early } */
+async function shareHighs(D) {
+  const T = D.tiles, cols = 2, TH = 150, rows = Math.ceil(T.length / cols), H = 330 + rows * (TH + 14) + 120 + 140;
+  const K = await canvasKit(H); const { x, C, font, text, fit } = K;
+  await faceAt(K, D.espn, D.name, 150, 190, 78);
+  text(`CAREER HIGHS · ${D.side === 'p' ? 'PLAYOFFS' : 'REGULAR SEASON'}${D.early ? ' · SINCE 2000-01' : ''}`, 256, 150, font(600, 24, 'mono'), C.accent);
+  const nm = D.name.toUpperCase(), px = K.size(nm, 800, null, 84, 44, 740);
+  text(fit(nm, font(800, px), 740), 256, 150 + px + 6, font(800, px), C.ink);
+  const tw = (936 - 14) / cols;
+  T.forEach((t, i) => {
+    const tx = 72 + (i % cols) * (tw + 14), ty = 310 + Math.floor(i / cols) * (TH + 14);
+    x.fillStyle = C.surface; roundRect(x, tx, ty, tw, TH, 22); x.fill();
+    text(t.l.toUpperCase(), tx + 26, ty + 40, font(600, 20, 'mono'), C.muted);
+    text(String(t.v), tx + 26, ty + 112, font(800, 76), C.ink);
+    x.font = font(800, 76); const w = x.measureText(String(t.v)).width;
+    text(fit(t.when, font(500, 20, 'mono'), tw - w - 70), tx + 26 + w + 20, ty + 108, font(500, 20, 'mono'), C.muted);
+  });
+  let cy = 310 + rows * (TH + 14) + 16, cx = 72;
+  for (const [n, l] of D.counts) {
+    const lab = `${Number(n).toLocaleString()}`, sub = l.toUpperCase();
+    x.font = font(800, 40); const w1 = x.measureText(lab).width; x.font = font(500, 19, 'mono'); const w2 = x.measureText(sub).width;
+    const bw = w1 + w2 + 64; if (cx + bw > 1008) break;
+    x.fillStyle = C.surface; roundRect(x, cx, cy, bw, 72, 36); x.fill();
+    text(lab, cx + 26, cy + 50, font(800, 40), C.accent); text(sub, cx + 26 + w1 + 14, cy + 46, font(500, 19, 'mono'), C.muted);
+    cx += bw + 12;
+  }
+  K.foot();
+
+  return { canvas: K.c, name: `${slugOf(D.name)}-career-highs.png`, title: `${D.name}: career highs` };
+}

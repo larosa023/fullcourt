@@ -616,6 +616,12 @@ async function answer(raw) {
   const dd = has(/ double ?doubles? /), td = has(/ triple ?doubles? /);
   // games across every season since 2000-01 ("Knicks 40-point games", "triple-doubles against the Celtics", "Kobe 50 point
   // games", "triple overtime games"): answered from the Game finder's archive, with a button that opens it filled in
+  // career highs ("Draymond Green career highs", "Kobe career high in assists"): a card with his best in every category
+  if (LGK === 'nba' && has(/ career (highs?|bests?|records?) | personal (bests?|records?) /) && !has(/ season highs? | this season /)) {
+    let who = players[0] ? { id: players[0].id, name: players[0].name } : null;
+    if (!who) { const words = nameKey(raw).split(' ').filter(w => w && !STOP.has(w) && !/^(career|high|highs|best|bests|record|records|personal|in|his|her|of|for|what|whats|are|is|the)$/.test(w)); const p = words.length ? await lazy('finder').then(m => m.gfFindPlayer(words)).catch(() => null) : null; if (p) who = { id: p.id, name: p.name }; }
+    if (who) { const focus = ['pts', 'reb', 'ast', 'stl', 'blk', 'tpm', 'ftm'].includes(stat) ? stat : null; return lazy('askhighs').then(m => m.highsAnswer(who.id, who.name, focus)); }
+  }
   if (LGK === 'nba') { const r = await gfAsk({ raw, nn, has, players, teams, minVal, thrStat, td, dd, findTeams }).catch(e => { console.warn('ask finder', e); return null; }); if (r) return r; }
   const st = stat || thrStat;
 

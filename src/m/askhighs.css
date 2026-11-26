@@ -1,0 +1,29 @@
+/* Ask: career highs card */
+.xh { display: grid; gap: 12px; margin-top: 8px; padding: 14px; border-radius: 16px; background: var(--surface-2); }
+.xh-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.xh-h > div:not(.seg) { display: grid; gap: 1px; flex: 1; min-width: 140px; }
+.xh-h b { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 26px; line-height: 1.05; text-transform: uppercase; }
+.xh-f { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: var(--surface); flex: none; display: grid; place-items: center; font-weight: 700; }
+.xh-l { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.xh-g { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.xh-g[hidden] { display: none; }
+.xh-t { display: grid; gap: 6px; align-content: start; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.xh-tg { display: grid; gap: 2px; text-align: left; color: inherit; }
+.xh-t:hover { border-color: color-mix(in oklab, var(--accent) 60%, var(--line)); }
+.xh-t b { font-family: var(--display); font-stretch: 72%; font-weight: 800; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.xh-t small { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.xh-bx { font-size: 11px; font-weight: 650; color: var(--accent); margin-top: 2px; }
+.xh-tg:hover .xh-bx, .xh-po:hover { text-decoration: underline; }
+.xh-po { text-align: left; font-size: 11px; color: var(--accent); padding-top: 6px; border-top: 1px solid var(--line); }
+.xh-t .xh-po b { font-family: inherit; font-stretch: normal; font-size: inherit; line-height: inherit; font-weight: 800; color: inherit; }
+.xh-t.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.xh-t.on b { color: var(--accent); }
+.xh-c { display: flex; flex-wrap: wrap; gap: 8px; }
+.xh-c > div { display: flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--surface); }
+.xh-c b { font-weight: 800; font-variant-numeric: tabular-nums; } .xh-c span { font-size: 12.5px; color: var(--muted); }
+.xh-ft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 11.5px; color: var(--muted); }
+.xh-ft .btn { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 600px) { .xh-g { grid-template-columns: repeat(2, minmax(0, 1fr)); } .xh-seg { width: 100%; } .xh-t b { font-size: 30px; } }
+.xh-ft .btn { white-space: nowrap; flex: none; }
+.xh-ft .btn svg { width: 16px; height: 16px; flex: none; }
+.xh-ft > span { flex: 1 1 220px; }

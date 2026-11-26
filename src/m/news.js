@@ -1,6 +1,10 @@
 /* ---------------- what's new ---------------- */
 // newest first; bump the first entry's id when adding updates so the dot shows again
 const UPDATES = [
+  { id: '2026-11-26a', date: 'Nov 26', items: [
+    ['Career highs in Ask', 'Ask "Draymond Green career highs" (or any player\'s) for a card with his best in every category: points, rebounds, assists, steals, blocks, threes, field goals and free throws, regular season like Basketball-Reference counts them, with a Playoffs switch and his playoff high noted when it\'s bigger. Tap any one to open that game\'s box score. Triple-doubles, double-doubles and games are counted too, and the card copies or shares as a picture.'],
+    ['Missing games filled in', 'ESPN has no box score numbers for about one game in eight from 2012-13 to 2017-18. Those games are now filled in from Basketball-Reference, so the Game finder, career timelines and career highs count them.'],
+  ] },
   { id: '2026-11-25a', date: 'Nov 25', items: [
     ['Alt lines fixed', 'The Bet Desk could show a first-quarter price as a full-game alt line (LeBron 1.5 rebounds at -124) once a game had started. Alt lines now only come from the full-game ladder that matches the main line\'s price, any rung priced out of order is dropped, and alt lines disappear once a game tips off (they\'re pre-game prices).'],
   ] },
