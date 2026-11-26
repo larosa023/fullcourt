@@ -39,12 +39,61 @@ const COLS = ['g', 'p', 't', 's', 'min', 'pts', 'reb', 'ast', 'stl', 'blk', 'tov
 const LABEL = { MIN: 'min', PTS: 'pts', REB: 'reb', AST: 'ast', STL: 'stl', BLK: 'blk', TO: 'tov', OREB: 'oreb', PF: 'pf', '+/-': 'pm' };
 const int = v => { const n = parseInt(String(v ?? '').replace('+', ''), 10); return Number.isFinite(n) ? n : 0; };
 
+// ---- box scores ESPN has empty ----
+// For about one game in eight from 2012-13 to 2017-18 (and a handful elsewhere) ESPN lists both teams' players with no
+// numbers at all, in every one of its feeds. Those games are filled from Basketball-Reference's box score page (one
+// page every ~4 s, about 75 minutes once; a season remembers the games it tried in `bf`, so each is fetched once).
+// Players are matched to ESPN by the careers data's id map, then by name within ESPN's roster for the game.
+const BRX = 'https://www.basketball-reference.com', brSleep = ms => new Promise(r => setTimeout(r, ms));
+const BR_CODE = (ab, y) => ({ GS: 'GSW', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', UTA: 'UTA', WSH: 'WAS', PHX: 'PHO', BKN: 'BRK', NJ: 'NJN', SEA: 'SEA', VAN: 'VAN', NO: y >= 2014 ? 'NOP' : y >= 2006 && y <= 2007 ? 'NOK' : 'NOH', NOK: 'NOK', CHA: y >= 2015 ? 'CHO' : y <= 2002 ? 'CHH' : 'CHA', OKC: 'OKC' }[ab] || ab);
+const bfold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\b(jr|sr|ii|iii|iv)\b\.?/gi, '').replace(/[^a-z ]/gi, '').toLowerCase().replace(/\s+/g, ' ').trim();
+let BR2ESPN = null;
+async function fillGaps(S) {
+  const G = S.games, R = S.r, P = S.players, tried = new Set(S.bf || []);
+  const seen = new Set(); for (let i = 0; i < R.g.length; i++) seen.add(R.g[i] * 2 + R.t[i]);
+  const gaps = G.id.map((_, gi) => gi).filter(gi => (!seen.has(gi * 2) || !seen.has(gi * 2 + 1)) && !tried.has(G.id[gi]));
+  if (!gaps.length) return 0;
+  if (!BR2ESPN) { BR2ESPN = {}; const ids = await get('https://raw.githubusercontent.com/larosa023/fullcourt/careers-data/ids.json').catch(() => null); for (const [e, br] of Object.entries(ids?.espn || {})) BR2ESPN[br] = e; }
+  const pIx = new Map(P.id.map((id, i) => [String(id), i])); let filled = 0;
+  for (const gi of gaps) {
+    S.bf = [...(S.bf || []), G.id[gi]];
+    const ab = id => S.teams[id]?.[0] || '', hb = BR_CODE(ab(G.h[gi]), S.y), d = G.d[gi];
+    // ESPN's roster for the game (names and ids, even when the numbers are blank)
+    const sum = await get(`${E}/summary?event=${G.id[gi]}`).catch(() => null);
+    const roster = {}; for (const tb of sum?.boxscore?.players || []) for (const a of tb.statistics?.[0]?.athletes || []) roster[bfold(a.athlete?.displayName)] = { id: String(a.athlete?.id), name: a.athlete?.displayName, team: String(tb.team?.id) };
+    let html = null; try { const r = await fetch(`${BRX}/boxscores/${d}0${hb}.html`, { headers: { 'user-agent': UA } }); if (r.ok) html = await r.text(); else console.log('box score', d, hb, r.status); } catch (e) { console.log('box score', d, hb, e.message); }
+    await brSleep(4200);
+    if (!html) continue;
+    html = html.replace(/<!--([\s\S]*?)-->/g, '$1');
+    let got = 0;
+    for (const side of [0, 1]) {
+      const tid = side ? G.a[gi] : G.h[gi]; if (seen.has(gi * 2 + side)) continue;
+      const code = BR_CODE(ab(tid), S.y), i0 = html.indexOf(`id="box-${code}-game-basic"`); if (i0 < 0) { console.log('no table', code, d); continue; }
+      const tb = html.slice(i0, html.indexOf('</table>', i0));
+      let starters = 0;
+      for (const row of tb.split(/<tr/).slice(1)) {
+        const br = row.match(/\/players\/[a-z]\/([a-z0-9]+)\.html/)?.[1]; if (!br || /data-stat="reason"/.test(row)) { if (/Reserves/.test(row)) starters = 99; continue; }
+        const cell = k => (row.match(new RegExp(`data-stat="${k}"[^>]*>([^<]*)<`)) || [])[1] || '';
+        const name = (row.match(/\.html">([^<]+)</) || [])[1] || '';
+        const e = BR2ESPN[br] || roster[bfold(name)]?.id; if (!e) { console.log('no ESPN id for', name, d); continue; }
+        let pi = pIx.get(e); if (pi == null) { pi = P.id.length; P.id.push(+e); P.n.push(roster[bfold(name)]?.name || name); pIx.set(e, pi); }
+        const n = k => parseInt(cell(k), 10) || 0, mp = cell('mp'), min = mp.includes(':') ? Math.round(+mp.split(':')[0] + +mp.split(':')[1] / 60) : n('mp');
+        const v = { g: gi, p: pi, t: side, s: starters++ < 5 ? 1 : 0, min, pts: n('pts'), reb: n('trb'), ast: n('ast'), stl: n('stl'), blk: n('blk'), tov: n('tov'), fgm: n('fg'), fga: n('fga'), tpm: n('fg3'), tpa: n('fg3a'), ftm: n('ft'), fta: n('fta'), oreb: n('orb'), pf: n('pf'), pm: parseInt(cell('plus_minus').replace('+', ''), 10) || 0 };
+        for (const k of COLS) R[k].push(v[k] ?? 0); got++;
+      }
+    }
+    if (got) filled++;
+  }
+  console.log(S.y, 'filled', filled, 'of', gaps.length, 'empty box scores from Basketball-Reference');
+  return filled;
+}
+
 async function season(Y) {
   const file = `${OUT}/gl/${Y}.json`;
   const old = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
   // v2 takes overtimes from the schedule (the game summary doesn't say) and marks seasons ESPN has no plus-minus for;
   // an older finished season is brought up to date from the schedule alone
-  if (old?.done && Y < CUR && old.v >= 2) { console.log(Y, 'kept'); return old; }
+  if (old?.done && Y < CUR && old.v >= 2) { const n = await fillGaps(old); if (n) writeFileSync(file, JSON.stringify(old)); console.log(Y, 'kept', n ? `(${n} empty box scores filled)` : ''); return old; }
   // the game list: every team's schedule (regular season, playoffs, play-in)
   const sched = new Map();
   await pool(TEAMS.flatMap(t => [2, 3, 5].map(st => [t, st])), 6, async ([t, st]) => {
@@ -107,7 +156,8 @@ async function season(Y) {
   const done = Y < CUR && sched.size > 0 && G.id.length >= sched.size;
   // ESPN has plus-minus from 2007-08; before that every line says 0
   const nopm = R.pm.length > 0 && R.pm.every(v => v === 0);
-  const out = { v: 2, y: Y, done, nopm, cols: COLS, teams, games: G, players: P, r: R, dnp };
+  const out = { v: 2, y: Y, done, nopm, cols: COLS, teams, games: G, players: P, r: R, dnp, bf: old?.bf || [] };
+  await fillGaps(out);
   writeFileSync(file, JSON.stringify(out));
   console.log(Y, 'wrote', G.id.length, 'games,', R.g.length, 'player lines', done ? '(final)' : '');
   return out;
