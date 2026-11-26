@@ -153,6 +153,17 @@ for (let Y = FIRST; Y <= LAST; Y++) {
       const tens = [pts, reb, ast, stl, blk].filter(v => v >= 10).length, k = P.id[R.p[i]];
       if (tens >= 3 || pts >= 40) { const c = (T.cnt[k] ||= { n: P.n[R.p[i]], td: 0, p40: 0 }); if (tens >= 3) c.td++; if (pts >= 40) c.p40++; } }
     keep(b, 'pts', pts, info, 3); keep(b, 'reb', reb, info); keep(b, 'ast', ast, info); keep(b, 'stl', stl, info); keep(b, 'blk', blk, info); keep(b, 'tpm', R.tpm[i], info);
+    // career highs the way Basketball-Reference counts them: regular season (h.r) and playoffs (h.p) apart, play-in in
+    // neither; plus Game Score, John Hollinger's one-number rating of a box-score line
+    {
+      const st = G.st[gi], side = st === 2 ? 'r' : st === 3 ? 'p' : null;
+      if (side) {
+        const H = ((b.h ||= { r: {}, p: {} })[side]), oreb = R.oreb[i], gs = Math.round((pts + 0.4 * R.fgm[i] - 0.7 * R.fga[i] - 0.4 * (R.fta[i] - R.ftm[i]) + 0.7 * oreb + 0.3 * (reb - oreb) + stl + 0.7 * ast + 0.7 * blk - 0.4 * R.pf[i] - R.tov[i]) * 10) / 10;
+        for (const [k, v] of [['pts', pts], ['reb', reb], ['ast', ast], ['stl', stl], ['blk', blk], ['tpm', R.tpm[i]], ['fgm', R.fgm[i]], ['ftm', R.ftm[i]], ['gs', gs]]) keep(H, k, v, info);
+        if (side === 'r') { const t10 = [pts, reb, ast, stl, blk].filter(v => v >= 10).length; if (t10 >= 3) c.tdR = (c.tdR || 0) + 1; if (t10 >= 2) c.ddR = (c.ddR || 0) + 1; c.gpR = (c.gpR || 0) + 1; }
+        else c.gpP = (c.gpP || 0) + 1;
+      }
+    }
     if (pts >= 30) c.p30 = (c.p30 || 0) + 1; if (pts >= 40) c.p40 = (c.p40 || 0) + 1; if (pts >= 50) c.p50 = (c.p50 || 0) + 1;
     const tens = [pts, reb, ast, stl, blk].filter(v => v >= 10).length;
     if (tens >= 2) c.dd = (c.dd || 0) + 1; if (tens >= 3) c.td = (c.td || 0) + 1;
