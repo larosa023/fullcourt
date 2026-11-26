@@ -28,31 +28,45 @@ const out = { updated: new Date().toISOString(), ok: true, data: [], jobs: [], e
 const add = (list, name, ok, note = '', extra = {}) => { out[list].push({ name, ok, note, ...extra }); if (!ok) out.ok = false; };
 const ago = h => h < 1 ? `${Math.round(h * 60)} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
 
+// start a job now (each job is started at most once per health run)
+const started = new Set();
+async function restart(job) {
+  if (!TOKEN) return '';
+  if (started.has(job)) return ' · restarted it';
+  try {
+    const r = await ghApi(`/actions/workflows/${job}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main' }), headers: { 'content-type': 'application/json' } });
+    if (r.status === 204) { started.add(job); return ' · restarted it'; }
+    return ` · couldn't restart it (HTTP ${r.status})`;
+  } catch (e) { return ` · couldn't restart it (${e.message})`; }
+}
+
 // ---------- data branches ----------
 const DATA = [
-  { name: 'Odds (prop lines)', file: 'odds-data/odds.json', maxH: 30, when: nbaOn, ok: d => Array.isArray(d.events) },
-  { name: 'Highlights', file: 'yt-data/highlights.json', maxH: 3, ok: d => d.games && typeof d.games === 'object' },
-  { name: 'Salary cap', file: 'cap-data/contracts.json', maxH: 8 * 24, ok: d => Object.keys(d.seasons || d.teams || {}).length > 0 },
-  { name: 'History (NBA)', file: 'hist-data/history.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.legends || {}).length > 50 },
-  { name: 'History (WNBA)', file: 'hist-data/history-wnba.json', maxH: 15 * 24, ok: d => Object.keys(d.legends || {}).length > 10 },
-  { name: 'Mock Draft', file: 'draft-data/draft.json', maxH: 30, ok: d => (d.nba?.prospects?.length || 0) > 30 && (d.nba?.order?.length || 0) >= 30 },
-  { name: 'Nicknames', file: 'nick-data/nicknames.json', maxH: 30, ok: d => Object.keys(d.players || {}).length > 200 },
-  { name: 'Game logs (Game finder)', file: 'gamelog-data/players.json', maxH: 30, ok: d => (d.players?.length || 0) > 2000 },
-  { name: 'Birthplaces and colleges (History map)', file: 'origins-data/origins.json', maxH: 8 * 24 + 6, ok: d => (d.players?.length || 0) > 4000 },
-  { name: 'Franchise histories', file: 'careers-data/franchises.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.teams || {}).length === 30 },
-  { name: 'Team records', file: 'gamelog-data/teams.json', maxH: 30, ok: d => Object.keys(d.teams || {}).length >= 30 },
-  { name: 'Careers (timeline, similar players)', file: 'careers-data/vec.json', maxH: 8 * 24 + 6, ok: d => (d.rows?.length || 0) > 15000 && (d.names?.length || 0) > 4000 },
-  { name: 'Coaches', file: 'coach-data/coaches.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.nba?.teams || {}).length >= 25 },
-  { name: 'Bracketology', file: 'march-data/march.json', maxH: 26, when: M >= 11 || M <= 3, ok: d => (d.ncaam?.teams?.length || 0) > 300 && (!d.ncaam.active || !!d.ncaam.bracket) },
-  { name: 'Game win chances', file: 'sim-data/wp.json', maxH: 8, when: nbaOn, ok: d => !nbaOn || Object.keys(d.nba || {}).length > 0 },
-  { name: 'Playoff odds', file: 'sim-data/sim.json', maxH: 8, ok: d => (d.nba?.teams?.length || 0) === 30 && (!d.nba.games?.length || !!d.nba.odds) },
+  { name: 'Odds (prop lines)', job: 'odds.yml', file: 'odds-data/odds.json', maxH: 30, when: nbaOn, ok: d => Array.isArray(d.events) },
+  { name: 'Highlights', job: 'yt.yml', file: 'yt-data/highlights.json', maxH: 3, ok: d => d.games && typeof d.games === 'object' },
+  { name: 'Salary cap', job: 'cap.yml', file: 'cap-data/contracts.json', maxH: 8 * 24, ok: d => Object.keys(d.seasons || d.teams || {}).length > 0 },
+  { name: 'History (NBA)', job: 'hist.yml', file: 'hist-data/history.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.legends || {}).length > 50 },
+  { name: 'History (WNBA)', job: 'hist.yml', file: 'hist-data/history-wnba.json', maxH: 15 * 24, ok: d => Object.keys(d.legends || {}).length > 10 },
+  { name: 'Mock Draft', job: 'draft.yml', file: 'draft-data/draft.json', maxH: 30, ok: d => (d.nba?.prospects?.length || 0) > 30 && (d.nba?.order?.length || 0) >= 30 },
+  { name: 'Nicknames', job: 'nick.yml', file: 'nick-data/nicknames.json', maxH: 30, ok: d => Object.keys(d.players || {}).length > 200 },
+  { name: 'Game logs (Game finder)', job: 'gamelogs.yml', file: 'gamelog-data/players.json', maxH: 30, ok: d => (d.players?.length || 0) > 2000 },
+  { name: 'Birthplaces and colleges (History map)', job: 'origins.yml', file: 'origins-data/origins.json', maxH: 8 * 24 + 6, ok: d => (d.players?.length || 0) > 4000 },
+  { name: 'Franchise histories', job: 'careers.yml', file: 'careers-data/franchises.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.teams || {}).length === 30 },
+  { name: 'Team records', job: 'gamelogs.yml', file: 'gamelog-data/teams.json', maxH: 30, ok: d => Object.keys(d.teams || {}).length >= 30 },
+  { name: 'Careers (timeline, similar players)', job: 'careers.yml', file: 'careers-data/vec.json', maxH: 8 * 24 + 6, ok: d => (d.rows?.length || 0) > 15000 && (d.names?.length || 0) > 4000 },
+  { name: 'Coaches', job: 'coach.yml', file: 'coach-data/coaches.json', maxH: 8 * 24 + 6, ok: d => Object.keys(d.nba?.teams || {}).length >= 25 },
+  { name: 'Bracketology', job: 'march.yml', file: 'march-data/march.json', maxH: 26, when: M >= 11 || M <= 3, ok: d => (d.ncaam?.teams?.length || 0) > 300 && (!d.ncaam.active || !!d.ncaam.bracket) },
+  { name: 'Game win chances', job: 'sim.yml', file: 'sim-data/wp.json', maxH: 8, when: nbaOn, ok: d => !nbaOn || Object.keys(d.nba || {}).length > 0 },
+  { name: 'Playoff odds', job: 'sim.yml', file: 'sim-data/sim.json', maxH: 8, ok: d => (d.nba?.teams?.length || 0) === 30 && (!d.nba.games?.length || !!d.nba.odds) },
 ];
 for (const D of DATA) {
   try {
     const d = await json(`${RAW}/${D.file}?t=${now}`), h = (now - Date.parse(d.updated)) / 3600e3;
     if (!d.updated || isNaN(h)) { add('data', D.name, false, 'no "updated" time in the file'); continue; }
     const shape = D.ok(d), stale = D.when !== false && h > D.maxH;
-    add('data', D.name, shape && !stale, !shape ? `updated ${ago(h)} but the file looks incomplete` : stale ? `stale: last updated ${ago(h)} (expected every ${D.maxH < 48 ? D.maxH + ' h' : Math.round(D.maxH / 24) + ' days'})` : `updated ${ago(h)}`, { at: d.updated });
+    // GitHub sometimes skips scheduled runs for hours: start the job behind stale data instead of just reporting it
+    const restarted = stale && D.job ? await restart(D.job) : '';
+    add('data', D.name, shape && !stale, !shape ? `updated ${ago(h)} but the file looks incomplete` : stale ? `stale: last updated ${ago(h)} (expected every ${D.maxH < 48 ? D.maxH + ' h' : Math.round(D.maxH / 24) + ' days'})${restarted}` : `updated ${ago(h)}`, { at: d.updated });
   } catch (e) { add('data', D.name, false, `couldn't read ${D.file}: ${e.message}`); }
 }
 
@@ -82,7 +96,8 @@ try {
     if (/watchdog\.yml$/.test(w.path)) { // the watchdog itself: it should have run in the last three hours
       if (!runs.length) continue; // just added, not due yet
       const last = runs.find(x => x.conclusion === 'success'), h = last ? (now - Date.parse(last.updated_at)) / 3600e3 : Infinity;
-      add('jobs', w.name, h <= 3, last ? `last ran ${ago(h)}` : 'has not run yet', h <= 3 ? {} : { url: `https://github.com/${REPO}/actions/workflows/watchdog.yml` });
+      const rs = h > 3 ? await restart('watchdog.yml') : '';
+      add('jobs', w.name, h <= 3, (last ? `last ran ${ago(h)}` : 'has not run yet') + rs, h <= 3 ? {} : { url: `https://github.com/${REPO}/actions/workflows/watchdog.yml` });
       continue;
     }
     const r = runs.find(x => !['cancelled', 'skipped'].includes(x.conclusion)); if (!r) continue;

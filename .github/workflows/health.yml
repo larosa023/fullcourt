@@ -15,7 +15,7 @@ on:
 permissions:
   contents: write
   issues: write
-  actions: read
+  actions: write # read the jobs, and start one whose data has gone stale
 concurrency: { group: health, cancel-in-progress: false }
 jobs:
   check:

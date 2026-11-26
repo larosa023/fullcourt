@@ -30,6 +30,7 @@ jobs:
         env: { SGO_KEY: "${{ secrets.SGO_KEY }}" }
         run: node src/tools/odds.mjs odds.json
       - name: Save to odds-data
+        if: hashFiles('odds.json') != ''
         run: |
           mkdir pub && cd pub && git init -q && git checkout -q --orphan odds-data
           cp ../odds.json ../links.json .

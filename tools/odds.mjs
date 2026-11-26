@@ -65,7 +65,9 @@ for (const e of events) {
   out.events.push(ev);
   links.events.push(lk);
 }
-if (!out.events.length) { console.log('no games with lines in the window; keeping the last file'); process.exit(1); }
+// no games (Thanksgiving, the All-Star break, the offseason): nothing to publish, which isn't a failure; the workflow
+// publishes only when odds.json was written, so the last file stays up
+if (!out.events.length) { console.log('no games with lines in the window; keeping the last file'); process.exit(0); }
 // which player-prop markets the feed actually had (mapped or not), to see what's on offer
 const seen = {}; for (const e of events) for (const o of Object.values(e.odds || {})) if (o.playerID && o.periodID === 'game' && o.betTypeID === 'ou' && o.sideID === 'over') { const s = (seen[o.statID] ||= { props: 0, books: new Set() }); s.props++; Object.keys(o.byBookmaker || {}).forEach(b => s.books.add(b)); }
 console.log('markets in feed:', Object.entries(seen).map(([k, v]) => `${k} ${v.props} (${[...v.books].join(',')})`).join(' | '));
