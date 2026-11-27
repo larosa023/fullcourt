@@ -52,4 +52,12 @@ for (const l of cant) console.log('NOT FIXED:', l);
 if (!did.length && !cant.length) console.log(`all quiet: ${newest.size} workflows checked from ${ME}`);
 // something this couldn't fix: run the health check now (on this machine type) so the issue is opened within minutes
 if (cant.length) { try { post('/actions/workflows/health.yml/dispatches', { ref: 'main', 'inputs[runner]': ME }); console.log('health check started'); } catch (e) { console.log('could not start the health check:', String(e.message).split('\n')[0]); } }
+// GitHub sometimes skips scheduled runs for many hours: if the health check (due every 6 hours) hasn't run in 8,
+// start it, so it can restart whatever else fell behind
+if (!FIX && !cant.length) {
+  try {
+    const h = gh('/actions/workflows/health.yml/runs?per_page=1').workflow_runs?.[0];
+    if (!h || mins(h.created_at) > 8 * 60) { post('/actions/workflows/health.yml/dispatches', { ref: 'main', 'inputs[runner]': ME }); console.log(`health check last started ${h ? Math.round(mins(h.created_at) / 60) + ' h' : 'never'} ago: started it`); }
+  } catch (e) { console.log('could not check the health job:', String(e.message).split('\n')[0]); }
+}
 if (FIX) console.log(JSON.stringify({ did, cant }));

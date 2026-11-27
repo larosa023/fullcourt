@@ -28,6 +28,18 @@ const out = { updated: new Date().toISOString(), ok: true, data: [], jobs: [], e
 const add = (list, name, ok, note = '', extra = {}) => { out[list].push({ name, ok, note, ...extra }); if (!ok) out.ok = false; };
 const ago = h => h < 1 ? `${Math.round(h * 60)} min ago` : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} days ago`;
 
+// the previous report: a job this check restarted last time and that is still behind now is a real problem
+const prev = await (async () => { try { const r = await ghApi('/contents/health.json?ref=health-data', { headers: { accept: 'application/vnd.github.raw' } }); return r.ok ? await r.json() : null; } catch (e) { return null; } })();
+const prevRestart = (list, name) => { const x = (prev?.[list] || []).find(y => y.name === name); return x?.restarted ? Date.parse(x.restarted) : 0; };
+// stale and restarted: fine for now (GitHub skips scheduled runs, the restart catches it up). Stale again after a
+// restart that had time to finish: a problem, and it's restarted again.
+function behind(list, name, why, rs, extra = {}) {
+  const was = prevRestart(list, name), stuck = was && now - was > 45 * 60e3;
+  const fixed = / · restarted it$/.test(rs);
+  add(list, name, fixed && !stuck, stuck ? `${why}, still behind after restarting it ${ago((now - was) / 3600e3)}${rs ? rs.replace(' · restarted it', ' · restarted it again') : ''}` : why + rs,
+    fixed ? { ...extra, restarted: new Date(was || now).toISOString() } : extra);
+}
+
 // start a job now (each job is started at most once per health run)
 const started = new Set();
 async function restart(job) {
@@ -65,8 +77,9 @@ for (const D of DATA) {
     if (!d.updated || isNaN(h)) { add('data', D.name, false, 'no "updated" time in the file'); continue; }
     const shape = D.ok(d), stale = D.when !== false && h > D.maxH;
     // GitHub sometimes skips scheduled runs for hours: start the job behind stale data instead of just reporting it
-    const restarted = stale && D.job ? await restart(D.job) : '';
-    add('data', D.name, shape && !stale, !shape ? `updated ${ago(h)} but the file looks incomplete` : stale ? `stale: last updated ${ago(h)} (expected every ${D.maxH < 48 ? D.maxH + ' h' : Math.round(D.maxH / 24) + ' days'})${restarted}` : `updated ${ago(h)}`, { at: d.updated });
+    if (!shape) { add('data', D.name, false, `updated ${ago(h)} but the file looks incomplete`, { at: d.updated }); continue; }
+    if (!stale) { add('data', D.name, true, `updated ${ago(h)}`, { at: d.updated }); continue; }
+    behind('data', D.name, `stale: last updated ${ago(h)} (expected every ${D.maxH < 48 ? D.maxH + ' h' : Math.round(D.maxH / 24) + ' days'})`, D.job ? await restart(D.job) : '', { at: d.updated });
   } catch (e) { add('data', D.name, false, `couldn't read ${D.file}: ${e.message}`); }
 }
 
@@ -78,7 +91,20 @@ try {
   const colAt = L => newest(Object.values(d[L] || {}).flatMap(g => ['full', 'cond', 'ext', 'hl'].map(k => g[k]?.at)));
   const wAt = colAt('ncaaw'), mAt = colAt('ncaam'), wnbaAt = newest(Object.values(d.wnba || {}).map(g => g.fgh?.at));
   const how = d.api ? 'YouTube API' : 'public feeds (the YouTube API key isn\'t working)';
-  if (nbaOn) { const h = (now - nbaAt) / 3600e3; add('data', 'NBA game videos', h <= 36, nbaAt ? `newest video ${ago(h)} · via ${how}` : `none found · via ${how}`); }
+  if (nbaOn) {
+    // days without games (Thanksgiving, the All-Star break) mean no new videos: missing only when a game that finished
+    // more than 12 hours ago (started 15+ h ago) is newer than the newest video
+    let missing = null;
+    try {
+      const day = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).replace(/-/g, '');
+      const evs = [];
+      for (const k of [3, 2, 1, 0]) evs.push(...((await json(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${day(now - k * 864e5)}`)).events || []));
+      const due = evs.filter(e => e.status?.type?.completed && now - Date.parse(e.date) > 15 * 3600e3).map(e => Date.parse(e.date));
+      missing = due.some(t => t > nbaAt);
+    } catch (e) {}
+    const h = (now - nbaAt) / 3600e3;
+    add('data', 'NBA game videos', missing === null ? h <= 36 : !missing, nbaAt ? `newest video ${ago(h)}${missing === false && h > 36 ? ' (no games since)' : ''} · via ${how}` : `none found · via ${how}`);
+  }
   if (M >= 6 && M <= 9) { const h = (now - wnbaAt) / 3600e3; add('data', 'WNBA game videos', h <= 72, wnbaAt ? `newest video ${ago(h)} · via ${how}` : `none found · via ${how}`); }
   if (M >= 11 || M <= 3) for (const [nm, at] of [["Women's college game videos", wAt], ["Men's college game videos", mAt]]) { const h = (now - at) / 3600e3; add('data', nm, h <= 96, at ? `newest video ${ago(h)} · via ${how}` : `none found · via ${how}`); }
 } catch (e) { add('data', 'Game videos', false, `couldn't read the highlights file: ${e.message}`); }
@@ -96,8 +122,8 @@ try {
     if (/watchdog\.yml$/.test(w.path)) { // the watchdog itself: it should have run in the last three hours
       if (!runs.length) continue; // just added, not due yet
       const last = runs.find(x => x.conclusion === 'success'), h = last ? (now - Date.parse(last.updated_at)) / 3600e3 : Infinity;
-      const rs = h > 3 ? await restart('watchdog.yml') : '';
-      add('jobs', w.name, h <= 3, (last ? `last ran ${ago(h)}` : 'has not run yet') + rs, h <= 3 ? {} : { url: `https://github.com/${REPO}/actions/workflows/watchdog.yml` });
+      if (h <= 3) add('jobs', w.name, true, `last ran ${ago(h)}`);
+      else behind('jobs', w.name, last ? `last ran ${ago(h)}` : 'has not run yet', await restart('watchdog.yml'), { url: `https://github.com/${REPO}/actions/workflows/watchdog.yml` });
       continue;
     }
     const r = runs.find(x => !['cancelled', 'skipped'].includes(x.conclusion)); if (!r) continue;
